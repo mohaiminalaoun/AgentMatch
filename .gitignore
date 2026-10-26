@@ -1,2 +1,6 @@
 steps.md
 readme-inprogress.md
+node_modules/
+.env
+runs/
+.DS_Store

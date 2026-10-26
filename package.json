@@ -1,0 +1,33 @@
+{
+	"name": "agent-match",
+	"version": "1.0.0",
+	"description": "A network of personal AI agents that form teams on behalf of their humans.",
+	"scripts": {
+		"test": "vitest run",
+		"start": "tsx src/index.ts",
+		"typecheck": "tsc --noEmit",
+		"test:watch": "vitest",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mohaiminalaoun/AgentMatch.git"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "UNLICENSED",
+	"bugs": {
+		"url": "https://github.com/mohaiminalaoun/AgentMatch/issues"
+	},
+	"homepage": "https://github.com/mohaiminalaoun/AgentMatch#readme",
+	"type": "module",
+	"private": true,
+	"devDependencies": {
+		"@types/node": "^22.20.5",
+		"prettier": "^3.9.10",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	}
+}
