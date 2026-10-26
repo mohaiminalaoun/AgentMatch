@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `npm test`: run all tests once (Vitest)
-- `npx vitest run src/engine/profile.test.ts`: run one test file; add `-t "<test name>"` to run one test
+- `npx vitest run tests/engine/profile.test.ts`: run one test file; add `-t "<test name>"` to run one test
 - `npm run test:watch`: run tests in watch mode
 - `npm run typecheck`: type-check with `tsc --noEmit` (nothing is emitted; code runs through `tsx`)
 - `npm start`: run `src/index.ts` with `tsx`
@@ -21,7 +21,7 @@ The code lives in `src/` in three areas:
 - `src/evaluation`: synthetic profiles, non-LLM baselines, and metrics (team quality, privacy leakage).
 - `src/ui`: an Ink terminal UI that renders engine events.
 
-Domain types are zod schemas, and each TypeScript type comes from its schema with `z.infer`, using the same name (`export const Profile = z.object(...)` and `export type Profile = z.infer<typeof Profile>`). Validate any untrusted data, including LLM output, against these schemas. Tests sit next to the code they test as `*.test.ts`.
+Domain types are zod schemas, and each TypeScript type comes from its schema with `z.infer`, using the same name (`export const Profile = z.object(...)` and `export type Profile = z.infer<typeof Profile>`). Validate any untrusted data, including LLM output, against these schemas. Tests live in `tests/`, which mirrors the `src/` layout (`src/engine/profile.ts` → `tests/engine/profile.test.ts`). Shared test data goes in `tests/fixtures.ts`.
 
 ## Conventions
 
