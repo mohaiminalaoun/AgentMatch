@@ -1,14 +1,24 @@
 import { describe, expect, test } from "vitest";
 import type { Profile } from "../../src/engine/profile.js";
 import { createRng } from "../../src/engine/random.js";
-import { randomMatching } from "../../src/evaluation/baselines.js";
+import {
+	greedyMatching,
+	randomMatching,
+} from "../../src/evaluation/baselines.js";
 import { generateProfiles } from "../../src/evaluation/profiles.js";
+import { scoreTeam } from "../../src/evaluation/quality.js";
+import { person } from "../fixtures.js";
 
 const profiles = generateProfiles(40, 42);
 
 // Member ids per team, for comparing groupings without the full profiles.
 function ids(teams: Profile[][]): string[][] {
 	return teams.map((team) => team.map((p) => p.id));
+}
+
+// The mean score across all teams in a grouping.
+function averageScore(teams: Profile[][]): number {
+	return teams.reduce((sum, team) => sum + scoreTeam(team), 0) / teams.length;
 }
 
 describe("randomMatching", () => {
@@ -54,5 +64,61 @@ describe("randomMatching", () => {
 
 	test("a team size below 2 throws", () => {
 		expect(() => randomMatching(profiles, createRng(1), 1)).toThrow();
+	});
+});
+
+describe("greedyMatching", () => {
+	test("everyone is placed in exactly one team", () => {
+		const placed = ids(greedyMatching(profiles)).flat();
+		expect(placed.sort()).toEqual(profiles.map((p) => p.id).sort());
+	});
+
+	test("40 people make 13 teams of 3 or 4, like random matching", () => {
+		const teams = greedyMatching(profiles);
+		expect(teams).toHaveLength(13);
+		expect(teams.every((t) => t.length === 3 || t.length === 4)).toBe(true);
+	});
+
+	test("leftovers spread like random dealing when teams are few", () => {
+		const sizes = (teams: Profile[][]) => teams.map((t) => t.length).sort();
+		const five = profiles.slice(0, 5);
+		expect(sizes(greedyMatching(five))).toEqual(
+			sizes(randomMatching(five, createRng(1))),
+		);
+	});
+
+	test("the same input always gives the same teams", () => {
+		expect(ids(greedyMatching(profiles))).toEqual(
+			ids(greedyMatching(profiles)),
+		);
+	});
+
+	test("finds two obvious teams even when the list is interleaved", () => {
+		const role = (name: string) => [{ name, level: "expert" as const }];
+		const people = [
+			person("climate-fe", role("frontend"), ["climate"], -5),
+			person("music-fe", role("frontend"), ["music"], 8),
+			person("climate-be", role("backend"), ["climate"], -5),
+			person("music-be", role("backend"), ["music"], 8),
+			person("climate-de", role("design"), ["climate"], -5),
+			person("music-de", role("design"), ["music"], 8),
+		];
+		const teams = ids(greedyMatching(people)).map((t) => t.sort());
+		expect(teams).toEqual([
+			["climate-be", "climate-de", "climate-fe"],
+			["music-be", "music-de", "music-fe"],
+		]);
+	});
+
+	test("beats random matching on average", () => {
+		const randomAverage =
+			[1, 2, 3, 4, 5]
+				.map((seed) =>
+					averageScore(randomMatching(profiles, createRng(seed))),
+				)
+				.reduce((a, b) => a + b) / 5;
+		expect(averageScore(greedyMatching(profiles))).toBeGreaterThan(
+			randomAverage,
+		);
 	});
 });
