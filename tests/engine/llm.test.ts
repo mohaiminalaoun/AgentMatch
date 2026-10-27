@@ -247,7 +247,13 @@ describe("onExchange", () => {
 			fetch: fn,
 			onExchange: (e) => seen.push(e),
 		});
-		expect(seen).toEqual([{ messages, reply: "Hello!" }]);
+		expect(seen).toEqual([
+			{
+				messages,
+				reply: "Hello!",
+				usage: { input: 10, output: 2, total: 12 },
+			},
+		]);
 	});
 
 	test("chatJson's exchange includes its format instructions", async () => {
@@ -293,9 +299,119 @@ describe("formatExchange", () => {
 				{ role: "user", content: "Hi" },
 			],
 			reply: "Hello!",
+			usage: undefined,
 		});
 		expect(text).toBe(
 			"── system ──\nBe brief.\n\n── user ──\nHi\n\n── assistant ──\nHello!",
 		);
+	});
+});
+
+// A fake server whose model gives each of `contents` in turn, one per request.
+function replySequence(...contents: string[]) {
+	const calls: { url: string; init: RequestInit }[] = [];
+	const fn = async (url: string | URL | Request, init?: RequestInit) => {
+		calls.push({ url: String(url), init: init ?? {} });
+		const content = contents[Math.min(calls.length, contents.length) - 1]!;
+		return new Response(
+			JSON.stringify({
+				choices: [{ message: { role: "assistant", content } }],
+				usage: {
+					prompt_tokens: 50,
+					completion_tokens: 10,
+					total_tokens: 60,
+				},
+			}),
+		);
+	};
+	return { fn: fn as typeof fetch, calls };
+}
+
+// The messages sent in the nth request (0-based) recorded by a fake fetch.
+function sentMessages(calls: { init: RequestInit }[], n: number): Message[] {
+	return JSON.parse(calls[n]!.init.body as string).messages;
+}
+
+describe("chatJson retries", () => {
+	const bad = '{"decision": "Counter"}';
+	const good = '{"decision": "accept"}';
+
+	test("an invalid reply is corrected on the next attempt", async () => {
+		const { fn, calls } = replySequence(bad, good);
+		const result = await chatJson(config, messages, Decision, {
+			fetch: fn,
+		});
+		expect(result.data).toEqual({ decision: "accept" });
+		expect(result.attempts).toBe(2);
+		expect(calls).toHaveLength(2);
+	});
+
+	test("the retry shows the model its bad reply and the problems", async () => {
+		const { fn, calls } = replySequence(bad, good);
+		await chatJson(config, messages, Decision, { fetch: fn });
+		const second = sentMessages(calls, 1);
+		const [assistant, feedback] = second.slice(-2);
+		expect(assistant).toEqual({ role: "assistant", content: bad });
+		expect(feedback!.role).toBe("user");
+		expect(feedback!.content).toContain("Your reply was invalid");
+		expect(feedback!.content).toContain("- decision:");
+		expect(second.slice(0, -2)).toEqual(sentMessages(calls, 0));
+	});
+
+	test("usage is the total across attempts", async () => {
+		const { fn } = replySequence(bad, good);
+		const { usage } = await chatJson(config, messages, Decision, {
+			fetch: fn,
+		});
+		expect(usage).toEqual({ input: 100, output: 20, total: 120 });
+	});
+
+	test("gives up after maxAttempts and throws the last problem", async () => {
+		const { fn, calls } = replySequence(bad);
+		await expect(
+			chatJson(config, messages, Decision, { fetch: fn }),
+		).rejects.toThrow(StructuredOutputError);
+		expect(calls).toHaveLength(3);
+	});
+
+	test("maxAttempts 1 turns retries off", async () => {
+		const { fn, calls } = replySequence(bad, good);
+		await expect(
+			chatJson(config, messages, Decision, { fetch: fn, maxAttempts: 1 }),
+		).rejects.toThrow(StructuredOutputError);
+		expect(calls).toHaveLength(1);
+	});
+
+	test("HTTP errors are never retried", async () => {
+		const { fn, calls } = fakeFetch({ error: "bad key" }, 401);
+		await expect(
+			chatJson(config, messages, Decision, { fetch: fn }),
+		).rejects.toThrow(LlmError);
+		expect(calls).toHaveLength(1);
+	});
+
+	test("onRetry hears about each failed attempt that gets another try", async () => {
+		const { fn } = replySequence(bad, bad, good);
+		const retries: number[] = [];
+		await chatJson(config, messages, Decision, {
+			fetch: fn,
+			onRetry: (error, attempt) => {
+				expect(error).toBeInstanceOf(StructuredOutputError);
+				retries.push(attempt);
+			},
+		});
+		expect(retries).toEqual([1, 2]);
+	});
+
+	test("a logged exchange isn't changed by later retries", async () => {
+		const { fn } = replySequence(bad, good);
+		const seen: Exchange[] = [];
+		await chatJson(config, messages, Decision, {
+			fetch: fn,
+			onExchange: (e) => seen.push(e),
+		});
+		expect(seen).toHaveLength(2);
+		expect(seen[0]!.messages).toHaveLength(messages.length + 1);
+		expect(seen[1]!.messages).toHaveLength(messages.length + 3);
 	});
 });

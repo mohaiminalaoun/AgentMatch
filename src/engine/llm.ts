@@ -36,10 +36,11 @@ export class StructuredOutputError extends LlmError {
 	}
 }
 
-// One round trip: everything sent to the model and the text it replied with.
+// One round trip: everything sent to the model, the text it replied with, and what it cost.
 export type Exchange = {
 	messages: readonly Message[];
 	reply: string;
+	usage: TokenUsage | undefined;
 };
 
 export type ChatOptions = {
@@ -115,26 +116,42 @@ export async function chat(
 			`unexpected response shape: ${parsed.error.issues[0]?.message}`,
 		);
 	}
-	const { choices, usage } = parsed.data;
+	const { choices, usage: rawUsage } = parsed.data;
 	const content = choices[0]!.message.content;
-	onExchange?.({ messages, reply: content });
-	return {
-		content,
-		usage: usage && {
-			input: usage.prompt_tokens,
-			output: usage.completion_tokens,
-			total: usage.total_tokens,
-		},
+	const usage = rawUsage && {
+		input: rawUsage.prompt_tokens,
+		output: rawUsage.completion_tokens,
+		total: rawUsage.total_tokens,
 	};
+	onExchange?.({ messages, reply: content, usage });
+	return { content, usage };
 }
 
+export type ChatJsonOptions = ChatOptions & {
+	// Tries in total, counting the first; only invalid output is retried, never HTTP or network errors.
+	maxAttempts?: number;
+	// Called when a reply is invalid and another attempt follows, e.g. to count failures.
+	onRetry?: (error: StructuredOutputError, attempt: number) => void;
+};
+
+const DEFAULT_MAX_ATTEMPTS = 3;
+
 // Asks for a JSON reply matching `schema` and validates it; the prompt's format description comes from the same schema.
+// An invalid reply is shown back to the model with the problems, and it tries again.
 export async function chatJson<S extends z.ZodType>(
 	config: Config,
 	messages: readonly Message[],
 	schema: S,
-	options: ChatOptions = {},
-): Promise<{ data: z.output<S>; usage: TokenUsage | undefined }> {
+	{
+		maxAttempts = DEFAULT_MAX_ATTEMPTS,
+		onRetry,
+		...options
+	}: ChatJsonOptions = {},
+): Promise<{
+	data: z.output<S>;
+	usage: TokenUsage | undefined;
+	attempts: number;
+}> {
 	const format: Message = {
 		role: "system",
 		content: [
@@ -143,30 +160,83 @@ export async function chatJson<S extends z.ZodType>(
 			JSON.stringify(z.toJSONSchema(schema)),
 		].join("\n"),
 	};
-	const reply = await chat(config, [format, ...messages], options);
+	const conversation: Message[] = [format, ...messages];
+	let usage: TokenUsage | undefined;
+	for (let attempt = 1; ; attempt++) {
+		// A copy, so a logged exchange doesn't change when feedback is appended below.
+		const reply = await chat(config, [...conversation], options);
+		usage = addUsage(usage, reply.usage);
+		try {
+			return {
+				data: parseReply(reply.content, schema),
+				usage,
+				attempts: attempt,
+			};
+		} catch (error) {
+			if (
+				!(error instanceof StructuredOutputError) ||
+				attempt >= maxAttempts
+			) {
+				throw error;
+			}
+			onRetry?.(error, attempt);
+			conversation.push(
+				{ role: "assistant", content: reply.content },
+				{ role: "user", content: feedbackFor(error) },
+			);
+		}
+	}
+}
 
+// Extracts the JSON object from a reply and validates it, or throws a StructuredOutputError saying what's wrong.
+function parseReply<S extends z.ZodType>(
+	content: string,
+	schema: S,
+): z.output<S> {
 	let json: unknown;
 	try {
-		json = JSON.parse(extractJson(reply.content));
+		json = JSON.parse(extractJson(content));
 	} catch (error) {
-		throw new StructuredOutputError(
-			"reply was not valid JSON",
-			reply.content,
-			[(error as Error).message],
-		);
+		throw new StructuredOutputError("reply was not valid JSON", content, [
+			(error as Error).message,
+		]);
 	}
 	const parsed = schema.safeParse(json);
 	if (!parsed.success) {
 		throw new StructuredOutputError(
 			"reply did not match the schema",
-			reply.content,
+			content,
 			parsed.error.issues.map(
 				(issue) =>
 					`${issue.path.join(".") || "(root)"}: ${issue.message}`,
 			),
 		);
 	}
-	return { data: parsed.data, usage: reply.usage };
+	return parsed.data;
+}
+
+// The correction message sent after an invalid reply, listing every problem.
+function feedbackFor(error: StructuredOutputError): string {
+	return [
+		`Your reply was invalid (${error.message}):`,
+		...error.problems.map((problem) => `- ${problem}`),
+		"Reply again with only the corrected JSON object.",
+	].join("\n");
+}
+
+// Sums token usage across attempts; unknown if either side is unknown and the other is missing.
+function addUsage(
+	a: TokenUsage | undefined,
+	b: TokenUsage | undefined,
+): TokenUsage | undefined {
+	if (!a || !b) {
+		return a ?? b;
+	}
+	return {
+		input: a.input + b.input,
+		output: a.output + b.output,
+		total: a.total + b.total,
+	};
 }
 
 // The text from the first `{` to the last `}`, which drops chatter and markdown fences around a JSON object.
