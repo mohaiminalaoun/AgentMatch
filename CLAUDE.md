@@ -27,6 +27,7 @@ Domain types are zod schemas, and each TypeScript type comes from its schema wit
 ## Conventions
 
 - ESM with `NodeNext` resolution: relative imports need a `.js` extension (`import { Profile } from "./profile.js"`).
+- LLM settings (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) live in a gitignored `.env`; copy `.env.example` to create it. Entry points call `readEnvFile()` once, then pass `loadConfig(process.env)` down to whatever needs it. Never log the config or the API key.
 - The tsconfig is strict, with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`. Use `import type` for type-only imports.
 - `steps.md` (the build plan) and `readme-inprogress.md` are private and gitignored. Never commit them or copy their contents into tracked files. Work through `steps.md` one step at a time unless asked to combine steps.
 - Use the `/commit-changes` skill for commits: one-line Conventional Commits messages, with no attribution lines.
