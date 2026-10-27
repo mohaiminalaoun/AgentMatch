@@ -1,58 +1,57 @@
-// Entry point for `npm run decide`: asks the model to decide on one sample proposal, printing every message and the validated result.
+// Entry point for `npm run decide [scenario]`: one agent decides on one sample proposal, printing every message,
+// its private rationale, any gate blocks, and what would actually be sent.
+import { createAgent } from "./engine/agent.js";
+import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
-import {
-	chatJson,
-	formatExchange,
-	StructuredOutputError,
-} from "./engine/llm.js";
-import { decisionMessages } from "./engine/decision.js";
-import { Decision, toResponse, type Proposal } from "./engine/proposal.js";
+import { decideOnProposal } from "./engine/decision.js";
+import { formatExchange } from "./engine/llm.js";
+import { toResponse } from "./engine/proposal.js";
 import { createRunLog } from "./engine/runlog.js";
+import { proposalFor, SCENARIOS } from "./scenarios.js";
 
-const proposal: Proposal = {
-	id: "prop-1",
-	from: "agent-a",
-	to: "agent-b",
-	pitch: "A web app startup that helps freelancers send invoices.",
-	rolesNeeded: ["frontend", "backend"],
-};
-
-const human =
-	"Your human is a backend engineer who wants to start a climate-change non-profit.";
+const index = Number(process.argv[2] ?? 1) - 1;
+const scenario = SCENARIOS[index];
+if (!scenario) {
+	console.error(
+		`Usage: npm run decide [1-${SCENARIOS.length}]\n${SCENARIOS.map((s, i) => `  ${i + 1}. ${s.name}`).join("\n")}`,
+	);
+	process.exit(1);
+}
 
 try {
 	readEnvFile();
 	const config = loadConfig(process.env);
 	const log = createRunLog("decide");
+	const client = createLlmClient(config);
+	const agent = createAgent(scenario.receiver);
+	const proposal = proposalFor(scenario, "prop-1");
 	const started = performance.now();
-	const { data, usage } = await chatJson(
-		config,
-		decisionMessages(human, proposal),
-		Decision,
-		{
-			onExchange: (exchange) => {
-				log.write(exchange);
-				console.log(`${formatExchange(exchange)}\n`);
-			},
+
+	const result = await decideOnProposal(client, agent, proposal, {
+		onExchange: (exchange) => {
+			log.write(exchange);
+			console.log(`${formatExchange(exchange)}\n`);
 		},
-	);
+	});
 	const seconds = ((performance.now() - started) / 1000).toFixed(1);
 
-	console.log("── validated response ──");
-	console.log(JSON.stringify(toResponse(proposal, data), null, 2));
-	const tokens = usage ? `${usage.total} tokens` : "token usage not reported";
 	console.log(
-		`\n${tokens} · ${seconds}s · ${config.model} · log: ${log.path}`,
+		`── private rationale (for ${agent.profile.name} only, never sent) ──`,
 	);
+	console.log(result.rationale ?? "(none: no valid reply came back)");
+	console.log(`\n── sent to ${proposal.from} ──`);
+	console.log(JSON.stringify(toResponse(proposal, result.decision), null, 2));
+
+	const notes = [
+		`gate blocks: ${result.gateBlocks}`,
+		...(result.fellBack ? ["fell back to a plain decline"] : []),
+		result.usage ? `${result.usage.total} tokens` : "tokens not reported",
+		`${seconds}s`,
+		config.model,
+		`log: ${log.path}`,
+	];
+	console.log(`\n${scenario.name} · ${notes.join(" · ")}`);
 } catch (error) {
-	if (error instanceof StructuredOutputError) {
-		console.error(`${error.message}:`);
-		for (const problem of error.problems) {
-			console.error(`- ${problem}`);
-		}
-		console.error(`\nRaw reply:\n${error.raw}`);
-	} else {
-		console.error((error as Error).message);
-	}
+	console.error((error as Error).message);
 	process.exit(1);
 }

@@ -1,174 +1,127 @@
-// Entry point for `npm run reliability`: makes 20 live decision calls and reports how often the model's JSON was valid.
+// Entry point for `npm run reliability`: 20 live agent decisions, run concurrently, reporting the decision mix,
+// how often the gate stepped in, and a re-check that nothing sent breaks the disclosure rules.
+import { createAgent } from "./engine/agent.js";
+import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
-import { decisionMessages } from "./engine/decision.js";
-import { chatJson, StructuredOutputError } from "./engine/llm.js";
-import { Decision, type Proposal } from "./engine/proposal.js";
+import { decideOnProposal, type DecisionResult } from "./engine/decision.js";
+import { checkDisclosure, draftOf } from "./engine/gate.js";
 import { createRunLog } from "./engine/runlog.js";
+import { proposalFor, SCENARIOS } from "./scenarios.js";
 
 const RUNS_PER_SCENARIO = 4;
 
-// Chosen so accept, counter, and decline all come up; counters are the hardest shape.
-const SCENARIOS: {
-	name: string;
-	human: string;
-	pitch: string;
-	roles: string[];
-}[] = [
-	{
-		name: "invoicing vs climate",
-		human: "Your human is a backend engineer who wants to start a climate-change non-profit.",
-		pitch: "A web app startup that helps freelancers send invoices.",
-		roles: ["frontend", "backend"],
-	},
-	{
-		name: "carbon tracker",
-		human: "Your human is a backend engineer who wants to start a climate-change non-profit.",
-		pitch: "An open-source app that estimates a household's carbon footprint from receipts.",
-		roles: ["backend", "design"],
-	},
-	{
-		name: "student notes",
-		human: "Your human is a frontend developer who cares about accessibility and education.",
-		pitch: "An AI note-taking app for university students.",
-		roles: ["frontend", "ml"],
-	},
-	{
-		name: "crypto bot",
-		human: "Your human is an ML engineer interested in finance who only works on open-source projects.",
-		pitch: "A closed-source crypto trading bot that predicts prices.",
-		roles: ["ml", "backend"],
-	},
-	{
-		name: "music game",
-		human: "Your human is a product designer who loves music and multiplayer games.",
-		pitch: "A multiplayer rhythm game where friends make music together.",
-		roles: ["design", "frontend"],
-	},
-];
-
 type Outcome =
-	| { kind: "valid"; decision: Decision; attempts: number }
-	| { kind: "invalid"; problems: string[] }
+	| { kind: "decided"; result: DecisionResult; formatRetries: number }
 	| { kind: "error"; message: string };
 
 readEnvFile();
 const config = loadConfig(process.env);
 const log = createRunLog("reliability");
-const results: {
-	scenario: string;
-	outcome: Outcome;
-	retryProblems: string[];
-}[] = [];
-let totalTokens = 0;
-let totalSeconds = 0;
-const total = SCENARIOS.length * RUNS_PER_SCENARIO;
+const client = createLlmClient(config);
+const jobs = Array.from({ length: RUNS_PER_SCENARIO }, () => SCENARIOS).flat();
+let tokens = 0;
+let done = 0;
 
-console.log(`${total} calls · ${config.model}\n`);
-for (let run = 0; run < RUNS_PER_SCENARIO; run++) {
-	for (const scenario of SCENARIOS) {
-		const proposal: Proposal = {
-			id: `prop-${results.length + 1}`,
-			from: "agent-a",
-			to: "agent-b",
-			pitch: scenario.pitch,
-			rolesNeeded: scenario.roles,
-		};
-		const retryProblems: string[] = [];
-		let callTokens = 0;
-		const started = performance.now();
+console.log(
+	`${jobs.length} decisions · concurrency ${config.maxConcurrency} · ${config.model}\n`,
+);
+const started = performance.now();
+const outcomes = await Promise.all(
+	jobs.map(async (scenario, i): Promise<Outcome> => {
+		let formatRetries = 0;
 		let outcome: Outcome;
 		try {
-			const { data, attempts } = await chatJson(
-				config,
-				decisionMessages(scenario.human, proposal),
-				Decision,
+			const result = await decideOnProposal(
+				client,
+				createAgent(scenario.receiver),
+				proposalFor(scenario, `prop-${i + 1}`),
 				{
-					// Counted per exchange, so failed attempts' tokens are included too.
 					onExchange: (exchange) => {
 						log.write(exchange);
-						callTokens += exchange.usage?.total ?? 0;
+						tokens += exchange.usage?.total ?? 0;
 					},
-					onRetry: (error) => retryProblems.push(...error.problems),
+					onRetry: (error) => {
+						if (error.kind === "format") {
+							formatRetries++;
+						}
+					},
 				},
 			);
-			outcome = { kind: "valid", decision: data, attempts };
+			outcome = { kind: "decided", result, formatRetries };
 		} catch (error) {
-			outcome =
-				error instanceof StructuredOutputError
-					? { kind: "invalid", problems: error.problems }
-					: { kind: "error", message: (error as Error).message };
+			outcome = { kind: "error", message: (error as Error).message };
 		}
-		const seconds = (performance.now() - started) / 1000;
-		totalTokens += callTokens;
-		totalSeconds += seconds;
-		results.push({ scenario: scenario.name, outcome, retryProblems });
+		done++;
 		console.log(
-			`#${String(results.length).padStart(2)} ${scenario.name.padEnd(22)} ${describe(outcome).padEnd(28)} ${callTokens} tok · ${seconds.toFixed(1)}s`,
+			`#${String(i + 1).padStart(2)} ${scenario.name.padEnd(22)} ${label(outcome)}   (${done}/${jobs.length})`,
 		);
-	}
-}
+		return outcome;
+	}),
+);
+const seconds = (performance.now() - started) / 1000;
 
-const valid = results.flatMap((r) =>
-	r.outcome.kind === "valid" ? [r.outcome] : [],
+const decided = outcomes.flatMap((o, i) =>
+	o.kind === "decided" ? [{ ...o, scenario: jobs[i]! }] : [],
 );
+const sent = decided.map((d) => d.result.decision);
 const count = (n: number) =>
-	`${String(n).padStart(2)}/${total}  (${Math.round((n / total) * 100)}%)`;
-const declines = valid.flatMap((o) =>
-	o.decision.decision === "decline" ? [o.decision] : [],
-);
-const withReason = declines.filter((d) => d.reason?.trim());
+	`${String(n).padStart(2)}/${jobs.length}  (${Math.round((n / jobs.length) * 100)}%)`;
+const blocks = decided.reduce((sum, d) => sum + d.result.gateBlocks, 0);
+// Independent re-check of what was actually sent, at the level it was sent at (0 for a first contact).
+const rulesBroken = decided.filter(
+	(d) =>
+		checkDisclosure(d.scenario.receiver, 0, draftOf(d.result.decision))
+			.length > 0,
+).length;
+const declines = sent.filter((d) => d.decision === "decline");
+const reasons = declines.flatMap((d) => (d.reason?.trim() ? [d.reason] : []));
 
 console.log(`
-Valid on first try:      ${count(valid.filter((o) => o.attempts === 1).length)}
-Valid after a retry:     ${count(valid.filter((o) => o.attempts > 1).length)}
-Invalid after retries:   ${count(results.filter((r) => r.outcome.kind === "invalid").length)}
-Request errors:          ${count(results.filter((r) => r.outcome.kind === "error").length)}
+Decided:                 ${count(decided.length)}
+Fell back (plain decline): ${decided.filter((d) => d.result.fellBack).length}
+Request errors:          ${outcomes.length - decided.length}
+Format retries:          ${decided.reduce((sum, d) => sum + d.formatRetries, 0)}
 
 Decisions:  ${(["accept", "counter", "decline"] as const)
-	.map((d) => `${d} ${valid.filter((o) => o.decision.decision === d).length}`)
+	.map((k) => `${k} ${sent.filter((d) => d.decision === k).length}`)
 	.join(" · ")}
-Declines that gave a reason:  ${withReason.length}/${declines.length}
+${SCENARIOS.map(
+	(s) =>
+		`  ${s.name.padEnd(22)} ${decided
+			.filter((d) => d.scenario === s)
+			.map((d) => d.result.decision.decision)
+			.join(", ")}`,
+).join("\n")}
 
-Avg tokens per call:  ${Math.round(totalTokens / total)}   (total ${totalTokens})
-Avg time per call:    ${(totalSeconds / total).toFixed(1)}s
-Log:                  ${log.path}`);
+Gate blocks:             ${blocks}   (things the model tried to send that the rules forbid)
+Rule-breaking messages sent: ${rulesBroken}
+Declines that gave a reason: ${reasons.length}/${declines.length}
 
-const problems = results.filter(
-	(r) => r.retryProblems.length > 0 || r.outcome.kind !== "valid",
-);
-if (problems.length > 0) {
-	console.log("\nProblems:");
-	for (const r of problems) {
-		const n = results.indexOf(r) + 1;
-		for (const p of r.retryProblems) {
-			console.log(`  #${n} (fixed by retry) ${p}`);
-		}
-		if (r.outcome.kind === "invalid") {
-			for (const p of r.outcome.problems) {
-				console.log(`  #${n} (gave up) ${p}`);
-			}
-		}
-		if (r.outcome.kind === "error") {
-			console.log(`  #${n} (request error) ${r.outcome.message}`);
-		}
+Tokens:     ${tokens}   (avg ${Math.round(tokens / jobs.length)} per decision)
+Wall time:  ${seconds.toFixed(1)}s
+Log:        ${log.path}`);
+
+if (reasons.length > 0) {
+	console.log("\nDecline reasons that passed the gate and were sent:");
+	for (const reason of reasons) {
+		console.log(`  - ${reason}`);
+	}
+}
+for (const o of outcomes) {
+	if (o.kind === "error") {
+		console.log(`  ✗ ${o.message.split("\n")[0]}`);
 	}
 }
 
-if (withReason.length > 0) {
-	console.log(
-		"\nDecline reasons sent to the proposer (what would leak today):",
-	);
-	for (const d of withReason) {
-		console.log(`  - ${d.reason}`);
+// One short label for a decision's outcome in the progress lines.
+function label(outcome: Outcome): string {
+	if (outcome.kind === "error") {
+		return "request error ✗";
 	}
-}
-
-// One short label for a call's outcome in the progress lines.
-function describe(outcome: Outcome): string {
-	if (outcome.kind === "valid") {
-		const tries =
-			outcome.attempts === 1 ? "1 try" : `${outcome.attempts} tries`;
-		return `${outcome.decision.decision} ✓ (${tries})`;
-	}
-	return outcome.kind === "invalid" ? "invalid ✗" : "request error ✗";
+	const { result } = outcome;
+	const extras = [
+		...(result.gateBlocks > 0 ? [`gate blocked ${result.gateBlocks}`] : []),
+		...(result.fellBack ? ["fell back"] : []),
+	];
+	return `${result.decision.decision}${extras.length > 0 ? `  (${extras.join(", ")})` : ""}`;
 }
