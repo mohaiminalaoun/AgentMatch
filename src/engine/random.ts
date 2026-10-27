@@ -24,3 +24,28 @@ export function createRng(seed: number): Rng {
 		return ((t ^ (t >>> 14)) >>> 0) / UINT32_RANGE;
 	};
 }
+
+// An integer from min to max, both inclusive.
+export function randomInt(rng: Rng, min: number, max: number): number {
+	return min + Math.floor(rng() * (max - min + 1));
+}
+
+export function pick<T>(rng: Rng, items: readonly T[]): T {
+	if (items.length === 0) {
+		throw new Error("cannot pick from an empty list");
+	}
+	return items[randomInt(rng, 0, items.length - 1)]!;
+}
+
+// `count` distinct items in random order (a partial Fisher-Yates shuffle).
+export function sample<T>(rng: Rng, items: readonly T[], count: number): T[] {
+	if (count > items.length) {
+		throw new Error(`cannot sample ${count} from ${items.length} items`);
+	}
+	const pool = [...items];
+	for (let i = 0; i < count; i++) {
+		const j = randomInt(rng, i, pool.length - 1);
+		[pool[i], pool[j]] = [pool[j]!, pool[i]!];
+	}
+	return pool.slice(0, count);
+}
