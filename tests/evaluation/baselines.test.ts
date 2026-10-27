@@ -3,6 +3,7 @@ import type { Profile } from "../../src/engine/profile.js";
 import { createRng } from "../../src/engine/random.js";
 import {
 	greedyMatching,
+	localSearchMatching,
 	randomMatching,
 } from "../../src/evaluation/baselines.js";
 import { generateProfiles } from "../../src/evaluation/profiles.js";
@@ -120,5 +121,51 @@ describe("greedyMatching", () => {
 		expect(averageScore(greedyMatching(profiles))).toBeGreaterThan(
 			randomAverage,
 		);
+	});
+});
+
+describe("localSearchMatching", () => {
+	const teams = localSearchMatching(profiles);
+
+	test("everyone is placed in exactly one team", () => {
+		const placed = ids(teams).flat();
+		expect(placed.sort()).toEqual(profiles.map((p) => p.id).sort());
+	});
+
+	test("keeps greedy's team sizes", () => {
+		const sizes = (groups: Profile[][]) => groups.map((t) => t.length);
+		expect(sizes(teams)).toEqual(sizes(greedyMatching(profiles)));
+	});
+
+	test("the same input always gives the same teams", () => {
+		expect(ids(localSearchMatching(profiles))).toEqual(ids(teams));
+	});
+
+	test("is never worse than greedy, and better here", () => {
+		for (const seed of [1, 2, 3]) {
+			const people = generateProfiles(40, seed);
+			expect(
+				averageScore(localSearchMatching(people)),
+			).toBeGreaterThanOrEqual(averageScore(greedyMatching(people)));
+		}
+		expect(averageScore(teams)).toBeGreaterThan(
+			averageScore(greedyMatching(profiles)),
+		);
+	});
+
+	test("stops at a local optimum: no single swap improves it", () => {
+		for (let a = 0; a < teams.length; a++) {
+			for (let b = a + 1; b < teams.length; b++) {
+				const before = scoreTeam(teams[a]!) + scoreTeam(teams[b]!);
+				for (let i = 0; i < teams[a]!.length; i++) {
+					for (let j = 0; j < teams[b]!.length; j++) {
+						const after =
+							scoreTeam(teams[a]!.with(i, teams[b]![j]!)) +
+							scoreTeam(teams[b]!.with(j, teams[a]![i]!));
+						expect(after).toBeLessThanOrEqual(before + 1e-9);
+					}
+				}
+			}
+		}
 	});
 });

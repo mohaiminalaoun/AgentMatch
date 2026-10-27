@@ -43,6 +43,45 @@ export function greedyMatching(
 	return teams;
 }
 
+// Swaps must beat this gain, so floating-point noise can't make two people swap back and forth forever.
+const MIN_GAIN = 1e-9;
+
+// Starts from greedy's teams and swaps people between teams while any swap raises the total score.
+export function localSearchMatching(
+	profiles: readonly Profile[],
+	teamSize = DEFAULT_TEAM_SIZE,
+): Profile[][] {
+	const teams = greedyMatching(profiles, teamSize);
+	const scores = teams.map(scoreTeam);
+	let improved = true;
+	while (improved) {
+		improved = false;
+		for (let a = 0; a < teams.length; a++) {
+			for (let b = a + 1; b < teams.length; b++) {
+				for (let i = 0; i < teams[a]!.length; i++) {
+					for (let j = 0; j < teams[b]!.length; j++) {
+						const newA = teams[a]!.with(i, teams[b]![j]!);
+						const newB = teams[b]!.with(j, teams[a]![i]!);
+						const scoreA = scoreTeam(newA);
+						const scoreB = scoreTeam(newB);
+						if (
+							scoreA + scoreB >
+							scores[a]! + scores[b]! + MIN_GAIN
+						) {
+							teams[a] = newA;
+							teams[b] = newB;
+							scores[a] = scoreA;
+							scores[b] = scoreB;
+							improved = true;
+						}
+					}
+				}
+			}
+		}
+	}
+	return teams;
+}
+
 // Removes and returns the candidate who gives `team` the highest score; ties go to the earliest.
 function takeBestFit(team: readonly Profile[], candidates: Profile[]): Profile {
 	let bestIndex = 0;

@@ -1,6 +1,10 @@
 import type { Profile } from "../engine/profile.js";
 import { createRng, type Rng } from "../engine/random.js";
-import { greedyMatching, randomMatching } from "./baselines.js";
+import {
+	greedyMatching,
+	localSearchMatching,
+	randomMatching,
+} from "./baselines.js";
 import { generateProfiles } from "./profiles.js";
 import {
 	availabilityOverlap,
@@ -19,6 +23,8 @@ export type Matcher = (
 export const BASELINES: Record<string, Matcher> = {
 	random: randomMatching,
 	greedy: (profiles, _rng, teamSize) => greedyMatching(profiles, teamSize),
+	"local search": (profiles, _rng, teamSize) =>
+		localSearchMatching(profiles, teamSize),
 };
 
 export type EvalSettings = {

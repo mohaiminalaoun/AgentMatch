@@ -38,7 +38,11 @@ describe("summarize", () => {
 describe("evaluate", () => {
 	test("returns one row per matcher, in order", () => {
 		const rows = evaluate(BASELINES, settings);
-		expect(rows.map((r) => r.method)).toEqual(["random", "greedy"]);
+		expect(rows.map((r) => r.method)).toEqual([
+			"random",
+			"greedy",
+			"local search",
+		]);
 	});
 
 	test("gives the same results every run", () => {
@@ -66,9 +70,10 @@ describe("evaluate", () => {
 describe("formatTable", () => {
 	test("has a header and a line per method", () => {
 		const lines = formatTable(evaluate(BASELINES, settings)).split("\n");
-		expect(lines).toHaveLength(3);
+		expect(lines).toHaveLength(4);
 		expect(lines[0]).toContain("Avg score");
 		expect(lines[1]).toMatch(/^random/);
 		expect(lines[2]).toMatch(/^greedy/);
+		expect(lines[3]).toMatch(/^local search/);
 	});
 });
