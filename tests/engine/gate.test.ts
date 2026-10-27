@@ -205,10 +205,8 @@ describe("structured shared data", () => {
 });
 
 describe("draftOf", () => {
-	test("a decline's reason is the text to check", () => {
-		expect(draftOf({ decision: "decline", reason: "No." })).toEqual({
-			texts: { reason: "No." },
-		});
+	test("a decline has no text to check", () => {
+		expect(draftOf({ decision: "decline" })).toEqual({ texts: {} });
 	});
 
 	test("a counter's or proposal's pitch is the text to check", () => {

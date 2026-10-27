@@ -151,7 +151,7 @@ describe("decideOnProposal", () => {
 		expect(sent).toHaveLength(3);
 	});
 
-	test("a decline whose reason leaks is sent without the reason, with no extra call", async () => {
+	test("a reason the model adds to a decline is stripped, with no extra call", async () => {
 		const { client, sent } = fakeModel({
 			rationale: "Not a fit.",
 			decision: {
@@ -161,21 +161,15 @@ describe("decideOnProposal", () => {
 		});
 		const result = await decideOnProposal(client, ada, proposal);
 		expect(result.decision).toEqual({ decision: "decline" });
-		expect(result.gateBlocks).toBe(1);
+		expect(result.gateBlocks).toBe(0);
 		expect(result.fellBack).toBe(false);
 		expect(sent).toHaveLength(1);
 	});
 
-	test("a harmless decline reason is kept", async () => {
-		const { client } = fakeModel({
-			rationale: "Not a fit.",
-			decision: { decision: "decline", reason: "Not a fit right now." },
-		});
-		const result = await decideOnProposal(client, ada, proposal);
-		expect(result.decision).toEqual({
-			decision: "decline",
-			reason: "Not a fit right now.",
-		});
+	test("the prompt tells the model to counter rather than explain a decline", () => {
+		const [system] = decisionMessages(ada, proposal);
+		expect(system!.content).toContain("Declines carry no message");
+		expect(system!.content).toContain("counter instead");
 	});
 
 	test("the same text passes once the level allows it", async () => {

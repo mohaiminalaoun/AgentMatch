@@ -78,7 +78,7 @@ export function decisionMessages(
 					"How to decide:",
 					"- accept only if the project clearly fits your human's project ideas or interests AND they could fill a role it needs.",
 					"- counter if it is a partial fit and one concrete change would make it work; put the changed project in the pitch.",
-					"- decline otherwise. A decline needs no reason.",
+					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
 					"Be selective: your human has limited time, and accepting a weak fit blocks a better one.",
 				].join("\n"),
 			].join("\n\n"),
@@ -97,8 +97,8 @@ export function decisionMessages(
 }
 
 // Decides on `proposal` for `agent`, with every outgoing word passed through the disclosure gate.
-// Blocked counters are redrafted; blocked decline reasons are dropped; if nothing allowed comes back,
-// a plain decline is sent. Updating the agent's state is left to the caller.
+// A counter that reveals too much is redrafted; if nothing allowed comes back, a plain decline is sent.
+// Declines can't leak by construction: they have no text. Updating the agent's state is left to the caller.
 export async function decideOnProposal(
 	client: LlmClient,
 	agent: AgentState,
@@ -107,8 +107,6 @@ export async function decideOnProposal(
 ): Promise<DecisionResult> {
 	const level = contactOf(agent, proposal.from).level;
 	let gateBlocks = 0;
-	const leaks = (decision: Decision) =>
-		checkDisclosure(agent.profile, level, draftOf(decision));
 
 	try {
 		const { data, usage } = await client.chatJson(
@@ -116,12 +114,12 @@ export async function decideOnProposal(
 			AgentDecision,
 			{
 				...options,
-				// Declines are handled below without another call.
 				check: ({ decision }) => {
-					if (decision.decision === "decline") {
-						return [];
-					}
-					const violations = leaks(decision);
+					const violations = checkDisclosure(
+						agent.profile,
+						level,
+						draftOf(decision),
+					);
 					if (violations.length > 0) {
 						gateBlocks++;
 					}
@@ -129,13 +127,8 @@ export async function decideOnProposal(
 				},
 			},
 		);
-		let decision = data.decision;
-		if (decision.decision === "decline" && leaks(decision).length > 0) {
-			gateBlocks++;
-			decision = { decision: "decline" };
-		}
 		return {
-			decision,
+			decision: data.decision,
 			rationale: data.rationale,
 			gateBlocks,
 			fellBack: false,

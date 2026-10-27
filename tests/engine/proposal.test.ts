@@ -3,6 +3,7 @@ import {
 	Decision,
 	Proposal,
 	ProposalResponse,
+	STANDARD_REFUSAL,
 	toResponse,
 } from "../../src/engine/proposal.js";
 
@@ -38,13 +39,28 @@ test("an accept parses", () => {
 	expect(result.success).toBe(true);
 });
 
-test("a decline parses with or without a reason", () => {
+test("a sent decline must carry exactly the standard refusal", () => {
 	const bare = { ...envelope, decision: "decline" };
-	expect(ProposalResponse.safeParse(bare).success).toBe(true);
 	expect(
-		ProposalResponse.safeParse({ ...bare, reason: "Not a fit right now." })
+		ProposalResponse.safeParse({ ...bare, reason: STANDARD_REFUSAL })
 			.success,
 	).toBe(true);
+	expect(ProposalResponse.safeParse(bare).success).toBe(false);
+	expect(
+		ProposalResponse.safeParse({
+			...bare,
+			reason: "My human wants climate work.",
+		}).success,
+	).toBe(false);
+});
+
+test("a decision's decline has no reason; one added anyway is stripped", () => {
+	expect(
+		Decision.parse({
+			decision: "decline",
+			reason: "My human wants climate work.",
+		}),
+	).toEqual({ decision: "decline" });
 });
 
 test("a counter carries new terms", () => {
@@ -89,6 +105,7 @@ test("toResponse addresses the reply back to the proposer", () => {
 		proposalId: "prop-1",
 		from: "agent-b",
 		to: "agent-a",
+		reason: STANDARD_REFUSAL,
 	});
 	expect(ProposalResponse.safeParse(response).success).toBe(true);
 });

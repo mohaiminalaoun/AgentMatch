@@ -171,10 +171,8 @@ describe("chatJson", () => {
 		const result = await chatJson(config, messages, Decision, {
 			fetch: fn,
 		});
-		expect(result.data).toEqual({
-			decision: "decline",
-			reason: "Not a fit.",
-		});
+		// Declines have no reason field, so the one in the reply is stripped.
+		expect(result.data).toEqual({ decision: "decline" });
 		expect(result.usage).toEqual({ input: 50, output: 10, total: 60 });
 	});
 
@@ -481,16 +479,13 @@ describe("parseRetryAfter", () => {
 describe("chatJson check", () => {
 	test("problems from check are fed back and the model tries again", async () => {
 		const { fn, calls } = replySequence(
-			'{"decision": "decline", "reason": "secret plans"}',
+			'{"decision": "counter", "pitch": "secret plans", "rolesNeeded": ["ml"]}',
 			'{"decision": "decline"}',
 		);
 		const kinds: string[] = [];
 		const { data, attempts } = await chatJson(config, messages, Decision, {
 			fetch: fn,
-			check: (d) =>
-				d.decision === "decline" && d.reason
-					? ["reason: say less"]
-					: [],
+			check: (d) => (d.decision === "counter" ? ["pitch: say less"] : []),
 			onRetry: (error) => kinds.push(error.kind),
 		});
 		expect(data).toEqual({ decision: "decline" });
@@ -498,7 +493,7 @@ describe("chatJson check", () => {
 		expect(kinds).toEqual(["rule"]);
 		const feedback = sentMessages(calls, 1).at(-1)!;
 		expect(feedback.content).toContain("broke a rule");
-		expect(feedback.content).toContain("- reason: say less");
+		expect(feedback.content).toContain("- pitch: say less");
 	});
 
 	test("a check that never passes gives up with a rule error", async () => {

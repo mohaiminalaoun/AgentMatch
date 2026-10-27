@@ -19,10 +19,12 @@ export type Proposal = z.infer<typeof Proposal>;
 
 const Accept = z.object({ decision: z.literal("accept") });
 const Counter = Terms.extend({ decision: z.literal("counter") });
-const Decline = z.object({
-	decision: z.literal("decline"),
-	reason: z.string().optional(),
-});
+// A decline has no reason the model can fill in: there's nowhere to put an explanation, so none can leak.
+// Unknown fields are stripped when parsing, so a reason the model adds anyway is dropped.
+const Decline = z.object({ decision: z.literal("decline") });
+
+// Every decline says exactly this, whatever the real reason, so a refusal reveals nothing.
+export const STANDARD_REFUSAL = "Not a fit right now.";
 
 // The judgment call about a proposal: the only part of a response an LLM writes.
 export const Decision = z.discriminatedUnion("decision", [
@@ -44,20 +46,27 @@ const ResponseEnvelope = z.object({
 export const ProposalResponse = z.discriminatedUnion("decision", [
 	Accept.extend(ResponseEnvelope.shape),
 	Counter.extend(ResponseEnvelope.shape),
-	Decline.extend(ResponseEnvelope.shape),
+	// The code adds the standard refusal; a decline with any other reason, or none, is rejected.
+	Decline.extend({
+		...ResponseEnvelope.shape,
+		reason: z.literal(STANDARD_REFUSAL),
+	}),
 ]);
 
 export type ProposalResponse = z.infer<typeof ProposalResponse>;
 
 // Wraps a decision about `proposal` in its envelope; the reply goes from the proposal's recipient back to its sender.
+// Declines get the standard refusal.
 export function toResponse(
 	proposal: Proposal,
 	decision: Decision,
 ): ProposalResponse {
-	return {
-		...decision,
+	const envelope = {
 		proposalId: proposal.id,
 		from: proposal.to,
 		to: proposal.from,
 	};
+	return decision.decision === "decline"
+		? { ...decision, ...envelope, reason: STANDARD_REFUSAL }
+		: { ...decision, ...envelope };
 }

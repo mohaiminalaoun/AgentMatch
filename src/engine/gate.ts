@@ -8,7 +8,7 @@ import {
 import type { Profile } from "./profile.js";
 import type { Decision, Terms } from "./proposal.js";
 
-// What an agent is about to send: free-text parts by name (pitch, reason) and any structured profile data.
+// What an agent is about to send: free-text parts by name (such as a pitch) and any structured profile data.
 export type Draft = {
 	texts: Record<string, string | undefined>;
 	shared?: Partial<Profile>;
@@ -49,15 +49,12 @@ export function checkDisclosure(
 	];
 }
 
-// The free-text parts of a decision, for checking before it's sent.
+// The free-text parts of a decision or proposal, for checking before it's sent.
+// Only pitches have free text: accepts and declines carry none the model wrote.
 export function draftOf(message: Decision | Terms): Draft {
-	if ("decision" in message && message.decision === "decline") {
-		return { texts: { reason: message.reason } };
-	}
-	if ("pitch" in message) {
-		return { texts: { pitch: message.pitch } };
-	}
-	return { texts: {} };
+	return "pitch" in message
+		? { texts: { pitch: message.pitch } }
+		: { texts: {} };
 }
 
 // Structured data must stay within the level and match the sender's real profile exactly.

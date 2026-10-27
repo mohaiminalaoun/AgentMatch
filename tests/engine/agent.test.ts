@@ -8,7 +8,11 @@ import {
 	recordRevealed,
 	type AgentState,
 } from "../../src/engine/agent.js";
-import type { Proposal } from "../../src/engine/proposal.js";
+import {
+	STANDARD_REFUSAL,
+	type Proposal,
+	type ProposalResponse,
+} from "../../src/engine/proposal.js";
 import { sampleProfile } from "../fixtures.js";
 
 const proposal: Proposal = {
@@ -122,11 +126,12 @@ describe("learn", () => {
 
 describe("recordMessage", () => {
 	test("adds messages to the history, oldest first", () => {
-		const response = {
-			decision: "decline" as const,
+		const response: ProposalResponse = {
+			decision: "decline",
 			proposalId: "prop-1",
 			from: "p2",
 			to: "p1",
+			reason: STANDARD_REFUSAL,
 		};
 		let agent = recordMessage(createAgent(sampleProfile), "p2", proposal);
 		agent = recordMessage(agent, "p2", response);

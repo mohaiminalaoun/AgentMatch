@@ -73,8 +73,6 @@ const rulesBroken = decided.filter(
 		checkDisclosure(d.scenario.receiver, 0, draftOf(d.result.decision))
 			.length > 0,
 ).length;
-const declines = sent.filter((d) => d.decision === "decline");
-const reasons = declines.flatMap((d) => (d.reason?.trim() ? [d.reason] : []));
 
 console.log(`
 Decided:                 ${count(decided.length)}
@@ -95,18 +93,11 @@ ${SCENARIOS.map(
 
 Gate blocks:             ${blocks}   (things the model tried to send that the rules forbid)
 Rule-breaking messages sent: ${rulesBroken}
-Declines that gave a reason: ${reasons.length}/${declines.length}
 
 Tokens:     ${tokens}   (avg ${Math.round(tokens / jobs.length)} per decision)
 Wall time:  ${seconds.toFixed(1)}s
 Log:        ${log.path}`);
 
-if (reasons.length > 0) {
-	console.log("\nDecline reasons that passed the gate and were sent:");
-	for (const reason of reasons) {
-		console.log(`  - ${reason}`);
-	}
-}
 for (const o of outcomes) {
 	if (o.kind === "error") {
 		console.log(`  ✗ ${o.message.split("\n")[0]}`);
