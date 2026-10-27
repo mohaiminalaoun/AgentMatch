@@ -7,6 +7,8 @@ export const Terms = z.object({
 	rolesNeeded: z.array(z.string().min(1)).min(1),
 });
 
+export type Terms = z.infer<typeof Terms>;
+
 export const Proposal = Terms.extend({
 	id: z.string().min(1),
 	from: z.string().min(1),
