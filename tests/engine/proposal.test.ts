@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { Proposal, ProposalResponse } from "../../src/engine/proposal.js";
+import {
+	Decision,
+	Proposal,
+	ProposalResponse,
+	toResponse,
+} from "../../src/engine/proposal.js";
 
 const proposal = {
 	id: "prop-1",
@@ -68,4 +73,22 @@ test("an unknown decision fails", () => {
 		decision: "maybe",
 	});
 	expect(result.success).toBe(false);
+});
+
+test("a decision alone has no envelope fields", () => {
+	expect(Decision.safeParse({ decision: "accept" }).success).toBe(true);
+	expect(Decision.safeParse({ decision: "maybe" }).success).toBe(false);
+});
+
+test("toResponse addresses the reply back to the proposer", () => {
+	const response = toResponse(Proposal.parse(proposal), {
+		decision: "decline",
+	});
+	expect(response).toEqual({
+		decision: "decline",
+		proposalId: "prop-1",
+		from: "agent-b",
+		to: "agent-a",
+	});
+	expect(ProposalResponse.safeParse(response).success).toBe(true);
 });
