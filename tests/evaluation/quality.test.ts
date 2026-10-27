@@ -6,23 +6,7 @@ import {
 	sharedInterest,
 	skillCoverage,
 } from "../../src/evaluation/quality.js";
-import { sampleProfile } from "../fixtures.js";
-
-// A test profile with only the fields the quality score reads set explicitly.
-function person(
-	id: string,
-	skills: Profile["skills"],
-	interests: string[],
-	utcOffset: number,
-): Profile {
-	return {
-		...sampleProfile,
-		id,
-		skills,
-		interests,
-		availability: { hoursPerWeek: 20, utcOffset },
-	};
-}
+import { person } from "../fixtures.js";
 
 // A skill list with a single frontend skill at the given level.
 const frontend = (level: Profile["skills"][number]["level"]) => [

@@ -21,3 +21,19 @@ export const sampleProfile: Profile = {
 		preferredRoles: ["backend"],
 	},
 };
+
+// A test profile with only the fields the matching and quality code reads set explicitly.
+export function person(
+	id: string,
+	skills: Profile["skills"],
+	interests: string[],
+	utcOffset: number,
+): Profile {
+	return {
+		...sampleProfile,
+		id,
+		skills,
+		interests,
+		availability: { hoursPerWeek: 20, utcOffset },
+	};
+}
