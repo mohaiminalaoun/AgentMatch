@@ -13,7 +13,8 @@
 		"ask": "tsx src/ask.ts",
 		"decide": "tsx src/decide.ts",
 		"reliability": "tsx src/reliability.ts",
-		"show-run": "tsx src/show-run.ts"
+		"show-run": "tsx src/show-run.ts",
+		"load-test": "tsx src/load-test.ts"
 	},
 	"repository": {
 		"type": "git",

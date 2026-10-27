@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run ask "<prompt>"`: send one prompt to the model configured in `.env` and print the reply, token usage, and latency (`src/ask.ts`; costs real credits)
 - `npm run decide`: ask the model to accept, counter, or decline one sample proposal as validated JSON (`src/decide.ts`; costs real credits)
 - `npm run reliability`: make 20 live decision calls and report JSON validity, retries, decisions, decline reasons, tokens, and latency (`src/reliability.ts`; costs real credits, takes a few minutes)
+- `npm run load-test [count]`: fire `count` (default 50) calls at once through the queued, retrying client and report 429s, retries, peak concurrency, and speedup (`src/load-test.ts`; costs real credits)
 - `npm run show-run [file]`: print a run log from `runs/` as a readable transcript, defaulting to the newest. `ask`, `decide`, and `reliability` log every exchange to `runs/<timestamp>-<label>.jsonl`, which is gitignored because logs can hold real people's data
 - `npm run format` / `npm run format:check`: run Prettier (tabs, width 4)
 
@@ -22,7 +23,7 @@ Agent Match is a network of personal AI agents that negotiate to form teams for 
 
 The code lives in `src/` in three areas:
 
-- `src/engine`: core agent logic (domain schemas, proposals, the disclosure gate, the LLM request queue). **It must never import from `src/ui`.** The UI subscribes to events the engine emits.
+- `src/engine`: core agent logic (domain schemas, proposals, the disclosure gate, the LLM client). LLM calls layer as `createLlmClient` (concurrency limit via `queue.ts`, backoff on 429/5xx via `backoff.ts`) → `chatJson` (re-asks on invalid JSON) → `chat` (one HTTP request); agents should share one client. **It must never import from `src/ui`.** The UI subscribes to events the engine emits.
 - `src/evaluation`: synthetic profiles, non-LLM baselines, and metrics (team quality, privacy leakage).
 - `src/ui`: an Ink terminal UI that renders engine events.
 
