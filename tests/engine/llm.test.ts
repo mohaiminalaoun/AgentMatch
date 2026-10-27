@@ -5,6 +5,7 @@ import {
 	chatJson,
 	formatExchange,
 	LlmError,
+	parseRetryAfter,
 	type Exchange,
 	StructuredOutputError,
 	type Message,
@@ -15,6 +16,7 @@ const config: Config = {
 	baseUrl: "https://llm.example.com/v1/",
 	apiKey: "test-key-123",
 	model: "test-model",
+	maxConcurrency: 8,
 };
 
 const messages: Message[] = [{ role: "user", content: "Say hello." }];
@@ -413,5 +415,65 @@ describe("chatJson retries", () => {
 		expect(seen).toHaveLength(2);
 		expect(seen[0]!.messages).toHaveLength(messages.length + 1);
 		expect(seen[1]!.messages).toHaveLength(messages.length + 3);
+	});
+});
+
+describe("retryable errors", () => {
+	test("429 and 5xx are retryable; 401 and 404 are not", async () => {
+		for (const [status, retryable] of [
+			[429, true],
+			[500, true],
+			[503, true],
+			[401, false],
+			[404, false],
+		] as const) {
+			const error = await errorFor({ error: "x" }, status);
+			expect(error.retryable).toBe(retryable);
+		}
+	});
+
+	test("timeouts and network failures are retryable", async () => {
+		const failing = (async () => {
+			throw new TypeError("fetch failed");
+		}) as typeof fetch;
+		await expect(
+			chat(config, messages, { fetch: failing }),
+		).rejects.toMatchObject({ retryable: true });
+	});
+
+	test("bad JSON from the model is not retryable here", async () => {
+		const error = await structuredErrorFor("not json");
+		expect(error.retryable).toBe(false);
+	});
+
+	test("a Retry-After header is turned into milliseconds", async () => {
+		const fn = (async () =>
+			new Response("slow down", {
+				status: 429,
+				headers: { "Retry-After": "7" },
+			})) as typeof fetch;
+		await expect(
+			chat(config, messages, { fetch: fn }),
+		).rejects.toMatchObject({
+			retryAfterMs: 7000,
+		});
+	});
+});
+
+describe("parseRetryAfter", () => {
+	test("reads seconds", () => {
+		expect(parseRetryAfter("2")).toBe(2000);
+	});
+
+	test("reads an HTTP date relative to now", () => {
+		const now = Date.parse("2026-10-27T12:00:00Z");
+		expect(parseRetryAfter("Tue, 27 Oct 2026 12:00:05 GMT", now)).toBe(
+			5000,
+		);
+	});
+
+	test("a missing or unreadable header gives undefined", () => {
+		expect(parseRetryAfter(null)).toBeUndefined();
+		expect(parseRetryAfter("soon")).toBeUndefined();
 	});
 });

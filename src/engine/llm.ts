@@ -13,14 +13,30 @@ export type ChatReply = {
 	usage: TokenUsage | undefined;
 };
 
-// An LLM call that failed; `status` is the HTTP status when the server answered.
+export type LlmErrorDetails = {
+	// The HTTP status, when the server answered.
+	status?: number | undefined;
+	// True when sending the same request again later might work (rate limits, server errors, timeouts).
+	retryable?: boolean;
+	// How long the server asked us to wait before retrying, from its Retry-After header.
+	retryAfterMs?: number | undefined;
+};
+
+// An LLM call that failed.
 export class LlmError extends Error {
+	readonly status: number | undefined;
+	readonly retryable: boolean;
+	readonly retryAfterMs: number | undefined;
+
 	constructor(
 		message: string,
-		readonly status: number | undefined = undefined,
+		{ status, retryable = false, retryAfterMs }: LlmErrorDetails = {},
 	) {
 		super(message);
 		this.name = "LlmError";
+		this.status = status;
+		this.retryable = retryable;
+		this.retryAfterMs = retryAfterMs;
 	}
 }
 
@@ -93,10 +109,13 @@ export async function chat(
 		});
 	} catch (error) {
 		if ((error as Error).name === "TimeoutError") {
-			throw new LlmError(`no reply within ${timeoutMs / 1000}s`);
+			throw new LlmError(`no reply within ${timeoutMs / 1000}s`, {
+				retryable: true,
+			});
 		}
 		throw new LlmError(
 			`could not reach ${url}; check LLM_BASE_URL and your connection`,
+			{ retryable: true },
 		);
 	}
 
@@ -106,7 +125,13 @@ export async function chat(
 			.slice(0, 300);
 		throw new LlmError(
 			`HTTP ${response.status}: ${hintFor(response.status)}\n${body}`,
-			response.status,
+			{
+				status: response.status,
+				retryable: response.status === 429 || response.status >= 500,
+				retryAfterMs: parseRetryAfter(
+					response.headers.get("Retry-After"),
+				),
+			},
 		);
 	}
 
@@ -132,6 +157,11 @@ export type ChatJsonOptions = ChatOptions & {
 	maxAttempts?: number;
 	// Called when a reply is invalid and another attempt follows, e.g. to count failures.
 	onRetry?: (error: StructuredOutputError, attempt: number) => void;
+	// How each attempt is sent; defaults to a direct `chat` call. The client passes its queued, retrying version.
+	send?: (
+		messages: readonly Message[],
+		options: ChatOptions,
+	) => Promise<ChatReply>;
 };
 
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -145,6 +175,7 @@ export async function chatJson<S extends z.ZodType>(
 	{
 		maxAttempts = DEFAULT_MAX_ATTEMPTS,
 		onRetry,
+		send = (sent, sendOptions) => chat(config, sent, sendOptions),
 		...options
 	}: ChatJsonOptions = {},
 ): Promise<{
@@ -164,7 +195,7 @@ export async function chatJson<S extends z.ZodType>(
 	let usage: TokenUsage | undefined;
 	for (let attempt = 1; ; attempt++) {
 		// A copy, so a logged exchange doesn't change when feedback is appended below.
-		const reply = await chat(config, [...conversation], options);
+		const reply = await send([...conversation], options);
 		usage = addUsage(usage, reply.usage);
 		try {
 			return {
@@ -254,6 +285,21 @@ export function formatExchange({ messages, reply }: Exchange): string {
 	return [...messages, { role: "assistant", content: reply }]
 		.map(({ role, content }) => `── ${role} ──\n${content}`)
 		.join("\n\n");
+}
+
+// Milliseconds to wait from a Retry-After header, which is either a number of seconds or an HTTP date.
+export function parseRetryAfter(
+	value: string | null,
+	now = Date.now(),
+): number | undefined {
+	if (value === null) {
+		return undefined;
+	}
+	if (/^\d+$/.test(value.trim())) {
+		return Number(value) * 1000;
+	}
+	const date = Date.parse(value);
+	return Number.isNaN(date) ? undefined : Math.max(0, date - now);
 }
 
 // What an HTTP error status most likely means for this project's settings.

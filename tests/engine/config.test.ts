@@ -23,7 +23,22 @@ describe("loadConfig", () => {
 			baseUrl: "https://llm.example.com/v1",
 			apiKey: "test-key-123",
 			model: "test-model",
+			maxConcurrency: 8,
 		});
+	});
+
+	test("LLM_MAX_CONCURRENCY is read as a number", () => {
+		expect(
+			loadConfig({ ...env, LLM_MAX_CONCURRENCY: "20" }).maxConcurrency,
+		).toBe(20);
+	});
+
+	test("an invalid LLM_MAX_CONCURRENCY fails", () => {
+		for (const value of ["0", "2.5", "lots"]) {
+			expect(errorFor({ ...env, LLM_MAX_CONCURRENCY: value })).toContain(
+				"LLM_MAX_CONCURRENCY must be a whole number",
+			);
+		}
 	});
 
 	test("unrelated variables are ignored", () => {
