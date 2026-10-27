@@ -46,6 +46,8 @@ export class StructuredOutputError extends LlmError {
 		message: string,
 		readonly raw: string,
 		readonly problems: string[],
+		// "format" when the reply wasn't valid JSON for the schema, "rule" when a caller's `check` rejected it.
+		readonly kind: "format" | "rule" = "format",
 	) {
 		super(message);
 		this.name = "StructuredOutputError";
@@ -152,9 +154,12 @@ export async function chat(
 	return { content, usage };
 }
 
-export type ChatJsonOptions = ChatOptions & {
+export type ChatJsonOptions<T = unknown> = ChatOptions & {
 	// Tries in total, counting the first; only invalid output is retried, never HTTP or network errors.
 	maxAttempts?: number;
+	// Extra rules checked after the schema passes, such as the disclosure gate. Any problems it returns
+	// are fed back to the model like format errors, and it tries again.
+	check?: (data: T) => string[];
 	// Called when a reply is invalid and another attempt follows, e.g. to count failures.
 	onRetry?: (error: StructuredOutputError, attempt: number) => void;
 	// How each attempt is sent; defaults to a direct `chat` call. The client passes its queued, retrying version.
@@ -175,9 +180,10 @@ export async function chatJson<S extends z.ZodType>(
 	{
 		maxAttempts = DEFAULT_MAX_ATTEMPTS,
 		onRetry,
+		check,
 		send = (sent, sendOptions) => chat(config, sent, sendOptions),
 		...options
-	}: ChatJsonOptions = {},
+	}: ChatJsonOptions<z.output<S>> = {},
 ): Promise<{
 	data: z.output<S>;
 	usage: TokenUsage | undefined;
@@ -198,11 +204,17 @@ export async function chatJson<S extends z.ZodType>(
 		const reply = await send([...conversation], options);
 		usage = addUsage(usage, reply.usage);
 		try {
-			return {
-				data: parseReply(reply.content, schema),
-				usage,
-				attempts: attempt,
-			};
+			const data = parseReply(reply.content, schema);
+			const problems = check?.(data) ?? [];
+			if (problems.length > 0) {
+				throw new StructuredOutputError(
+					"reply broke a rule",
+					reply.content,
+					problems,
+					"rule",
+				);
+			}
+			return { data, usage, attempts: attempt };
 		} catch (error) {
 			if (
 				!(error instanceof StructuredOutputError) ||

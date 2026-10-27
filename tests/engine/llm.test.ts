@@ -477,3 +477,47 @@ describe("parseRetryAfter", () => {
 		expect(parseRetryAfter("soon")).toBeUndefined();
 	});
 });
+
+describe("chatJson check", () => {
+	test("problems from check are fed back and the model tries again", async () => {
+		const { fn, calls } = replySequence(
+			'{"decision": "decline", "reason": "secret plans"}',
+			'{"decision": "decline"}',
+		);
+		const kinds: string[] = [];
+		const { data, attempts } = await chatJson(config, messages, Decision, {
+			fetch: fn,
+			check: (d) =>
+				d.decision === "decline" && d.reason
+					? ["reason: say less"]
+					: [],
+			onRetry: (error) => kinds.push(error.kind),
+		});
+		expect(data).toEqual({ decision: "decline" });
+		expect(attempts).toBe(2);
+		expect(kinds).toEqual(["rule"]);
+		const feedback = sentMessages(calls, 1).at(-1)!;
+		expect(feedback.content).toContain("broke a rule");
+		expect(feedback.content).toContain("- reason: say less");
+	});
+
+	test("a check that never passes gives up with a rule error", async () => {
+		const { fn } = replySequence('{"decision": "accept"}');
+		await expect(
+			chatJson(config, messages, Decision, {
+				fetch: fn,
+				check: () => ["never good enough"],
+			}),
+		).rejects.toMatchObject({
+			kind: "rule",
+			problems: ["never good enough"],
+		});
+	});
+
+	test("format errors are reported as kind format", async () => {
+		const { fn } = replySequence("not json");
+		await expect(
+			chatJson(config, messages, Decision, { fetch: fn, maxAttempts: 1 }),
+		).rejects.toMatchObject({ kind: "format" });
+	});
+});

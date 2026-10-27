@@ -29,7 +29,7 @@ export type LlmClient = {
 	chatJson: <S extends z.ZodType>(
 		messages: readonly Message[],
 		schema: S,
-		options?: ChatJsonOptions,
+		options?: ChatJsonOptions<z.output<S>>,
 	) => Promise<{
 		data: z.output<S>;
 		usage: TokenUsage | undefined;
