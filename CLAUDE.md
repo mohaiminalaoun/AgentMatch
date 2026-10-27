@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test:watch`: run tests in watch mode
 - `npm run typecheck`: type-check with `tsc --noEmit` (nothing is emitted; code runs through `tsx`)
 - `npm start`: run `src/index.ts` with `tsx`
+- `npm run eval`: compare all matching methods across seeds and print a results table (`src/evaluation/run.ts`)
 - `npm run format` / `npm run format:check`: run Prettier (tabs, width 4)
 
 ## Architecture
