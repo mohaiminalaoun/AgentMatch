@@ -1,6 +1,6 @@
-// Entry point for `npm run ask "prompt"`: sends one prompt to the configured model and prints the reply.
+// Entry point for `npm run ask "prompt"`: sends one prompt to the configured model and prints the full exchange.
 import { loadConfig, readEnvFile } from "./engine/config.js";
-import { chat } from "./engine/llm.js";
+import { chat, formatExchange } from "./engine/llm.js";
 
 const prompt = process.argv.slice(2).join(" ").trim();
 if (!prompt) {
@@ -12,10 +12,11 @@ try {
 	readEnvFile();
 	const config = loadConfig(process.env);
 	const started = performance.now();
-	const reply = await chat(config, [{ role: "user", content: prompt }]);
+	const reply = await chat(config, [{ role: "user", content: prompt }], {
+		onExchange: (exchange) => console.log(formatExchange(exchange)),
+	});
 	const seconds = ((performance.now() - started) / 1000).toFixed(1);
 
-	console.log(reply.content);
 	const usage = reply.usage
 		? `${reply.usage.total} tokens (${reply.usage.input} in, ${reply.usage.output} out)`
 		: "token usage not reported";

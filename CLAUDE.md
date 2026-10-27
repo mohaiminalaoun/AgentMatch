@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm start`: run `src/index.ts` with `tsx`
 - `npm run eval`: compare all matching methods across seeds and print a results table (`src/evaluation/run.ts`)
 - `npm run ask "<prompt>"`: send one prompt to the model configured in `.env` and print the reply, token usage, and latency (`src/ask.ts`; costs real credits)
+- `npm run decide`: ask the model to accept, counter, or decline one sample proposal as validated JSON (`src/decide.ts`; costs real credits)
 - `npm run format` / `npm run format:check`: run Prettier (tabs, width 4)
 
 ## Architecture
@@ -30,5 +31,5 @@ Domain types are zod schemas, and each TypeScript type comes from its schema wit
 - ESM with `NodeNext` resolution: relative imports need a `.js` extension (`import { Profile } from "./profile.js"`).
 - LLM settings (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) live in a gitignored `.env`; copy `.env.example` to create it. Entry points call `readEnvFile()` once, then pass `loadConfig(process.env)` down to whatever needs it. Never log the config or the API key.
 - The tsconfig is strict, with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`. Use `import type` for type-only imports.
-- `steps.md` (the build plan) and `readme-inprogress.md` are private and gitignored. Never commit them or copy their contents into tracked files. Work through `steps.md` one step at a time unless asked to combine steps.
+- `steps.md` (the build plan), `readme-inprogress.md` (strategy notes), and `demo-notes.md` (demo moments and transcripts) are private and gitignored. Never commit them or copy their contents into tracked files. Work through `steps.md` one step at a time unless asked to combine steps.
 - Use the `/commit-changes` skill for commits: one-line Conventional Commits messages, with no attribution lines.
