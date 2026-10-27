@@ -9,7 +9,8 @@
 		"test:watch": "vitest",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
-		"eval": "tsx src/evaluation/run.ts"
+		"eval": "tsx src/evaluation/run.ts",
+		"ask": "tsx src/ask.ts"
 	},
 	"repository": {
 		"type": "git",

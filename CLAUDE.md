@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run typecheck`: type-check with `tsc --noEmit` (nothing is emitted; code runs through `tsx`)
 - `npm start`: run `src/index.ts` with `tsx`
 - `npm run eval`: compare all matching methods across seeds and print a results table (`src/evaluation/run.ts`)
+- `npm run ask "<prompt>"`: send one prompt to the model configured in `.env` and print the reply, token usage, and latency (`src/ask.ts`; costs real credits)
 - `npm run format` / `npm run format:check`: run Prettier (tabs, width 4)
 
 ## Architecture
