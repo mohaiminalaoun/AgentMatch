@@ -19,6 +19,7 @@ export const FIELD_LEVELS = {
 	name: 3,
 } as const satisfies Record<ProfileField, DisclosureLevel>;
 
+// The part of a profile that may be shown at `level`; the disclosure gate and leakage metric build on this.
 export function fieldsAtLevel(
 	profile: Profile,
 	level: DisclosureLevel,

@@ -30,6 +30,7 @@ export function randomInt(rng: Rng, min: number, max: number): number {
 	return min + Math.floor(rng() * (max - min + 1));
 }
 
+// One random item from a non-empty list.
 export function pick<T>(rng: Rng, items: readonly T[]): T {
 	if (items.length === 0) {
 		throw new Error("cannot pick from an empty list");

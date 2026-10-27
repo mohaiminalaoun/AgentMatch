@@ -7,6 +7,7 @@ import {
 	type Rng,
 } from "../../src/engine/random.js";
 
+// The next `n` numbers from a generator.
 function take(rng: Rng, n: number): number[] {
 	return Array.from({ length: n }, () => rng());
 }

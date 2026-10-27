@@ -62,6 +62,7 @@ const FIRST_NAMES = [
 // Includes half-hour zones (India is +5.5) so overlap math can't assume whole hours.
 const UTC_OFFSETS = [-8, -7, -5, -3, 0, 1, 2, 3, 5.5, 8, 9, 10];
 
+// Builds `count` fake people from a seed; used to give every matching method the same population.
 export function generateProfiles(count: number, seed: number): Profile[] {
 	const rng = createRng(seed);
 	return Array.from({ length: count }, (_, i) =>
@@ -69,6 +70,7 @@ export function generateProfiles(count: number, seed: number): Profile[] {
 	);
 }
 
+// Builds one random but internally consistent profile, drawing every choice from `rng`.
 function generateProfile(rng: Rng, id: string): Profile {
 	const skillNames = sample(rng, ROLES, randomInt(rng, 1, 3));
 	const interests = sample(rng, INTERESTS, randomInt(rng, 1, 3));
@@ -104,6 +106,7 @@ function generateProfile(rng: Rng, id: string): Profile {
 	});
 }
 
+// Uppercases the first letter, for project titles like "Climate app".
 function capitalize(text: string): string {
 	return text.charAt(0).toUpperCase() + text.slice(1);
 }
