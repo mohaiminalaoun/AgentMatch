@@ -11,7 +11,9 @@
 		"format:check": "prettier --check .",
 		"eval": "tsx src/evaluation/run.ts",
 		"ask": "tsx src/ask.ts",
-		"decide": "tsx src/decide.ts"
+		"decide": "tsx src/decide.ts",
+		"reliability": "tsx src/reliability.ts",
+		"show-run": "tsx src/show-run.ts"
 	},
 	"repository": {
 		"type": "git",

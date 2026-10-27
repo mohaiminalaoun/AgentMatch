@@ -5,7 +5,9 @@ import {
 	formatExchange,
 	StructuredOutputError,
 } from "./engine/llm.js";
+import { decisionMessages } from "./engine/decision.js";
 import { Decision, toResponse, type Proposal } from "./engine/proposal.js";
+import { createRunLog } from "./engine/runlog.js";
 
 const proposal: Proposal = {
 	id: "prop-1",
@@ -21,23 +23,17 @@ const human =
 try {
 	readEnvFile();
 	const config = loadConfig(process.env);
+	const log = createRunLog("decide");
 	const started = performance.now();
 	const { data, usage } = await chatJson(
 		config,
-		[
-			{
-				role: "system",
-				content: `You are an agent negotiating team formation on behalf of one person. ${human} Accept, counter, or decline proposals in their interest.`,
-			},
-			{
-				role: "user",
-				content: `You received this proposal:\nPitch: ${proposal.pitch}\nRoles needed: ${proposal.rolesNeeded.join(", ")}`,
-			},
-		],
+		decisionMessages(human, proposal),
 		Decision,
 		{
-			onExchange: (exchange) =>
-				console.log(`${formatExchange(exchange)}\n`),
+			onExchange: (exchange) => {
+				log.write(exchange);
+				console.log(`${formatExchange(exchange)}\n`);
+			},
 		},
 	);
 	const seconds = ((performance.now() - started) / 1000).toFixed(1);
@@ -45,7 +41,9 @@ try {
 	console.log("── validated response ──");
 	console.log(JSON.stringify(toResponse(proposal, data), null, 2));
 	const tokens = usage ? `${usage.total} tokens` : "token usage not reported";
-	console.log(`\n${tokens} · ${seconds}s · ${config.model}`);
+	console.log(
+		`\n${tokens} · ${seconds}s · ${config.model} · log: ${log.path}`,
+	);
 } catch (error) {
 	if (error instanceof StructuredOutputError) {
 		console.error(`${error.message}:`);

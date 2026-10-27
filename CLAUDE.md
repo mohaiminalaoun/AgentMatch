@@ -12,6 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run eval`: compare all matching methods across seeds and print a results table (`src/evaluation/run.ts`)
 - `npm run ask "<prompt>"`: send one prompt to the model configured in `.env` and print the reply, token usage, and latency (`src/ask.ts`; costs real credits)
 - `npm run decide`: ask the model to accept, counter, or decline one sample proposal as validated JSON (`src/decide.ts`; costs real credits)
+- `npm run reliability`: make 20 live decision calls and report JSON validity, retries, decisions, decline reasons, tokens, and latency (`src/reliability.ts`; costs real credits, takes a few minutes)
+- `npm run show-run [file]`: print a run log from `runs/` as a readable transcript, defaulting to the newest. `ask`, `decide`, and `reliability` log every exchange to `runs/<timestamp>-<label>.jsonl`, which is gitignored because logs can hold real people's data
 - `npm run format` / `npm run format:check`: run Prettier (tabs, width 4)
 
 ## Architecture
