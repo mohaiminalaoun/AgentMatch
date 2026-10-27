@@ -23,7 +23,7 @@ Agent Match is a network of personal AI agents that negotiate to form teams for 
 
 The code lives in `src/` in three areas:
 
-- `src/engine`: core agent logic (domain schemas, proposals, the disclosure gate, the LLM client). LLM calls layer as `createLlmClient` (concurrency limit via `queue.ts`, backoff on 429/5xx via `backoff.ts`) → `chatJson` (re-asks on invalid JSON) → `chat` (one HTTP request); agents should share one client. Agents decide through `decideOnProposal` (`decision.ts`), which runs every outgoing message through the disclosure gate (`gate.ts`); the model's `rationale` stays private and is never sent. **It must never import from `src/ui`.** The UI subscribes to events the engine emits.
+- `src/engine`: core agent logic (domain schemas, proposals, the disclosure gate, the LLM client). LLM calls layer as `createLlmClient` (concurrency limit via `queue.ts`, backoff on 429/5xx via `backoff.ts`) → `chatJson` (re-asks on invalid JSON) → `chat` (one HTTP request); agents should share one client. Agents decide through `decideOnProposal` (`decision.ts`), which runs every outgoing message through the disclosure gate (`gate.ts`); the model's `rationale` stays private and is never sent. Agents never call each other: every message goes through the bus (`bus.ts`), which validates it (schema, sender identity, recipient), delivers a copy to the recipient's inbox, and reports numbered events to subscribers for logging, the UI, and replay. **It must never import from `src/ui`.** The UI subscribes to events the engine emits.
 - `src/evaluation`: synthetic profiles, non-LLM baselines, and metrics (team quality, privacy leakage).
 - `src/ui`: an Ink terminal UI that renders engine events.
 
