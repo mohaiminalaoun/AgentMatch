@@ -1,9 +1,6 @@
-import type { Profile } from "../engine/profile.js";
+import { CORE_ROLES, type Profile } from "../engine/profile.js";
 
 type SkillLevel = Profile["skills"][number]["level"];
-
-// Roles most hackathon projects need. Other roles only matter for some projects.
-export const CORE_ROLES = ["frontend", "backend", "design", "product"] as const;
 
 const LEVEL_WEIGHT: Record<SkillLevel, number> = {
 	beginner: 0.5,

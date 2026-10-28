@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Roles most hackathon projects need. Other roles only matter for some projects.
+export const CORE_ROLES = ["frontend", "backend", "design", "product"] as const;
+
 export const SkillLevel = z.enum(["beginner", "intermediate", "expert"]);
 
 export const Skill = z.object({
