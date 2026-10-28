@@ -54,7 +54,7 @@ const decisions: Record<string, object> = {
 };
 
 // A fake model that recognizes each kind of prompt and answers from the scripts above. Offers are always
-// taken: the first owner offering is committed to.
+// taken (the first owner offering is committed to), and members always stay when their team grows.
 function fakeClient() {
 	// Each agent picks once per round it's still open, so its own call count is the round.
 	const discoveryCalls: Record<string, number> = {};
@@ -74,6 +74,8 @@ function fakeClient() {
 			const round = (discoveryCalls[who] =
 				(discoveryCalls[who] ?? 0) + 1);
 			reply = { rationale: "Picks.", approach: picks[round]![who] ?? [] };
+		} else if (last.startsWith("Your teammates")) {
+			reply = { rationale: "Still a fit.", decision: "stay" };
 		} else if (last.startsWith("Offers:")) {
 			const [first] = JSON.parse(last.slice("Offers:".length));
 			reply = { rationale: "Joining.", commit: first.owner };
@@ -117,12 +119,12 @@ describe("runSimulation", () => {
 			expect.stringMatching(
 				/^round 1: conversations finished in \d+ ticks$/,
 			),
-			"round 1: 1 offers → 1 commits · teams: 1",
+			"round 1: 1 offers → 1 commits in 2 passes · teams: 1",
 			"round 2: 1 picks → 1 proposals",
 			expect.stringMatching(
 				/^round 2: conversations finished in \d+ ticks$/,
 			),
-			"round 2: 1 offers → 1 commits · teams: 1",
+			"round 2: 1 offers → 1 commits in 2 passes · teams: 1",
 		]);
 	});
 
@@ -173,7 +175,12 @@ describe("summarize", () => {
 	});
 
 	test("reports the committed teams and who is on none", async () => {
-		const { summary, world } = await simulate();
+		const { summary, world, events } = await simulate();
+		// b was on a's team before e joined, so b re-checked, and stayed.
+		expect(
+			events.filter((e) => e.type === "recheck").map((e) => e.agent),
+		).toEqual(["b"]);
+		expect(summary.departures).toBe(0);
 		expect(summary.teams.map((t) => t.members)).toEqual([["a", "b", "e"]]);
 		expect(summary.unplaced).toEqual(["c", "d"]);
 		// b and e never talked, but as teammates they know each other's names.

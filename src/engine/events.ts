@@ -102,16 +102,27 @@ export const RunEvent = z.discriminatedUnion("type", [
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),
-	// An agent holding offers committed to one owner's team, or to none (`chose` null).
+	// An agent holding offers committed to one owner's team, or to none (`chose` null). `busy` when it had
+	// offers of its own out and answered busy without a model call.
 	z.object({
 		type: z.literal("commitment"),
 		agent: z.string(),
 		offers: z.array(z.string()),
 		chose: z.string().nullable(),
+		busy: z.boolean().optional(),
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),
-	// A team formed or gained a member.
+	// After its team grew, an earlier member decided whether to stay.
+	z.object({
+		type: z.literal("recheck"),
+		agent: z.string(),
+		team: z.string(),
+		decision: z.enum(["stay", "leave"]),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
+	// A team formed, gained a member, or lost one.
 	z.object({ type: z.literal("team"), team: Team }),
 	// One model call: everything sent, the reply, and its cost.
 	z.object({

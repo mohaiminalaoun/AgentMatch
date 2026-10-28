@@ -18,6 +18,8 @@ export function describeMessage(message: AgentMessage): string {
 				return `offer: a place on ${message.team}`;
 			case "answer":
 				return `${message.answer} (${message.team})`;
+			case "leave":
+				return `leave (${message.team})`;
 		}
 	}
 	if ("decision" in message) {
@@ -67,7 +69,9 @@ export function formatEvent(
 		case "offers":
 			return `  ${event.agent} offers a place to: ${event.to.join(", ") || "nobody"} (${event.places} left)${event.fellBack ? " (fell back)" : ""}${event.rationale === undefined ? "" : reasoning(event.rationale)}`;
 		case "commitment":
-			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : event.busy ? "busy with its own offers" : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "recheck":
+			return `  ${event.agent} rechecks ${event.team} after it grew → ${event.decision}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "team":
 			return `  team ${event.team.id}: ${event.team.members.join(", ")} (${event.team.status}) · project: ${event.team.project.title}`;
 		case "exchange":
@@ -123,7 +127,7 @@ export function formatSummary(
 				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals · ${r.offers} offers → ${r.commits} commits`,
 		),
 		`Pairs:    ${summary.pairs.length} talked · reached level 1: ${reachedAt(1)} · level 2: ${reachedAt(2)} · ready: ${summary.pairs.filter((p) => p.ready).length} · ended: ${summary.pairs.filter((p) => p.ended).length}`,
-		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")}`,
+		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")} · members who left: ${summary.departures}`,
 		`On no team:         ${list(summary.unplaced)}`,
 		`Never approached:   ${list(summary.neverApproached)}`,
 		`In no conversation: ${list(summary.noConversation)}`,

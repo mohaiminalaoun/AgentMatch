@@ -12,8 +12,14 @@ import {
 import { JOIN_PREFIX, type Proposal } from "./proposal.js";
 import { publicPitch, type World } from "./round.js";
 
-// One agent's listing on the public board: only what it shows at level 0.
-export type BoardEntry = { id: string; pitch: string; rolesNeeded: string[] };
+// One agent's listing on the public board: only what it shows at level 0, plus how many committed teams
+// its human has left, if any.
+export type BoardEntry = {
+	id: string;
+	pitch: string;
+	rolesNeeded: string[];
+	leftTeams?: number;
+};
 
 // What the model returns: private reasoning, then the ids it wants to approach, best first.
 export const AgentPicks = z.object({
@@ -50,7 +56,17 @@ export function buildBoard(world: World): BoardEntry[] {
 		.filter((agent) => isOpen(world, agent.id))
 		.flatMap((agent) => {
 			const terms = publicPitch(agent);
-			return terms ? [{ id: agent.id, ...terms }] : [];
+			return terms
+				? [
+						{
+							id: agent.id,
+							...terms,
+							...(agent.leftTeams > 0 && {
+								leftTeams: agent.leftTeams,
+							}),
+						},
+					]
+				: [];
 		})
 		.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
@@ -75,6 +91,11 @@ export function discoveryMessages(
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
 					"Approach only where the project could fit your human's project ideas or interests, and your human could fill a role it needs or they could fill one yours needs.",
+					...(others.some((entry) => entry.leftTeams)
+						? [
+								"leftTeams on an entry is how many committed teams that person has left before; weigh their reliability.",
+							]
+						: []),
 					"Be selective: an empty list is fine if nothing fits. Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
@@ -176,9 +197,12 @@ export async function discover(
 			const id = `r${round}-${pick.agent}-${to}`;
 			const own = publicPitch(agent);
 			const target = listed.get(to)!;
+			// The proposer's own record travels with every proposal, set here rather than by any model.
+			const record =
+				agent.leftTeams > 0 ? { leftTeams: agent.leftTeams } : {};
 			proposals.push(
 				own
-					? { id, from: pick.agent, to, ...own }
+					? { id, from: pick.agent, to, ...own, ...record }
 					: {
 							// Nothing of its own to pitch: ask to join theirs, revealing nothing about itself.
 							id,
@@ -189,6 +213,7 @@ export async function discover(
 								280,
 							),
 							rolesNeeded: target.rolesNeeded,
+							...record,
 						},
 			);
 		}

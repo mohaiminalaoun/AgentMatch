@@ -90,6 +90,11 @@ export function decisionMessages(
 				`Agent ${proposal.from} proposes:`,
 				`Pitch: ${proposal.pitch}`,
 				`Roles needed: ${proposal.rolesNeeded.join(", ")}`,
+				...(proposal.leftTeams
+					? [
+							`Reliability: their human has left ${proposal.leftTeams} committed team${proposal.leftTeams === 1 ? "" : "s"} before, so they may leave again.`,
+						]
+					: []),
 				`What you have learned about them so far: ${JSON.stringify(contact.learned)}`,
 				`Earlier messages between you: ${contact.history.length === 0 ? "none" : JSON.stringify(contact.history)}`,
 			].join("\n"),

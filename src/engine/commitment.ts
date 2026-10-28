@@ -21,6 +21,7 @@ import {
 import type { Profile } from "./profile.js";
 import {
 	JOIN_PREFIX,
+	type Leave,
 	type Offer,
 	type OfferAnswer,
 	type Share,
@@ -30,6 +31,9 @@ import type { Team } from "./team.js";
 
 // Both sides must have continued at this level before an offer: the highest level runRound opens.
 const READY_LEVEL = 2;
+
+// The most offer-and-commit passes in one commitment phase; they normally stop well before this.
+const MAX_PASSES = 5;
 
 // What an owner's model returns when more people are ready than it has places: whom to offer, best first.
 export const AgentOffers = z.object({
@@ -47,6 +51,14 @@ export const AgentCommitment = z.object({
 
 export type AgentCommitment = z.infer<typeof AgentCommitment>;
 
+// What a member's model returns when its team has grown: stay, or leave at a cost.
+export const AgentStay = z.object({
+	rationale: z.string().min(1),
+	decision: z.enum(["stay", "leave"]),
+});
+
+export type AgentStay = z.infer<typeof AgentStay>;
+
 export type CommitmentOptions = {
 	onExchange?: ChatOptions["onExchange"];
 	onEvent?: (event: RunEvent) => void;
@@ -56,6 +68,10 @@ export type CommitmentResult = {
 	world: World;
 	offers: number;
 	commits: number;
+	// Members who left a team after it grew.
+	departures: number;
+	// How many offer-and-commit passes ran.
+	passes: number;
 	// True if mail from the round was still waiting, so nothing was offered.
 	skipped: boolean;
 };
@@ -99,7 +115,7 @@ export function projectOwner(
 }
 
 // Everyone `owner` could offer a place now: both continued through level 2 in a conversation about
-// `owner`'s project, on no team yet, and hasn't declined an offer from `owner` before.
+// `owner`'s project, on no team yet, and hasn't declined an offer from `owner` or left its team before.
 export function candidatesOf(world: World, owner: string): string[] {
 	const agent = world.agents[owner]!;
 	return Object.keys(agent.contacts)
@@ -113,9 +129,9 @@ export function candidatesOf(world: World, owner: string): string[] {
 				!contactOf(agent, id).history.some(
 					(m) =>
 						"kind" in m &&
-						m.kind === "answer" &&
 						m.from === id &&
-						m.answer === "decline",
+						((m.kind === "answer" && m.answer === "decline") ||
+							m.kind === "leave"),
 				),
 		);
 }
@@ -129,6 +145,8 @@ export function offerMessages(
 	owner: AgentState,
 	candidates: readonly string[],
 	places: number,
+	// The public count of committed teams each candidate has left, for those who have.
+	leftTeams: Record<string, number> = {},
 ): Message[] {
 	return [
 		{
@@ -140,13 +158,13 @@ export function offerMessages(
 					`Your human's project is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
-					"Prefer people whose skills cover different roles the project needs. Your rationale is private.",
+					"Prefer people whose skills cover different roles the project needs. leftTeams, where shown, is how many committed teams that person has left before; weigh their reliability. Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
 		},
 		{
 			role: "user",
-			content: `Ready to join: ${JSON.stringify(candidates.map((id) => ({ id, shared: contactOf(owner, id).learned })))}`,
+			content: `Ready to join: ${JSON.stringify(candidates.map((id) => ({ id, shared: contactOf(owner, id).learned, ...(leftTeams[id] && { leftTeams: leftTeams[id] }) })))}`,
 		},
 	];
 }
@@ -183,14 +201,45 @@ export function commitmentMessages(
 	];
 }
 
+// The prompt asking a member of `team`, which has just grown, whether its human stays: its own profile, the
+// project, and what it knows about each teammate (a name, for anyone it never talked to).
+export function recheckMessages(agent: AgentState, team: Team): Message[] {
+	const teammates = team.members
+		.filter((id) => id !== agent.id)
+		.map((id) => ({ id, ...contactOf(agent, id).learned }));
+	return [
+		{
+			role: "system",
+			content: [
+				INTRO,
+				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				[
+					`Your human is committed to ${team.members[0]}'s team, building ${JSON.stringify(team.project)}. Someone new has joined, and the team is now ${team.members.length} people.`,
+					"Decide whether your human stays or leaves.",
+					'Leaving is costly: it breaks a commitment, the team loses someone it planned around, and your human gets a public mark ("left 1 team") that every agent sees when deciding whether to work with them. Leave only if the team is now clearly wrong for your human, for example bigger than they want.',
+					"Only stay or leave is sent; your rationale is private.",
+				].join("\n"),
+			].join("\n\n"),
+		},
+		{
+			role: "user",
+			content: `Your teammates and what you know about each: ${JSON.stringify(teammates)}`,
+		},
+	];
+}
+
 // Turns ready pairs into committed teams, after a round's conversations have gone quiet, without anyone
 // seeing the whole picture (deferred acceptance):
 // 1. Each project owner offers its places to the people it's ready with. If there are more of them than
 //    places, its model picks. An offer binds the owner.
 // 2. Every agent holding offers picks one, all at once, so no offer wins by arriving first. Commit goes to
-//    the pick and decline to the rest. An agent that sent offers is bound to its own project and declines.
+//    the pick and decline to the rest. An agent that sent offers is bound to its own project and answers
+//    busy, which can be offered again.
 // 3. A commit adds the member to the owner's team; the member and every teammate open level 3 and share
 //    names, built by code and gate-checked.
+//    Steps 1–3 repeat until a pass changes nothing, so someone busy in one pass can commit in the next.
+// 4. In each team that grew, every earlier member (not the owner) re-checks: stay, or leave, which tells
+//    each teammate, frees their place, and adds to the leaver's public `leftTeams`.
 // Returns a new world; the one passed in is unchanged.
 export async function runCommitment(
 	client: LlmClient,
@@ -199,7 +248,14 @@ export async function runCommitment(
 ): Promise<CommitmentResult> {
 	const { bus } = world;
 	if (bus.waiting() > 0) {
-		return { world, offers: 0, commits: 0, skipped: true };
+		return {
+			world,
+			offers: 0,
+			commits: 0,
+			departures: 0,
+			passes: 0,
+			skipped: true,
+		};
 	}
 	const agents = { ...world.agents };
 	let teams = [...world.teams];
@@ -220,37 +276,87 @@ export async function runCommitment(
 	}
 
 	async function play(): Promise<CommitmentResult> {
-		// Sends `message` and records it, and what it revealed, in the sender's state.
-		const send = (message: AgentMessage, revealed: ProfileField[]) => {
-			bus.send(message.from, message);
-			agents[message.from] = recordRevealed(
-				recordMessage(agents[message.from]!, message.to, message),
-				message.to,
-				revealed,
-			);
+		// Steps 1–3 repeat until a pass changes nothing: a commit places someone and can free an owner who
+		// was busy with its own offers; a decline rules a pair out. Both are finite, so the passes stop.
+		const before = new Map(teams.map((t) => [t.id, t.members]));
+		let offers = 0;
+		let commits = 0;
+		let passes = 0;
+		while (passes < MAX_PASSES) {
+			passes++;
+			const pass = await offerAndCommit();
+			offers += pass.offers;
+			commits += pass.commits;
+			if (pass.commits + pass.declines === 0) {
+				break;
+			}
+		}
+
+		// 4. Earlier members of teams that grew decide whether to stay.
+		const toRecheck = teams.flatMap((team) => {
+			const earlier = before.get(team.id) ?? [];
+			return earlier.length < team.members.length
+				? earlier.slice(1).map((member) => ({ member, team }))
+				: [];
+		});
+		const rechecks = await Promise.all(
+			toRecheck.map(({ member, team }) => recheck(member, team)),
+		);
+		let departures = 0;
+		for (const result of rechecks) {
+			emit({ type: "recheck", ...result });
+			if (result.decision === "leave") {
+				removeMember(result.agent, result.team);
+				departures++;
+			}
+		}
+		deliver();
+
+		return {
+			world: current(),
+			offers,
+			commits,
+			departures,
+			passes,
+			skipped: false,
 		};
-		// Delivers every inbox, in id order, recording each message and learning each share.
-		const deliver = () =>
-			Object.keys(agents)
-				.sort()
-				.flatMap((receiver) =>
-					bus.receive(receiver).map((message) => {
-						agents[receiver] = recordMessage(
+	}
+
+	// Sends `message` and records it, and what it revealed, in the sender's state.
+	function send(message: AgentMessage, revealed: ProfileField[]) {
+		bus.send(message.from, message);
+		agents[message.from] = recordRevealed(
+			recordMessage(agents[message.from]!, message.to, message),
+			message.to,
+			revealed,
+		);
+	}
+
+	// Delivers every inbox, in id order, recording each message and learning each share.
+	function deliver() {
+		return Object.keys(agents)
+			.sort()
+			.flatMap((receiver) =>
+				bus.receive(receiver).map((message) => {
+					agents[receiver] = recordMessage(
+						agents[receiver]!,
+						message.from,
+						message,
+					);
+					if ("kind" in message && message.kind === "share") {
+						agents[receiver] = learn(
 							agents[receiver]!,
 							message.from,
-							message,
+							message.shared,
 						);
-						if ("kind" in message && message.kind === "share") {
-							agents[receiver] = learn(
-								agents[receiver]!,
-								message.from,
-								message.shared,
-							);
-						}
-						return { receiver, message };
-					}),
-				);
+					}
+					return { receiver, message };
+				}),
+			);
+	}
 
+	// One pass of steps 1–3, returning what it sent.
+	async function offerAndCommit() {
 		// 1. Owners make offers.
 		const owners = Object.keys(agents)
 			.sort()
@@ -283,7 +389,8 @@ export async function runCommitment(
 			choices.filter((c) => c.to.length > 0).map((c) => c.agent),
 		);
 
-		// 2. Everyone holding offers picks one at once.
+		// 2. Everyone holding offers picks one at once. An owner with offers out is busy: it answers "busy",
+		// which, unlike a decline, leaves it open to the same offer in a later pass.
 		const held = new Map<string, string[]>();
 		for (const { receiver, message } of deliver()) {
 			held.set(receiver, [...(held.get(receiver) ?? []), message.from]);
@@ -295,12 +402,14 @@ export async function runCommitment(
 							agent,
 							offers: from,
 							chose: null,
+							busy: true,
 							rationale: undefined,
 							fellBack: false,
 						}
 					: choosePlace(agent, from),
 			),
 		);
+		let declines = 0;
 		for (const pick of picks) {
 			emit({ type: "commitment", ...pick });
 			for (const owner of pick.offers) {
@@ -309,9 +418,17 @@ export async function runCommitment(
 					from: pick.agent,
 					to: owner,
 					team: teamId(owner),
-					answer: owner === pick.chose ? "commit" : "decline",
+					answer:
+						owner === pick.chose
+							? "commit"
+							: "busy" in pick
+								? "busy"
+								: "decline",
 				};
 				send(answer, []);
+				if (answer.answer === "decline") {
+					declines++;
+				}
 			}
 		}
 
@@ -328,8 +445,7 @@ export async function runCommitment(
 			}
 		}
 		deliver();
-
-		return { world: current(), offers, commits, skipped: false };
+		return { offers, commits, declines };
 	}
 
 	// Whom `owner` offers a place: everyone ready if they fit, otherwise its model's picks. If no valid pick
@@ -348,7 +464,16 @@ export async function runCommitment(
 		}
 		try {
 			const { data } = await client.chatJson(
-				offerMessages(agents[owner]!, candidates, places),
+				offerMessages(
+					agents[owner]!,
+					candidates,
+					places,
+					Object.fromEntries(
+						candidates
+							.filter((id) => agents[id]!.leftTeams > 0)
+							.map((id) => [id, agents[id]!.leftTeams]),
+					),
+				),
 				AgentOffers,
 				{
 					...llmOptions,
@@ -418,6 +543,63 @@ export async function runCommitment(
 				rationale: undefined,
 				fellBack: true,
 			};
+		}
+	}
+
+	// Whether `member` stays on `team` now that it has grown. If no valid answer comes back, it stays:
+	// leaving breaks a commitment and costs the human a public mark.
+	async function recheck(member: string, team: Team) {
+		try {
+			const { data } = await client.chatJson(
+				recheckMessages(agents[member]!, team),
+				AgentStay,
+				llmOptions,
+			);
+			return {
+				agent: member,
+				team: team.id,
+				decision: data.decision,
+				rationale: data.rationale,
+				fellBack: false,
+			};
+		} catch (error) {
+			if (!(error instanceof StructuredOutputError)) {
+				throw error;
+			}
+			return {
+				agent: member,
+				team: team.id,
+				decision: "stay" as const,
+				rationale: undefined,
+				fellBack: true,
+			};
+		}
+	}
+
+	// Takes `member` off team `id`: each teammate is told, and the member's public count of teams left goes up.
+	// Names already shared stay known; nothing can unshare them. A team left with only its owner dissolves.
+	function removeMember(member: string, id: string) {
+		const team = teams.find((t) => t.id === id)!;
+		for (const teammate of team.members.filter((m) => m !== member)) {
+			const leave: Leave = {
+				kind: "leave",
+				from: member,
+				to: teammate,
+				team: id,
+			};
+			bus.send(member, leave);
+			agents[member] = recordMessage(agents[member]!, teammate, leave);
+		}
+		agents[member] = {
+			...agents[member]!,
+			leftTeams: agents[member]!.leftTeams + 1,
+		};
+		const members = team.members.filter((m) => m !== member);
+		teams = teams.filter((t) => t !== team);
+		if (members.length >= 2) {
+			const updated = { ...team, members };
+			teams = [...teams, updated];
+			emit({ type: "team", team: updated });
 		}
 	}
 

@@ -1,6 +1,7 @@
 import type { AgentMessage } from "./agent.js";
 import {
 	Interest,
+	Leave,
 	Offer,
 	OfferAnswer,
 	Proposal,
@@ -115,7 +116,7 @@ export function createBus(agentIds: readonly string[]): Bus {
 }
 
 // The message checked against its schema, or a description of the first problem.
-// Shares, interests, offers, and answers say what they are in `kind`; responses carry a `decision`; anything
+// Shares, interests, offers, answers, and leaves say what they are in `kind`; responses carry a `decision`; anything
 // else must be a proposal.
 export function validateMessage(message: unknown): AgentMessage | string {
 	const kind =
@@ -135,9 +136,11 @@ export function validateMessage(message: unknown): AgentMessage | string {
 					? Offer
 					: kind === "answer"
 						? OfferAnswer
-						: isResponse
-							? ProposalResponse
-							: Proposal;
+						: kind === "leave"
+							? Leave
+							: isResponse
+								? ProposalResponse
+								: Proposal;
 	const result = schema.safeParse(message);
 	if (result.success) {
 		return result.data;

@@ -44,6 +44,8 @@ export type SimulationSummary = {
 	nonCoreRoles: Record<string, number>;
 	pairs: PairOutcome[];
 	teams: Team[];
+	// Members who left a team after it grew.
+	departures: number;
 	// Agents on no team at the end.
 	unplaced: string[];
 	// Agents nobody sent a proposal to.
@@ -102,7 +104,7 @@ export async function runSimulation(
 		onPhase?.(
 			commitment.skipped
 				? `round ${round}: no offers (mail still waiting at the tick limit)`
-				: `round ${round}: ${commitment.offers} offers → ${commitment.commits} commits · teams: ${world.teams.length}`,
+				: `round ${round}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"}${commitment.departures > 0 ? ` · ${commitment.departures} left` : ""} · teams: ${world.teams.length}`,
 		);
 	}
 	return world;
@@ -229,7 +231,8 @@ export function summarize(
 				event.type === "interest" ||
 				event.type === "discovery" ||
 				event.type === "offers" ||
-				event.type === "commitment") &&
+				event.type === "commitment" ||
+				event.type === "recheck") &&
 			event.fellBack
 		) {
 			fallbacks++;
@@ -251,6 +254,9 @@ export function summarize(
 		nonCoreRoles,
 		pairs,
 		teams: world.teams,
+		departures: events.filter(
+			(e) => e.type === "recheck" && e.decision === "leave",
+		).length,
 		unplaced: ids.filter(
 			(id) => !world.teams.some((t) => t.members.includes(id)),
 		),

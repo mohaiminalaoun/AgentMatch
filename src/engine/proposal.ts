@@ -15,6 +15,9 @@ export const Proposal = Terms.extend({
 	id: z.string().min(1),
 	from: z.string().min(1),
 	to: z.string().min(1),
+	// How many committed teams the proposer's human has left, if any. Filled in by code from the
+	// proposer's state, never by a model, so the recipient can weigh reliability.
+	leftTeams: z.number().int().min(1).optional(),
 });
 
 export type Proposal = z.infer<typeof Proposal>;
@@ -119,13 +122,25 @@ export const Offer = z.object({
 
 export type Offer = z.infer<typeof Offer>;
 
-// The answer to an offer. A commit is final; a decline says nothing more than that, like a withdrawal.
+// The answer to an offer. A commit is final; a decline says nothing more than that, like a withdrawal, and
+// ends that owner's offers to them. Busy means its own offers are out, so it may be offered again later.
 export const OfferAnswer = z.object({
 	kind: z.literal("answer"),
 	from: z.string().min(1),
 	to: z.string().min(1),
 	team: z.string().min(1),
-	answer: z.enum(["commit", "decline"]),
+	answer: z.enum(["commit", "decline", "busy"]),
 });
 
 export type OfferAnswer = z.infer<typeof OfferAnswer>;
+
+// A committed member leaving their team, sent to each teammate. No text; the cost is the public mark on
+// the leaver (`leftTeams`), not anything said here.
+export const Leave = z.object({
+	kind: z.literal("leave"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	team: z.string().min(1),
+});
+
+export type Leave = z.infer<typeof Leave>;

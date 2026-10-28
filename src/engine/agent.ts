@@ -3,6 +3,7 @@ import type { Profile } from "./profile.js";
 import type {
 	Interest,
 	Offer,
+	Leave,
 	OfferAnswer,
 	Proposal,
 	ProposalResponse,
@@ -11,7 +12,13 @@ import type {
 } from "./proposal.js";
 
 export type AgentMessage =
-	Proposal | ProposalResponse | Share | Interest | Offer | OfferAnswer;
+	| Proposal
+	| ProposalResponse
+	| Share
+	| Interest
+	| Offer
+	| OfferAnswer
+	| Leave;
 
 // What one agent knows about its relationship with another.
 export type Contact = {
@@ -35,11 +42,20 @@ export type AgentState = {
 	// Undefined until written; then the board falls back to a pitch built from the first project idea.
 	listing: Terms | undefined;
 	contacts: Record<string, Contact>;
+	// How many committed teams its human has left. Public: the board and every proposal it sends show it,
+	// so others can weigh reliability.
+	leftTeams: number;
 };
 
 // A new agent for `profile`'s human, using the profile's id, with no contacts yet.
 export function createAgent(profile: Profile): AgentState {
-	return { id: profile.id, profile, listing: undefined, contacts: {} };
+	return {
+		id: profile.id,
+		profile,
+		listing: undefined,
+		contacts: {},
+		leftTeams: 0,
+	};
 }
 
 // The agent's contact with `otherId`, or a fresh level-0 contact that knows nothing if they haven't met.
