@@ -1,7 +1,11 @@
 import {
+	contactOf,
 	createAgent,
+	learn,
+	raiseLevel,
 	recordMessage,
 	recordRevealed,
+	type AgentMessage,
 	type AgentState,
 } from "./agent.js";
 import { createBus, type Bus } from "./bus.js";
@@ -11,29 +15,52 @@ import {
 	type AgentDecision,
 	type DecisionResult,
 } from "./decision.js";
-import { fieldsMentioned } from "./gate.js";
+import {
+	FIELD_LEVELS,
+	type DisclosureLevel,
+	type ProfileField,
+} from "./disclosure.js";
+import { checkDisclosure, fieldsMentioned } from "./gate.js";
 import type { ChatJsonOptions } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
 	toResponse,
 	type Proposal,
 	type ProposalResponse,
+	type Share,
 } from "./proposal.js";
 
 // Everything a run needs: every agent's state, plus the one bus they all talk through.
-// Agent states are plain data replaced each round; the bus keeps its own inboxes and event count.
+// Agent states are plain data replaced as the run goes; the bus keeps its own inboxes and event count.
 export type World = {
 	agents: Record<string, AgentState>;
 	bus: Bus;
 };
 
-// What happened to one proposal in a round, for printing and checking. The rationale is private
-// to the receiver's human and appears only here and in their own logs, never on the bus.
+// One decision an agent's model made, for printing and checking. The rationale is private
+// to the deciding agent's human and appears only here and in their own logs, never on the bus.
 export type RoundEntry = {
 	proposal: Proposal;
 	result: DecisionResult;
 	response: ProposalResponse;
 };
+
+export type RoundOptions = ChatJsonOptions<AgentDecision> & {
+	// Stop after this many ticks even if messages are still waiting, so counters can't loop forever.
+	maxTicks?: number;
+	// Called after each tick with the world so far, e.g. to print levels as they change.
+	onTick?: (tick: number, world: World) => void;
+};
+
+export type RoundResult = {
+	world: World;
+	report: RoundEntry[];
+	ticks: number;
+	// True if every inbox was empty at the end; false if it stopped at maxTicks with mail waiting.
+	quiet: boolean;
+};
+
+const DEFAULT_MAX_TICKS = 8;
 
 // A world with one agent per profile, all on a fresh bus.
 export function createWorld(profiles: readonly Profile[]): World {
@@ -67,91 +94,177 @@ export function proposalFrom(
 	};
 }
 
-// One round: ① proposals are sent, ② every receiver decides at once and replies, ③ proposers read the replies.
-// Replies are sent in proposal-id order after all decisions finish, so the bus's order doesn't depend on
-// which LLM call returned first. Returns a new world; the one passed in is left unchanged.
+// Sends `proposals`, then runs ticks until no mail is waiting (or maxTicks). In each tick every agent
+// handles its whole inbox: proposals and counters go to its model, all at once; an accept opens level 1
+// and both sides share that level's fields; a share is learned. Replies go out in inbox order, which
+// doesn't depend on which model call finished first. Returns a new world; the one passed in is unchanged.
 export async function runRound(
 	world: World,
 	client: LlmClient,
 	proposals: readonly Proposal[],
-	options: ChatJsonOptions<AgentDecision> = {},
-): Promise<{ world: World; report: RoundEntry[] }> {
+	{ maxTicks = DEFAULT_MAX_TICKS, onTick, ...options }: RoundOptions = {},
+): Promise<RoundResult> {
 	const { bus } = world;
 	const agents = { ...world.agents };
-	const byId = (a: { id: string }, b: { id: string }) =>
-		a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+	const report: RoundEntry[] = [];
 
-	// ① Propose.
-	for (const proposal of [...proposals].sort(byId)) {
+	// Sends `message` from `from` and records it, and what it revealed, in the sender's state.
+	const send = (
+		from: string,
+		message: AgentMessage,
+		revealed: ProfileField[],
+	) => {
+		bus.send(from, message);
+		agents[from] = recordRevealed(
+			recordMessage(agentOf(agents, from), message.to, message),
+			message.to,
+			revealed,
+		);
+	};
+
+	// Both sides wanted the same thing, so `id` opens `level` with `otherId` and shares that level's fields.
+	const openLevel = (id: string, otherId: string, level: DisclosureLevel) => {
+		const agent = agentOf(agents, id);
+		if (level === 0 || contactOf(agent, otherId).level >= level) {
+			return;
+		}
+		agents[id] = raiseLevel(agent, otherId, level);
+		const fields = (Object.keys(FIELD_LEVELS) as ProfileField[]).filter(
+			(field) => FIELD_LEVELS[field] === level,
+		);
+		const shared = Object.fromEntries(
+			fields.map((field) => [field, agent.profile[field]]),
+		) as Partial<Profile>;
+		// Built from the profile, so this always passes; checked anyway, as a second line of defense.
+		const violations = checkDisclosure(agent.profile, level, {
+			texts: {},
+			shared,
+		});
+		if (violations.length > 0) {
+			throw new Error(
+				`share from ${id} broke the rules: ${JSON.stringify(violations)}`,
+			);
+		}
+		const share: Share = {
+			kind: "share",
+			from: id,
+			to: otherId,
+			level,
+			shared,
+		};
+		send(id, share, fields);
+	};
+
+	for (const proposal of [...proposals].sort((a, b) => compare(a.id, b.id))) {
 		const sender = agentOf(agents, proposal.from);
-		bus.send(proposal.from, proposal);
-		agents[proposal.from] = recordRevealed(
-			recordMessage(sender, proposal.to, proposal),
-			proposal.to,
+		send(
+			proposal.from,
+			proposal,
 			fieldsMentioned(sender.profile, proposal.pitch),
 		);
 	}
 
-	// ② Respond: collect every inbox, decide on everything at once, then reply in a fixed order.
-	const received = Object.keys(agents)
-		.sort()
-		.flatMap((id) =>
-			bus
-				.receive(id)
-				.filter((m): m is Proposal => !("decision" in m))
-				.map((proposal) => ({ receiver: id, proposal })),
-		);
-	const decided = await Promise.all(
-		received.map(async ({ receiver, proposal }) => ({
-			receiver,
-			proposal,
-			// Decides with the state from before this proposal arrived, so it isn't listed twice in the prompt.
-			result: await decideOnProposal(
-				client,
-				agentOf(agents, receiver),
-				proposal,
-				options,
-			),
-		})),
-	);
-	const report: RoundEntry[] = [];
-	for (const { receiver, proposal, result } of decided.sort((a, b) =>
-		byId(a.proposal, b.proposal),
-	)) {
-		const response = toResponse(proposal, result.decision);
-		bus.send(receiver, response);
-		const pitch = "pitch" in response ? response.pitch : "";
-		agents[receiver] = recordRevealed(
-			recordMessage(
-				recordMessage(
-					agentOf(agents, receiver),
-					proposal.from,
-					proposal,
-				),
-				proposal.from,
-				response,
-			),
-			proposal.from,
-			fieldsMentioned(agentOf(agents, receiver).profile, pitch),
-		);
-		report.push({ proposal, result, response });
-	}
+	let ticks = 0;
+	while (bus.waiting() > 0 && ticks < maxTicks) {
+		ticks++;
+		const incoming = Object.keys(agents)
+			.sort()
+			.flatMap((receiver) =>
+				bus.receive(receiver).map((message) => ({ receiver, message })),
+			);
 
-	// ③ Read the replies.
-	for (const id of Object.keys(agents).sort()) {
-		for (const message of bus.receive(id)) {
-			agents[id] = recordMessage(
-				agentOf(agents, id),
+		// Proposals and counters need the model; decide on them all at once, with each agent's state
+		// from before this tick's mail, so the message being decided on isn't listed twice in the prompt.
+		const toDecide = incoming.flatMap(({ receiver, message }) => {
+			const proposal = asProposal(message);
+			return proposal ? [{ receiver, proposal }] : [];
+		});
+		const results = await Promise.all(
+			toDecide.map(({ receiver, proposal }) =>
+				decideOnProposal(
+					client,
+					agentOf(agents, receiver),
+					proposal,
+					options,
+				),
+			),
+		);
+
+		for (const { receiver, message } of incoming) {
+			agents[receiver] = recordMessage(
+				agentOf(agents, receiver),
 				message.from,
 				message,
 			);
+			if ("kind" in message) {
+				agents[receiver] = learn(
+					agentOf(agents, receiver),
+					message.from,
+					message.shared,
+				);
+			}
 		}
+
+		// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
+		let decided = 0;
+		for (const { receiver, message } of incoming) {
+			const proposal = asProposal(message);
+			if (proposal) {
+				const result = results[decided++]!;
+				const response = toResponse(proposal, result.decision);
+				const pitch = "pitch" in response ? response.pitch : "";
+				send(
+					receiver,
+					response,
+					fieldsMentioned(agentOf(agents, receiver).profile, pitch),
+				);
+				report.push({ proposal, result, response });
+				if (response.decision === "accept") {
+					openLevel(receiver, proposal.from, 1);
+				}
+			} else if ("decision" in message && message.decision === "accept") {
+				openLevel(receiver, message.from, 1);
+			}
+		}
+
+		onTick?.(ticks, { ...world, agents: { ...agents } });
 	}
 
-	return { world: { ...world, agents }, report };
+	return {
+		world: { ...world, agents },
+		report,
+		ticks,
+		quiet: bus.waiting() === 0,
+	};
 }
 
-// The agent with `id`, or an error naming it; a missing agent is a bug in how the round was set up.
+// What `message` asks its receiver to decide on: a proposal as is, or a counter's terms as a new
+// proposal back to whoever countered. Undefined for anything that needs no decision.
+function asProposal(message: AgentMessage): Proposal | undefined {
+	if ("kind" in message) {
+		return undefined;
+	}
+	if (!("decision" in message)) {
+		return message;
+	}
+	if (message.decision === "counter") {
+		return {
+			id: `${message.proposalId}.c`,
+			from: message.from,
+			to: message.to,
+			pitch: message.pitch,
+			rolesNeeded: message.rolesNeeded,
+		};
+	}
+	return undefined;
+}
+
+// Orders two ids, for sorting.
+function compare(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+// The agent with `id`, or an error naming it; a missing agent is a bug in how the run was set up.
 function agentOf(agents: Record<string, AgentState>, id: string): AgentState {
 	const agent = agents[id];
 	if (!agent) {

@@ -34,7 +34,7 @@ export const ben: Profile = {
 };
 
 // A frontend developer who cares about accessibility and education.
-const kemi: Profile = {
+export const kemi: Profile = {
 	id: "kemi",
 	name: "Kemi",
 	skills: [
@@ -94,6 +94,25 @@ const rosa: Profile = {
 	],
 	availability: { hoursPerWeek: 10, utcOffset: -8 },
 	preferences: { minTeamSize: 3, maxTeamSize: 4, preferredRoles: ["design"] },
+};
+
+// An ML engineer whose project idea is an AI note-taking app; proposes to Kemi in `npm run negotiate`.
+export const nia: Profile = {
+	id: "nia",
+	name: "Nia",
+	skills: [
+		{ name: "ml", level: "expert" },
+		{ name: "backend", level: "intermediate" },
+	],
+	interests: ["education", "accessibility"],
+	projectIdeas: [
+		{
+			title: "AI note-taking app",
+			description: "An AI note-taking app for university students.",
+		},
+	],
+	availability: { hoursPerWeek: 12, utcOffset: 0 },
+	preferences: { minTeamSize: 2, maxTeamSize: 4, preferredRoles: ["ml"] },
 };
 
 // A frontend developer whose project idea is the invoicing startup; proposes in `npm run round`.

@@ -43,11 +43,13 @@ const decisions: Record<string, object> = {
 		rolesNeeded: ["frontend"],
 	},
 	omar: { decision: "accept" },
+	// Ada's answer when Kemi's counter comes back to her.
+	[sampleProfile.id]: { decision: "decline" },
 };
 
 // A client whose fake model decides by who is asking (found in the profile in the prompt),
 // optionally after a random delay so replies finish in a random order.
-function fakeClient(randomDelays = false) {
+function fakeClient(randomDelays = false, script = decisions) {
 	const fetch = (async (_url: unknown, init?: RequestInit) => {
 		const { messages } = JSON.parse(init!.body as string);
 		const receiver = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
@@ -58,7 +60,7 @@ function fakeClient(randomDelays = false) {
 		}
 		const content = JSON.stringify({
 			rationale: `Private reasoning for ${receiver}.`,
-			decision: decisions[receiver],
+			decision: script[receiver],
 		});
 		return new Response(
 			JSON.stringify({
@@ -89,7 +91,7 @@ function setup() {
 const summary = (events: BusEvent[]) =>
 	events.map((e) =>
 		e.type === "sent"
-			? `${e.message.from} → ${e.message.to}: ${"decision" in e.message ? e.message.decision : "proposal"}`
+			? `${e.message.from} → ${e.message.to}: ${"kind" in e.message ? `share ${e.message.level}` : "decision" in e.message ? e.message.decision : "proposal"}`
 			: `rejected: ${e.reason}`,
 	);
 
@@ -164,6 +166,8 @@ describe("runRound", () => {
 			"Private reasoning for ben.",
 			"Private reasoning for kemi.",
 			"Private reasoning for omar.",
+			// Ada deciding on Kemi's counter, one tick later.
+			`Private reasoning for ${ada.id}.`,
 		]);
 		expect(JSON.stringify(events)).not.toContain("Private reasoning");
 	});
@@ -180,9 +184,14 @@ describe("runRound", () => {
 			`${ada.id} → ben: proposal`,
 			`${ada.id} → kemi: proposal`,
 			`${ada.id} → omar: proposal`,
+			// Tick 1: everyone answers; Omar's accept opens level 1, so he shares.
 			`ben → ${ada.id}: decline`,
 			`kemi → ${ada.id}: counter`,
 			`omar → ${ada.id}: accept`,
+			`omar → ${ada.id}: share 1`,
+			// Tick 2: Ada declines Kemi's counter, and shares with Omar now that she's seen his accept.
+			`${ada.id} → kemi: decline`,
+			`${ada.id} → omar: share 1`,
 		]);
 	});
 
@@ -250,5 +259,141 @@ describe("prompt isolation", () => {
 		expect(benPrompts).toContain("Carbon tracker");
 		// The test only means something if Kemi's own prompt did contain her markers.
 		expect(promptsFor.kemi!.join("\n")).toContain("zz-secret-skill");
+	});
+});
+
+describe("staged disclosure to level 1", () => {
+	// Nia pitches an AI note-taking app; Kemi wants accessible study tools.
+	const nia: Profile = {
+		...withIdea(
+			person(
+				"nia",
+				[{ name: "ml", level: "expert" }],
+				["education", "accessibility"],
+				0,
+			),
+			"AI note-taking app",
+		),
+		availability: { hoursPerWeek: 12, utcOffset: 0 },
+	};
+	const kemiCounter = {
+		decision: "counter",
+		pitch: "AI note-taking app focused on accessible study tools for students with dyslexia.",
+		rolesNeeded: ["ml"],
+	};
+
+	// A two-person world, Nia's proposal to Kemi, and every bus event.
+	function pair() {
+		const world = createWorld([nia, kemi]);
+		const events: BusEvent[] = [];
+		world.bus.subscribe((event) => events.push(event));
+		const proposal = proposalFrom(world.agents.nia!, "kemi", "prop-1")!;
+		return { world, events, proposal };
+	}
+
+	test("a counter that's accepted opens level 1 for both, and each learns the other's level-1 fields", async () => {
+		const { world, events, proposal } = pair();
+		const client = fakeClient(false, {
+			kemi: kemiCounter,
+			nia: { decision: "accept" },
+		});
+		const { world: after, quiet } = await runRound(world, client, [
+			proposal,
+		]);
+
+		expect(quiet).toBe(true);
+		expect(summary(events)).toEqual([
+			"nia → kemi: proposal",
+			"kemi → nia: counter",
+			"nia → kemi: accept",
+			"nia → kemi: share 1",
+			"kemi → nia: share 1",
+		]);
+		const niaSide = contactOf(after.agents.nia!, "kemi");
+		const kemiSide = contactOf(after.agents.kemi!, "nia");
+		expect([niaSide.level, kemiSide.level]).toEqual([1, 1]);
+		expect(niaSide.learned).toEqual({
+			interests: kemi.interests,
+			availability: kemi.availability,
+		});
+		expect(kemiSide.learned).toEqual({
+			interests: nia.interests,
+			availability: nia.availability,
+		});
+		expect(niaSide.revealed).toEqual(
+			expect.arrayContaining([
+				"projectIdeas",
+				"interests",
+				"availability",
+			]),
+		);
+		expect(niaSide.revealed).not.toContain("skills");
+	});
+
+	test("a proposal accepted straight away also opens level 1", async () => {
+		const { world, proposal } = pair();
+		const client = fakeClient(false, { kemi: { decision: "accept" } });
+		const { world: after } = await runRound(world, client, [proposal]);
+		expect(contactOf(after.agents.nia!, "kemi").level).toBe(1);
+		expect(contactOf(after.agents.kemi!, "nia").level).toBe(1);
+	});
+
+	test("a decline shares nothing and stays at level 0", async () => {
+		const { world, events, proposal } = pair();
+		const client = fakeClient(false, { kemi: { decision: "decline" } });
+		const { world: after } = await runRound(world, client, [proposal]);
+		expect(summary(events)).toEqual([
+			"nia → kemi: proposal",
+			"kemi → nia: decline",
+		]);
+		expect(contactOf(after.agents.nia!, "kemi")).toMatchObject({
+			level: 0,
+			learned: {},
+		});
+		expect(contactOf(after.agents.kemi!, "nia")).toMatchObject({
+			level: 0,
+			learned: {},
+		});
+	});
+
+	test("endless counters stop at maxTicks, with mail still waiting", async () => {
+		const { world, proposal } = pair();
+		const client = fakeClient(false, {
+			kemi: kemiCounter,
+			nia: kemiCounter,
+		});
+		const result = await runRound(world, client, [proposal], {
+			maxTicks: 4,
+		});
+		expect(result.ticks).toBe(4);
+		expect(result.quiet).toBe(false);
+	});
+
+	test("after level 1, prompts still never contain the other side's unshared fields", async () => {
+		const marked: Profile = {
+			...kemi,
+			skills: [{ name: "zz-secret-skill", level: "expert" }],
+		};
+		const world = createWorld([nia, marked]);
+		const prompts: string[] = [];
+		const base = fakeClient(false, {
+			kemi: kemiCounter,
+			nia: { decision: "accept" },
+		});
+		const client = {
+			...base,
+			chatJson: ((messages, schema, options) => {
+				prompts.push(JSON.stringify(messages));
+				return base.chatJson(messages, schema, options);
+			}) as typeof base.chatJson,
+		};
+		const proposal = proposalFrom(world.agents.nia!, "kemi", "prop-1")!;
+		const { world: after } = await runRound(world, client, [proposal]);
+		expect(contactOf(after.agents.nia!, "kemi").level).toBe(1);
+		const niaPrompts = prompts.filter((p) =>
+			p.includes('\\"id\\": \\"nia\\"'),
+		);
+		expect(niaPrompts.length).toBeGreaterThan(0);
+		expect(niaPrompts.join("")).not.toContain("zz-secret-skill");
 	});
 });
