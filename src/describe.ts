@@ -21,15 +21,21 @@ export function describeMessage(message: AgentMessage): string {
 	return `proposal: "${message.pitch}"  roles needed: ${message.rolesNeeded.join(", ")}`;
 }
 
-// One event as a timeline line, or undefined for model calls, which are summarized separately.
-export function formatEvent(event: RunEvent): string | undefined {
+// One event as a timeline line, or undefined for model calls, which are summarized separately. Without
+// `rationale`, agents' private reasoning is left out, for a shorter live view.
+export function formatEvent(
+	event: RunEvent,
+	{ rationale = true }: { rationale?: boolean } = {},
+): string | undefined {
+	const reasoning = (text: string | undefined) =>
+		rationale ? ` · private: ${text ?? "(none)"}` : "";
 	switch (event.type) {
 		case "round":
 			return `round · ${event.time} · ${event.model} · agents: ${event.agents.join(", ")}`;
 		case "listing":
-			return `  ${event.agent} lists: "${event.pitch}" · needs ${event.rolesNeeded.join(", ")}${event.gateBlocks > 0 ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back to the built-in pitch)" : ""} · private: ${event.rationale ?? "(none)"}`;
+			return `  ${event.agent} lists: "${event.pitch}" · needs ${event.rolesNeeded.join(", ")}${event.gateBlocks > 0 ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back to the built-in pitch)" : ""}${reasoning(event.rationale)}`;
 		case "discovery":
-			return `  ${event.agent} chooses to approach: ${event.approach.join(", ") || "nobody"}${event.fellBack ? " (fell back)" : ""} · private: ${event.rationale ?? "(none)"}`;
+			return `  ${event.agent} chooses to approach: ${event.approach.join(", ") || "nobody"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "tick":
 			return `\n── tick ${event.n} ──`;
 		case "bus": {
@@ -45,10 +51,10 @@ export function formatEvent(event: RunEvent): string | undefined {
 					: []),
 				...(event.fellBack ? ["fell back to a plain decline"] : []),
 			];
-			return `     ${event.agent} decides ${event.decision.decision}${notes.length > 0 ? ` (${notes.join(", ")})` : ""} · private: ${event.rationale ?? "(none)"}`;
+			return `     ${event.agent} decides ${event.decision.decision}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}${reasoning(event.rationale)}`;
 		}
 		case "interest":
-			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.fellBack ? " (fell back)" : ""} · private: ${event.rationale ?? "(none)"}`;
+			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "level":
 			return `     level: ${event.agent} with ${event.other}  ${event.from} → ${event.to}`;
 		case "exchange":
