@@ -41,6 +41,47 @@ describe("loadConfig", () => {
 		}
 	});
 
+	test("prices are read when input and output are both set", () => {
+		const config = loadConfig({
+			...env,
+			LLM_PRICE_INPUT: "1.25",
+			LLM_PRICE_CACHED_INPUT: "0.15",
+			LLM_PRICE_OUTPUT: "4.25",
+		});
+		expect(config.prices).toEqual({
+			input: 1.25,
+			cachedInput: 0.15,
+			output: 4.25,
+		});
+	});
+
+	test("without a cached price, cached input costs the same as input", () => {
+		const config = loadConfig({
+			...env,
+			LLM_PRICE_INPUT: "1.25",
+			LLM_PRICE_OUTPUT: "4.25",
+		});
+		expect(config.prices?.cachedInput).toBe(1.25);
+	});
+
+	test("no prices means no estimate", () => {
+		expect(loadConfig(env).prices).toBeUndefined();
+	});
+
+	test("setting only one of input and output is an error", () => {
+		expect(errorFor({ ...env, LLM_PRICE_INPUT: "1.25" })).toContain(
+			"set both LLM_PRICE_INPUT and LLM_PRICE_OUTPUT",
+		);
+	});
+
+	test("a negative or non-numeric price is an error", () => {
+		expect(
+			errorFor({ ...env, LLM_PRICE_INPUT: "-1", LLM_PRICE_OUTPUT: "1" }),
+		).toContain(
+			"LLM_PRICE_INPUT must be a number of dollars per million tokens",
+		);
+	});
+
 	test("unrelated variables are ignored", () => {
 		expect(loadConfig({ ...env, PATH: "/usr/bin" })).not.toHaveProperty(
 			"PATH",

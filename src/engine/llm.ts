@@ -6,7 +6,15 @@ export type Message = {
 	content: string;
 };
 
-export type TokenUsage = { input: number; output: number; total: number };
+// Tokens one call used. `reasoning` (hidden thinking, billed as output) and `cached` (input billed at the
+// cached rate) are present only when the provider reports them.
+export type TokenUsage = {
+	input: number;
+	output: number;
+	total: number;
+	reasoning?: number | undefined;
+	cached?: number | undefined;
+};
 
 export type ChatReply = {
 	content: string;
@@ -82,6 +90,12 @@ const ChatResponse = z.object({
 			prompt_tokens: z.number(),
 			completion_tokens: z.number(),
 			total_tokens: z.number(),
+			completion_tokens_details: z
+				.object({ reasoning_tokens: z.number().optional() })
+				.optional(),
+			prompt_tokens_details: z
+				.object({ cached_tokens: z.number().optional() })
+				.optional(),
 		})
 		.optional(),
 });
@@ -145,10 +159,14 @@ export async function chat(
 	}
 	const { choices, usage: rawUsage } = parsed.data;
 	const content = choices[0]!.message.content;
-	const usage = rawUsage && {
+	const reasoning = rawUsage?.completion_tokens_details?.reasoning_tokens;
+	const cached = rawUsage?.prompt_tokens_details?.cached_tokens;
+	const usage: TokenUsage | undefined = rawUsage && {
 		input: rawUsage.prompt_tokens,
 		output: rawUsage.completion_tokens,
 		total: rawUsage.total_tokens,
+		...(reasoning !== undefined && { reasoning }),
+		...(cached !== undefined && { cached }),
 	};
 	onExchange?.({ messages, reply: content, usage });
 	return { content, usage };
@@ -275,10 +293,16 @@ function addUsage(
 	if (!a || !b) {
 		return a ?? b;
 	}
+	const sum = (x: number | undefined, y: number | undefined) =>
+		x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
+	const reasoning = sum(a.reasoning, b.reasoning);
+	const cached = sum(a.cached, b.cached);
 	return {
 		input: a.input + b.input,
 		output: a.output + b.output,
 		total: a.total + b.total,
+		...(reasoning !== undefined && { reasoning }),
+		...(cached !== undefined && { cached }),
 	};
 }
 

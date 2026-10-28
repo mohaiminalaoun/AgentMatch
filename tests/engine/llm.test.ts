@@ -516,3 +516,58 @@ describe("chatJson check", () => {
 		).rejects.toMatchObject({ kind: "format" });
 	});
 });
+
+describe("token details", () => {
+	test("hidden reasoning and cached input are kept when the provider reports them", async () => {
+		const { fn } = fakeFetch({
+			choices: goodReply.choices,
+			usage: {
+				prompt_tokens: 13,
+				completion_tokens: 140,
+				total_tokens: 153,
+				completion_tokens_details: { reasoning_tokens: 130 },
+				prompt_tokens_details: { cached_tokens: 0 },
+			},
+		});
+		const reply = await chat(config, messages, { fetch: fn });
+		expect(reply.usage).toEqual({
+			input: 13,
+			output: 140,
+			total: 153,
+			reasoning: 130,
+			cached: 0,
+		});
+	});
+
+	test("retries add up reasoning tokens too", async () => {
+		const withDetails = (content: string) => ({
+			choices: [{ message: { content } }],
+			usage: {
+				prompt_tokens: 50,
+				completion_tokens: 100,
+				total_tokens: 150,
+				completion_tokens_details: { reasoning_tokens: 80 },
+			},
+		});
+		let call = 0;
+		const fn = (async () =>
+			new Response(
+				JSON.stringify(
+					withDetails(
+						call++ === 0
+							? '{"decision": "maybe"}'
+							: '{"decision": "accept"}',
+					),
+				),
+			)) as typeof fetch;
+		const { usage } = await chatJson(config, messages, Decision, {
+			fetch: fn,
+		});
+		expect(usage).toEqual({
+			input: 100,
+			output: 200,
+			total: 300,
+			reasoning: 160,
+		});
+	});
+});

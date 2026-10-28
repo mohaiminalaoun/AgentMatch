@@ -107,6 +107,8 @@ export const RunEvent = z.discriminatedUnion("type", [
 				input: z.number(),
 				output: z.number(),
 				total: z.number(),
+				reasoning: z.number().optional(),
+				cached: z.number().optional(),
 			})
 			.optional(),
 	}),

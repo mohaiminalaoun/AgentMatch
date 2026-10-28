@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Prices } from "./cost.js";
 
 // The value `.env.example` uses for settings you have to fill in yourself.
 const PLACEHOLDER = "replace-me";
@@ -10,6 +11,12 @@ const filledIn = z
 		error: `still has the "${PLACEHOLDER}" placeholder`,
 	});
 
+// An optional price in US dollars per million tokens.
+const price = z.coerce
+	.number({ error: "must be a number of dollars per million tokens" })
+	.min(0, { error: "must be a number of dollars per million tokens" })
+	.optional();
+
 const Env = z.object({
 	LLM_BASE_URL: z.url({ error: "must be a URL like https://host/v1" }),
 	LLM_API_KEY: filledIn,
@@ -19,6 +26,9 @@ const Env = z.object({
 		.int({ error: "must be a whole number of at least 1" })
 		.min(1, { error: "must be a whole number of at least 1" })
 		.optional(),
+	LLM_PRICE_INPUT: price,
+	LLM_PRICE_CACHED_INPUT: price,
+	LLM_PRICE_OUTPUT: price,
 });
 
 // Requests in flight at once when LLM_MAX_CONCURRENCY isn't set.
@@ -29,6 +39,8 @@ export type Config = {
 	apiKey: string;
 	model: string;
 	maxConcurrency: number;
+	// Set when LLM_PRICE_INPUT and LLM_PRICE_OUTPUT are, so reports can estimate cost.
+	prices?: Prices | undefined;
 };
 
 // Checks the LLM settings and renames them; takes `env` as a parameter so tests never need real secrets.
@@ -50,12 +62,27 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
 			].join("\n"),
 		);
 	}
+	const {
+		LLM_PRICE_INPUT: input,
+		LLM_PRICE_CACHED_INPUT: cachedInput,
+		LLM_PRICE_OUTPUT: output,
+	} = result.data;
+	if ((input === undefined) !== (output === undefined)) {
+		throw new Error(
+			"LLM settings are invalid:\n- set both LLM_PRICE_INPUT and LLM_PRICE_OUTPUT, or neither",
+		);
+	}
 	return {
 		baseUrl: result.data.LLM_BASE_URL,
 		apiKey: result.data.LLM_API_KEY,
 		model: result.data.LLM_MODEL,
 		maxConcurrency:
 			result.data.LLM_MAX_CONCURRENCY ?? DEFAULT_MAX_CONCURRENCY,
+		prices:
+			input === undefined || output === undefined
+				? undefined
+				: // Without a cached price, cached input is assumed to cost the same as normal input.
+					{ input, cachedInput: cachedInput ?? input, output },
 	};
 }
 
