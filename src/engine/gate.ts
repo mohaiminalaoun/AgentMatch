@@ -49,11 +49,17 @@ export function checkDisclosure(
 	];
 }
 
-// The free-text parts of a decision or proposal, for checking before it's sent.
-// Only pitches have free text: accepts and declines carry none the model wrote.
+// The model-written parts of a decision or proposal, for checking before it's sent: the pitch, and the
+// roles list, since listing a role your human would fill reveals their skill as surely as saying it.
+// Accepts and declines carry nothing the model wrote.
 export function draftOf(message: Decision | Terms): Draft {
 	return "pitch" in message
-		? { texts: { pitch: message.pitch } }
+		? {
+				texts: {
+					pitch: message.pitch,
+					roles: message.rolesNeeded.join(", "),
+				},
+			}
 		: { texts: {} };
 }
 

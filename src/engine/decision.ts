@@ -78,6 +78,7 @@ export function decisionMessages(
 					"How to decide:",
 					"- accept only if the project clearly fits your human's project ideas or interests AND they could fill a role it needs.",
 					"- counter if it is a partial fit and one concrete change would make it work; put the changed project in the pitch.",
+					"- rolesNeeded lists roles you need others to fill. Never list a role your human would fill.",
 					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
 					"Be selective: your human has limited time, and accepting a weak fit blocks a better one.",
 				].join("\n"),
@@ -151,5 +152,7 @@ export async function decideOnProposal(
 // Feedback for the agent's own model about what it may not say yet. It quotes the human's own data back
 // to their own agent, which is fine: feedback never reaches the other side.
 function describe(violation: Violation, level: DisclosureLevel): string {
-	return `your ${violation.where} mentions ${FIELD_NAMES[violation.field as ProfileField] ?? violation.field} ("${violation.match}"), which you may not share at level ${level}; rewrite it without that`;
+	const where =
+		violation.where === "roles" ? "roles needed list" : violation.where;
+	return `your ${where} mentions ${FIELD_NAMES[violation.field as ProfileField] ?? violation.field} ("${violation.match}"), which you may not share at level ${level}; rewrite it without that`;
 }

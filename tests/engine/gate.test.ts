@@ -213,12 +213,11 @@ describe("draftOf", () => {
 		expect(draftOf({ decision: "decline" })).toEqual({ texts: {} });
 	});
 
-	test("a counter's or proposal's pitch is the text to check", () => {
+	test("a counter's or proposal's pitch and roles are the text to check", () => {
 		const terms = { pitch: "A climate app.", rolesNeeded: ["frontend"] };
-		expect(draftOf({ decision: "counter", ...terms })).toEqual({
-			texts: { pitch: "A climate app." },
-		});
-		expect(draftOf(terms)).toEqual({ texts: { pitch: "A climate app." } });
+		const texts = { pitch: "A climate app.", roles: "frontend" };
+		expect(draftOf({ decision: "counter", ...terms })).toEqual({ texts });
+		expect(draftOf(terms)).toEqual({ texts });
 	});
 
 	test("an accept has no text", () => {
@@ -252,5 +251,60 @@ describe("fieldsMentioned", () => {
 
 	test("an unrelated text mentions nothing", () => {
 		expect(fieldsMentioned(ben, "Not a fit right now.")).toEqual([]);
+	});
+});
+
+describe("roles as a side channel", () => {
+	// Nia's real counter from the live run, checked against Ben's profile: he does backend.
+	const roles = (rolesNeeded: string[]) =>
+		draftOf({
+			decision: "counter",
+			pitch: "AI note-taking app with dyslexia-friendly tools.",
+			rolesNeeded,
+		});
+
+	test("listing your own skill as a role needed is blocked below level 2", () => {
+		const violations = checkDisclosure(
+			ben,
+			0,
+			roles(["frontend", "design", "product", "backend"]),
+		);
+		expect(violations).toContainEqual({
+			field: "skills",
+			where: "roles",
+			match: "backend",
+		});
+	});
+
+	test("the same roles pass once skills are shared", () => {
+		expect(
+			checkDisclosure(
+				ben,
+				2,
+				roles(["frontend", "design", "product", "backend"]),
+			),
+		).toEqual([]);
+	});
+
+	test("a synonym of your own skill is caught in the roles list too", () => {
+		expect(
+			fields(checkDisclosure(ben, 0, roles(["server-side"]))),
+		).toContain("skills");
+	});
+
+	test("roles you don't have pass", () => {
+		expect(checkDisclosure(ben, 0, roles(["frontend", "design"]))).toEqual(
+			[],
+		);
+	});
+
+	test("a role that's public through your project idea passes", () => {
+		const withIdea = {
+			...ben,
+			projectIdeas: [
+				{ title: "An ML tutor", description: "ML for students." },
+			],
+		};
+		expect(checkDisclosure(withIdea, 0, roles(["ml"]))).toEqual([]);
 	});
 });

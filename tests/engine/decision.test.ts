@@ -59,7 +59,7 @@ function fakeModel(...replies: object[]) {
 
 const counter = (pitch: string) => ({
 	rationale: "Partial fit.",
-	decision: { decision: "counter", pitch, rolesNeeded: ["backend"] },
+	decision: { decision: "counter", pitch, rolesNeeded: ["frontend"] },
 });
 
 describe("decisionMessages", () => {
@@ -133,7 +133,7 @@ describe("decideOnProposal", () => {
 		expect(result.decision).toEqual({
 			decision: "counter",
 			pitch: "Make it a household carbon tracker instead.",
-			rolesNeeded: ["backend"],
+			rolesNeeded: ["frontend"],
 		});
 		expect(result.gateBlocks).toBe(1);
 		const feedback = sent[1]!.at(-1)!;
@@ -196,5 +196,32 @@ describe("decideOnProposal", () => {
 		});
 		await decideOnProposal(client, ada, proposal);
 		expect(contactOf(ada, proposal.from).history).toEqual([]);
+	});
+
+	test("a counter listing your own role is redrafted, and the feedback names the roles list", async () => {
+		const { client, sent } = fakeModel(
+			{
+				rationale: "Partial fit.",
+				decision: {
+					decision: "counter",
+					pitch: "Make it a household carbon tracker instead.",
+					rolesNeeded: ["frontend", "backend"],
+				},
+			},
+			counter("Make it a household carbon tracker instead."),
+		);
+		const result = await decideOnProposal(client, ada, proposal);
+		expect(result.gateBlocks).toBe(1);
+		expect(result.decision).toMatchObject({ rolesNeeded: ["frontend"] });
+		const feedback = sent[1]!.at(-1)!.content;
+		expect(feedback).toContain("your roles needed list mentions");
+		expect(feedback).toContain('"backend"');
+	});
+
+	test("the prompt says roles needed are for others to fill", () => {
+		const [system] = decisionMessages(ada, proposal);
+		expect(system!.content).toContain(
+			"rolesNeeded lists roles you need others to fill",
+		);
 	});
 });
