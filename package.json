@@ -14,7 +14,8 @@
 		"decide": "tsx src/decide.ts",
 		"reliability": "tsx src/reliability.ts",
 		"show-run": "tsx src/show-run.ts",
-		"load-test": "tsx src/load-test.ts"
+		"load-test": "tsx src/load-test.ts",
+		"round": "tsx src/round.ts"
 	},
 	"repository": {
 		"type": "git",

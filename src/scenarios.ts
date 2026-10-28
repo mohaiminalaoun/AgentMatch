@@ -10,7 +10,7 @@ export type Scenario = {
 };
 
 // A backend engineer who wants to start a climate-change non-profit.
-const ben: Profile = {
+export const ben: Profile = {
 	id: "ben",
 	name: "Ben",
 	skills: [
@@ -94,6 +94,27 @@ const rosa: Profile = {
 	],
 	availability: { hoursPerWeek: 10, utcOffset: -8 },
 	preferences: { minTeamSize: 3, maxTeamSize: 4, preferredRoles: ["design"] },
+};
+
+// A frontend developer whose project idea is the invoicing startup; proposes in `npm run round`.
+export const ivan: Profile = {
+	id: "ivan",
+	name: "Ivan",
+	skills: [{ name: "frontend", level: "expert" }],
+	interests: ["finance", "developer tools"],
+	projectIdeas: [
+		{
+			title: "Invoicing for freelancers",
+			description:
+				"A web app startup that helps freelancers send invoices.",
+		},
+	],
+	availability: { hoursPerWeek: 30, utcOffset: 0 },
+	preferences: {
+		minTeamSize: 2,
+		maxTeamSize: 3,
+		preferredRoles: ["frontend"],
+	},
 };
 
 export const SCENARIOS: Scenario[] = [
