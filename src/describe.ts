@@ -3,6 +3,8 @@
 import type { AgentMessage } from "./engine/agent.js";
 import type { RunEvent } from "./engine/events.js";
 import { formatExchange } from "./engine/llm.js";
+import type { SimulationSummary } from "./engine/simulation.js";
+import { estimateCost, type Prices } from "./engine/cost.js";
 
 // One line describing `message`, without its sender and recipient.
 export function describeMessage(message: AgentMessage): string {
@@ -81,4 +83,39 @@ export function formatRun(
 	}
 	lines.push(`\n${calls} model calls · ${tokens} tokens`);
 	return lines.join("\n");
+}
+
+// A simulation's summary as the end-of-run report.
+export function formatSummary(
+	summary: SimulationSummary,
+	prices?: Prices,
+): string {
+	const roles = Object.entries(summary.nonCoreRoles)
+		.map(([role, n]) => `${role} ×${n}`)
+		.join(", ");
+	const reachedAt = (level: number) =>
+		summary.pairs.filter((p) => p.level >= level).length;
+	const list = (ids: string[]) =>
+		ids.length > 0 ? `${ids.length} (${ids.join(", ")})` : "0";
+	return [
+		`Board:    ${summary.listings} listings · roles beyond the core four: ${roles || "none"}`,
+		...summary.rounds.map(
+			(r) =>
+				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals`,
+		),
+		`Pairs:    ${summary.pairs.length} talked · reached level 1: ${reachedAt(1)} · level 2: ${reachedAt(2)} · ready: ${summary.pairs.filter((p) => p.ready).length} · ended: ${summary.pairs.filter((p) => p.ended).length}`,
+		`Never approached:   ${list(summary.neverApproached)}`,
+		`In no conversation: ${list(summary.noConversation)}`,
+		`Gate blocks: ${summary.gateBlocks} · fallbacks: ${summary.fallbacks} · model calls: ${summary.calls}`,
+		`Tokens: ${summary.usage.total} (input ${summary.usage.input}, output ${summary.usage.output}, of which hidden reasoning ${summary.usage.reasoning ?? 0}; cached input ${summary.usage.cached ?? 0})`,
+		prices
+			? `Estimated cost: $${estimateCost(summary.usage, prices).toFixed(2)}`
+			: "Estimated cost: set LLM_PRICE_INPUT and LLM_PRICE_OUTPUT in .env to see it",
+		`Ready pairs: ${
+			summary.pairs
+				.filter((p) => p.ready)
+				.map((p) => p.pair.join("–"))
+				.join(", ") || "none"
+		}`,
+	].join("\n");
 }

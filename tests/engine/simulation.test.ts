@@ -1,0 +1,188 @@
+import { describe, expect, test } from "vitest";
+import { contactOf } from "../../src/engine/agent.js";
+import { createLlmClient } from "../../src/engine/client.js";
+import type { Config } from "../../src/engine/config.js";
+import type { RunEvent } from "../../src/engine/events.js";
+import type { Profile } from "../../src/engine/profile.js";
+import { runSimulation, summarize } from "../../src/engine/simulation.js";
+import { person } from "../fixtures.js";
+
+const config: Config = {
+	baseUrl: "https://llm.example.com/v1",
+	apiKey: "test-key-123",
+	model: "test-model",
+	maxConcurrency: 4,
+};
+
+// A person with one skill and one project idea, or no idea if `title` is undefined.
+function agent(id: string, skill: string, title?: string): Profile {
+	return {
+		...person(id, [{ name: skill, level: "expert" }], ["education"], 0),
+		projectIdeas: title
+			? [{ title, description: `${title}, as a project.` }]
+			: [],
+	};
+}
+
+// a pitches an AI tutor; b and d are approached; c approaches but nobody approaches c; e has no idea.
+const profiles = [
+	agent("a", "ml", "AI tutor"),
+	agent("b", "frontend", "Quiz app"),
+	agent("c", "design", "Poster maker"),
+	agent("d", "backend", "Grade tracker"),
+	agent("e", "product"),
+];
+
+// Every person() prefers backend (copied from the sample profile), so no listing may ask for it.
+const listings: Record<string, string[]> = {
+	a: ["frontend", "data"],
+	b: ["design"],
+	c: ["frontend"],
+	d: ["frontend"],
+};
+// Discovery picks per round.
+const picks: Record<number, Record<string, string[]>> = {
+	1: { a: ["b"], c: ["d"] },
+	// a picks b again, but they're already talking, so it's skipped; e asks to join a's project.
+	2: { a: ["b"], e: ["a"] },
+};
+const decisions: Record<string, object> = {
+	b: { decision: "accept" },
+	d: { decision: "decline" },
+	a: { decision: "accept" },
+};
+
+// A fake model that recognizes each kind of prompt and answers from the scripts above.
+function fakeClient() {
+	let discoveryCalls = 0;
+	const fetch = (async (_url: unknown, init?: RequestInit) => {
+		const { messages } = JSON.parse(init!.body as string);
+		const who = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
+		const last: string = messages.at(-1).content;
+		let reply: object;
+		if (last === "Write the listing.") {
+			reply = {
+				rationale: "Listing.",
+				pitch: profiles.find((p) => p.id === who)!.projectIdeas[0]!
+					.title,
+				rolesNeeded: listings[who],
+			};
+		} else if (last.startsWith("Public board:")) {
+			const round = Math.ceil(++discoveryCalls / profiles.length);
+			reply = { rationale: "Picks.", approach: picks[round]![who] ?? [] };
+		} else if (last.includes("Keep going, or withdraw?")) {
+			reply = { rationale: "Fits.", interest: "continue" };
+		} else {
+			reply = { rationale: "Decided.", decision: decisions[who] };
+		}
+		return new Response(
+			JSON.stringify({
+				choices: [{ message: { content: JSON.stringify(reply) } }],
+				usage: {
+					prompt_tokens: 90,
+					completion_tokens: 10,
+					total_tokens: 100,
+				},
+			}),
+		);
+	}) as typeof globalThis.fetch;
+	return createLlmClient(config, { fetch, retry: { sleep: async () => {} } });
+}
+
+// Runs the scripted two-round simulation, recording every event and progress line.
+async function simulate() {
+	const events: RunEvent[] = [];
+	const phases: string[] = [];
+	const world = await runSimulation(fakeClient(), profiles, {
+		rounds: 2,
+		onEvent: (e) => events.push(e),
+		onPhase: (line) => phases.push(line),
+	});
+	return { world, events, phases, summary: summarize(world, events) };
+}
+
+describe("runSimulation", () => {
+	test("runs listings, then discovery and negotiation for each round", async () => {
+		const { phases } = await simulate();
+		expect(phases).toEqual([
+			"listings written: 4",
+			"round 1: 2 picks → 2 proposals",
+			expect.stringMatching(
+				/^round 1: conversations finished in \d+ ticks$/,
+			),
+			"round 2: 1 picks → 1 proposals",
+			expect.stringMatching(
+				/^round 2: conversations finished in \d+ ticks$/,
+			),
+		]);
+	});
+
+	test("round 2 never re-proposes to someone already talked to, and ids don't collide", async () => {
+		const { events } = await simulate();
+		const proposals = events.flatMap((e) =>
+			e.type === "bus" &&
+			e.event.type === "sent" &&
+			!("decision" in e.event.message) &&
+			!("kind" in e.event.message)
+				? [e.event.message.id]
+				: [],
+		);
+		expect(proposals).toEqual(["r1-a-b", "r1-c-d", "r2-e-a"]);
+	});
+
+	test("conversations between different pairs stay independent", async () => {
+		const { world } = await simulate();
+		expect(contactOf(world.agents.a!, "b").level).toBe(2);
+		expect(contactOf(world.agents.c!, "d").level).toBe(0);
+		expect(contactOf(world.agents.a!, "e").level).toBe(2);
+	});
+});
+
+describe("summarize", () => {
+	test("counts picks and proposals per round", async () => {
+		const { summary } = await simulate();
+		expect(summary.rounds).toEqual([
+			{ round: 1, picks: 2, proposals: 2 },
+			{ round: 2, picks: 1, proposals: 1 },
+		]);
+	});
+
+	test("reports every pair's outcome", async () => {
+		const { summary } = await simulate();
+		expect(summary.pairs).toEqual([
+			{ pair: ["a", "b"], level: 2, ready: true, ended: false },
+			{ pair: ["a", "e"], level: 2, ready: true, ended: false },
+			{ pair: ["c", "d"], level: 0, ready: false, ended: true },
+		]);
+	});
+
+	test("finds agents nobody approached and agents in no conversation", async () => {
+		const { summary } = await simulate();
+		expect(summary.neverApproached).toEqual(["c", "e"]);
+		expect(summary.noConversation).toEqual([]);
+	});
+
+	test("counts roles beyond the core four on the board", async () => {
+		const { summary } = await simulate();
+		expect(summary.listings).toBe(4);
+		expect(summary.nonCoreRoles).toEqual({ data: 1 });
+	});
+
+	test("counts model calls and tokens from the events", async () => {
+		const { summary, events } = await simulate();
+		const calls = events.filter((e) => e.type === "exchange").length;
+		expect(summary.calls).toBe(calls);
+		expect(summary.usage).toMatchObject({
+			input: calls * 90,
+			output: calls * 10,
+			total: calls * 100,
+		});
+		expect(summary.fallbacks).toBe(0);
+	});
+
+	test("the same scripted run gives the same summary every time", async () => {
+		const first = (await simulate()).summary;
+		const second = (await simulate()).summary;
+		expect(second).toEqual(first);
+	});
+});
