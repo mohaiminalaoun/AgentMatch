@@ -1,6 +1,7 @@
 // Entry point for `npm run load-test [count]`: fires many calls at once through the queued, retrying client.
 import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
+import { exchangeEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 
 const count = Number(process.argv[2] ?? 50);
@@ -32,7 +33,7 @@ const results = await Promise.allSettled(
 		client
 			.chat([{ role: "user", content: `Reply with just: OK ${i + 1}` }], {
 				onExchange: (exchange) => {
-					log.write(exchange);
+					log.write(exchangeEvent(exchange));
 					tokens += exchange.usage?.total ?? 0;
 				},
 			})

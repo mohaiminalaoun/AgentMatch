@@ -6,6 +6,7 @@ import { loadConfig, readEnvFile } from "./engine/config.js";
 import { decideOnProposal } from "./engine/decision.js";
 import { formatExchange } from "./engine/llm.js";
 import { toResponse } from "./engine/proposal.js";
+import { exchangeEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 import { proposalFor, SCENARIOS } from "./scenarios.js";
 
@@ -29,7 +30,7 @@ try {
 
 	const result = await decideOnProposal(client, agent, proposal, {
 		onExchange: (exchange) => {
-			log.write(exchange);
+			log.write(exchangeEvent(exchange));
 			console.log(`${formatExchange(exchange)}\n`);
 		},
 	});

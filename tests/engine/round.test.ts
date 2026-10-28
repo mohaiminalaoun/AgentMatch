@@ -1,11 +1,17 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { contactOf } from "../../src/engine/agent.js";
 import type { BusEvent } from "../../src/engine/bus.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
+import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
 import { STANDARD_REFUSAL } from "../../src/engine/proposal.js";
 import { createWorld, proposalFrom, runRound } from "../../src/engine/round.js";
+import { createRunLog, readRunLog } from "../../src/engine/runlog.js";
+import { formatRun } from "../../src/describe.js";
 import { person, sampleProfile } from "../fixtures.js";
 
 const config: Config = {
@@ -512,5 +518,95 @@ describe("staged disclosure to level 1", () => {
 		expect(JSON.stringify(events)).not.toContain(
 			"Private interest reasoning",
 		);
+	});
+
+	describe("the event stream and run log", () => {
+		// The full Nia-and-Kemi negotiation, recording every event.
+		async function negotiate() {
+			const { world, proposal } = pair();
+			const events: RunEvent[] = [];
+			const client = fakeClient(
+				false,
+				{ kemi: kemiCounter, nia: { decision: "accept" } },
+				{ kemi: "continue", nia: "continue" },
+			);
+			await runRound(world, client, [proposal], {
+				onEvent: (event) => events.push(event),
+			});
+			return events;
+		}
+
+		test("every kind of event appears, starting with the round", async () => {
+			const events = await negotiate();
+			expect(events[0]).toMatchObject({
+				type: "round",
+				model: "test-model",
+				agents: ["kemi", "nia"],
+			});
+			expect(new Set(events.map((e) => e.type))).toEqual(
+				new Set([
+					"round",
+					"tick",
+					"bus",
+					"decision",
+					"level",
+					"interest",
+					"exchange",
+				]),
+			);
+		});
+
+		test("bus events keep the bus's own order", async () => {
+			const events = await negotiate();
+			const seqs = events.flatMap((e) =>
+				e.type === "bus" ? [e.event.seq] : [],
+			);
+			expect(seqs).toEqual(seqs.map((_, i) => i + 1));
+		});
+
+		test("level changes are recorded for both sides, up to level 2", async () => {
+			const events = await negotiate();
+			const levels = events.flatMap((e) =>
+				e.type === "level" ? [`${e.agent} ${e.from}→${e.to}`] : [],
+			);
+			expect(levels).toEqual([
+				"nia 0→1",
+				"kemi 0→1",
+				"nia 1→2",
+				"kemi 1→2",
+			]);
+		});
+
+		test("a run written to a log reads back identical", async () => {
+			const events = await negotiate();
+			const dir = mkdtempSync(join(tmpdir(), "round-log-"));
+			try {
+				const log = createRunLog("test", dir);
+				events.forEach(log.write);
+				// JSON drops undefined fields, so compare through JSON on both sides.
+				expect(readRunLog(log.path)).toEqual(
+					JSON.parse(JSON.stringify(events)),
+				);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		});
+
+		test("the timeline shows ticks, messages, decisions, levels, interests, and a model-call summary", async () => {
+			const text = formatRun(await negotiate());
+			expect(text).toContain("round · ");
+			expect(text).toContain("── tick 1 ──");
+			expect(text).toContain("#1 nia → kemi   proposal:");
+			expect(text).toContain(
+				"kemi decides counter · private: Private reasoning for kemi.",
+			);
+			expect(text).toContain("level: nia with kemi  1 → 2");
+			expect(text).toContain("kemi at level 1 with nia: continue");
+			expect(text).toMatch(/6 model calls · 720 tokens$/);
+			expect(text).not.toContain("═══ model call");
+			expect(formatRun(await negotiate(), { prompts: true })).toContain(
+				"═══ model call 1",
+			);
+		});
 	});
 });

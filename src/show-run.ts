@@ -1,20 +1,17 @@
-// Entry point for `npm run show-run [file]`: prints a run log as a readable transcript; defaults to the newest log.
+// Entry point for `npm run show-run [file] [--prompts]`: prints a run log as a timeline, defaulting to the
+// newest log. With --prompts, every model call is printed in full.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { formatExchange } from "./engine/llm.js";
+import { formatRun } from "./describe.js";
 import { readRunLog, RUNS_DIR } from "./engine/runlog.js";
 
 try {
-	const path = process.argv[2] ?? newestLog();
-	const entries = readRunLog(path);
-	console.log(`${path} · ${entries.length} exchanges\n`);
-	entries.forEach((entry, i) => {
-		const tokens = entry.usage
-			? `${entry.usage.total} tokens`
-			: "usage unknown";
-		console.log(`═══ exchange ${i + 1} · ${entry.time} · ${tokens} ═══\n`);
-		console.log(`${formatExchange(entry)}\n`);
-	});
+	const args = process.argv.slice(2);
+	const prompts = args.includes("--prompts");
+	const path = args.find((arg) => !arg.startsWith("--")) ?? newestLog();
+	const events = readRunLog(path);
+	console.log(`${path} · ${events.length} events\n`);
+	console.log(formatRun(events, { prompts }));
 } catch (error) {
 	console.error((error as Error).message);
 	process.exit(1);
@@ -31,7 +28,7 @@ function newestLog(): string {
 	const newest = names.sort().at(-1);
 	if (!newest) {
 		throw new Error(
-			`No logs in ${RUNS_DIR}/ yet. Run npm run decide first.`,
+			`No logs in ${RUNS_DIR}/ yet. Run npm run negotiate first.`,
 		);
 	}
 	return join(RUNS_DIR, newest);

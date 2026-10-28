@@ -1,6 +1,7 @@
 // Entry point for `npm run ask "prompt"`: sends one prompt to the configured model and prints the full exchange.
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import { chat, formatExchange } from "./engine/llm.js";
+import { exchangeEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 
 const prompt = process.argv.slice(2).join(" ").trim();
@@ -16,7 +17,7 @@ try {
 	const started = performance.now();
 	const reply = await chat(config, [{ role: "user", content: prompt }], {
 		onExchange: (exchange) => {
-			log.write(exchange);
+			log.write(exchangeEvent(exchange));
 			console.log(formatExchange(exchange));
 		},
 	});

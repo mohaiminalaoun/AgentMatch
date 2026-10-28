@@ -1,8 +1,8 @@
-// Entry point for `npm run negotiate`: Nia proposes to Kemi and the two negotiate over the bus, tick by tick,
-// up to level 2: every message, both sides' level after each tick, every private rationale (decisions and
-// interest checks), and what each has learned about the other.
+// Entry point for `npm run negotiate`: Nia proposes to Kemi and the two negotiate over the bus up to level 2.
+// Every event is printed as it happens, exactly as `npm run show-run` will print it from the log afterwards,
+// followed by the final levels and what each side learned.
+import { formatEvent } from "./describe.js";
 import { contactOf } from "./engine/agent.js";
-import { describeMessage } from "./describe.js";
 import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import {
@@ -21,47 +21,19 @@ try {
 	const client = createLlmClient(config);
 	const world = createWorld([nia, kemi]);
 
-	world.bus.subscribe((event) => {
-		if (event.type === "rejected") {
-			console.log(`  ✗ bus rejected: ${event.reason}`);
-			return;
-		}
-		const m = event.message;
-		console.log(`  ${m.from} → ${m.to}   ${describeMessage(m)}`);
-	});
-
 	const proposal = proposalFrom(world.agents.nia!, "kemi", "prop-1");
 	if (!proposal) {
 		throw new Error("Nia has no project idea to pitch");
 	}
-	console.log("Sending Nia's proposal\n");
-	const {
-		world: after,
-		report,
-		interests,
-		quiet,
-	} = await runRound(world, client, [proposal], {
-		onExchange: (exchange) => log.write(exchange),
-		onTick: (tick, now) => {
-			const n = contactOf(now.agents.nia!, "kemi").level;
-			const k = contactOf(now.agents.kemi!, "nia").level;
-			console.log(
-				`  ── after tick ${tick}: nia at level ${n}, kemi at level ${k}\n`,
-			);
+	const { world: after, quiet } = await runRound(world, client, [proposal], {
+		onEvent: (event) => {
+			log.write(event);
+			const line = formatEvent(event);
+			if (line !== undefined) {
+				console.log(line);
+			}
 		},
 	});
-
-	console.log("Private rationales (each for its own human only):");
-	for (const { proposal: p, result } of report) {
-		console.log(
-			`  ${p.to} on ${p.id}: ${result.decision.decision}${result.gateBlocks > 0 ? ` (gate blocked ${result.gateBlocks})` : ""}. ${result.rationale ?? "(none)"}`,
-		);
-	}
-	for (const { agent, otherId, level, result } of interests) {
-		console.log(
-			`  ${agent} at level ${level} with ${otherId}: ${result.interest}. ${result.rationale ?? "(none)"}`,
-		);
-	}
 
 	const n = after.agents.nia!;
 	const k = after.agents.kemi!;
@@ -72,13 +44,13 @@ try {
 	);
 	console.log("\nWhat each side learned:");
 	console.log(
-		`  nia about kemi: ${JSON.stringify(contactOf(after.agents.nia!, "kemi").learned)}`,
+		`  nia about kemi: ${JSON.stringify(contactOf(n, "kemi").learned)}`,
 	);
 	console.log(
-		`  kemi about nia: ${JSON.stringify(contactOf(after.agents.kemi!, "nia").learned)}`,
+		`  kemi about nia: ${JSON.stringify(contactOf(k, "nia").learned)}`,
 	);
 	console.log(
-		`\n${quiet ? "Conversation finished." : "Stopped at the tick limit."} LLM log: ${log.path}`,
+		`\n${quiet ? "Conversation finished." : "Stopped at the tick limit."} Run log: ${log.path}`,
 	);
 } catch (error) {
 	console.error((error as Error).message);

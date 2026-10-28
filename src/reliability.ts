@@ -5,6 +5,7 @@ import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import { decideOnProposal, type DecisionResult } from "./engine/decision.js";
 import { checkDisclosure, draftOf } from "./engine/gate.js";
+import { exchangeEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 import { proposalFor, SCENARIOS } from "./scenarios.js";
 
@@ -37,7 +38,7 @@ const outcomes = await Promise.all(
 				proposalFor(scenario, `prop-${i + 1}`),
 				{
 					onExchange: (exchange) => {
-						log.write(exchange);
+						log.write(exchangeEvent(exchange));
 						tokens += exchange.usage?.total ?? 0;
 					},
 					onRetry: (error) => {

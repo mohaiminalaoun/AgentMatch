@@ -2,17 +2,59 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import type { Exchange } from "../../src/engine/llm.js";
+import type { RunEvent } from "../../src/engine/events.js";
 import { createRunLog, readRunLog } from "../../src/engine/runlog.js";
 
-const exchange: Exchange = {
-	messages: [
-		{ role: "system", content: "Be brief." },
-		{ role: "user", content: "Hi" },
-	],
-	reply: "Hello!",
-	usage: { input: 10, output: 2, total: 12 },
-};
+const events: RunEvent[] = [
+	{
+		type: "round",
+		time: "2026-10-28T05:53:51.000Z",
+		model: "test-model",
+		agents: ["kemi", "nia"],
+	},
+	{ type: "tick", n: 1 },
+	{
+		type: "bus",
+		event: {
+			seq: 1,
+			time: "2026-10-28T05:53:52.000Z",
+			type: "sent",
+			message: {
+				id: "prop-1",
+				from: "nia",
+				to: "kemi",
+				pitch: "AI note-taking app",
+				rolesNeeded: ["frontend"],
+			},
+		},
+	},
+	{
+		type: "decision",
+		agent: "kemi",
+		proposalId: "prop-1",
+		decision: { decision: "accept" },
+		rationale: "Fits.",
+		gateBlocks: 0,
+		fellBack: false,
+	},
+	{ type: "level", agent: "kemi", other: "nia", from: 0, to: 1 },
+	{
+		type: "interest",
+		agent: "kemi",
+		other: "nia",
+		level: 1,
+		interest: "continue",
+		rationale: "Good overlap.",
+		fellBack: false,
+	},
+	{
+		type: "exchange",
+		time: "2026-10-28T05:53:53.000Z",
+		messages: [{ role: "user", content: "Say hi" }],
+		reply: "Hi!",
+		usage: { input: 3, output: 1, total: 4 },
+	},
+];
 
 let dir: string;
 
@@ -24,64 +66,91 @@ afterEach(() => {
 	rmSync(dir, { recursive: true, force: true });
 });
 
+// Writes `lines` to a file in the temp folder and returns its path.
+function file(name: string, ...lines: string[]): string {
+	const path = join(dir, name);
+	writeFileSync(path, `${lines.join("\n")}\n`);
+	return path;
+}
+
 describe("run log", () => {
 	test("names the file after the time and label, inside the folder", () => {
-		const log = createRunLog("decide", dir);
+		const log = createRunLog("negotiate", dir);
 		expect(log.path.startsWith(dir)).toBe(true);
-		expect(log.path).toMatch(/\d{4}-\d{2}-\d{2}T[\d-]+Z-decide\.jsonl$/);
+		expect(log.path).toMatch(/\d{4}-\d{2}-\d{2}T[\d-]+Z-negotiate\.jsonl$/);
 	});
 
-	test("writes one JSON line per exchange", () => {
+	test("writes one JSON line per event", () => {
 		const log = createRunLog("test", dir);
-		log.write(exchange);
-		log.write(exchange);
+		events.forEach(log.write);
 		const lines = readFileSync(log.path, "utf8").trim().split("\n");
-		expect(lines).toHaveLength(2);
-		expect(JSON.parse(lines[0]!).reply).toBe("Hello!");
+		expect(lines).toHaveLength(events.length);
+		expect(JSON.parse(lines[1]!)).toEqual({ type: "tick", n: 1 });
 	});
 
-	test("reads back exactly what was written, with a timestamp", () => {
+	test("reads back exactly what was written, every kind of event", () => {
 		const log = createRunLog("test", dir);
-		log.write(exchange);
-		const [entry] = readRunLog(log.path);
-		expect(entry).toMatchObject(exchange);
-		expect(new Date(entry!.time).toString()).not.toBe("Invalid Date");
-	});
-
-	test("an exchange without usage reads back as undefined usage", () => {
-		const log = createRunLog("test", dir);
-		log.write({ ...exchange, usage: undefined });
-		expect(readRunLog(log.path)[0]!.usage).toBeUndefined();
+		events.forEach(log.write);
+		expect(readRunLog(log.path)).toEqual(events);
 	});
 
 	test("creates the folder if it doesn't exist", () => {
-		const nested = join(dir, "a", "b");
-		const log = createRunLog("test", nested);
-		log.write(exchange);
+		const log = createRunLog("test", join(dir, "a", "b"));
+		log.write({ type: "tick", n: 1 });
 		expect(readRunLog(log.path)).toHaveLength(1);
 	});
 
-	test("a corrupted line is reported with its line number", () => {
-		const path = join(dir, "broken.jsonl");
-		writeFileSync(
-			path,
-			`${JSON.stringify({ ...exchange, time: "t" })}\n{oops\n`,
+	test("older logs, which held only model calls with no type, still read as exchanges", () => {
+		const path = file(
+			"old.jsonl",
+			JSON.stringify({
+				time: "t",
+				messages: [{ role: "user", content: "Hi" }],
+				reply: "Hello",
+			}),
 		);
-		expect(() => readRunLog(path)).toThrow("line 2 is not valid JSON");
+		expect(readRunLog(path)).toEqual([
+			{
+				type: "exchange",
+				time: "t",
+				messages: [{ role: "user", content: "Hi" }],
+				reply: "Hello",
+			},
+		]);
 	});
 
-	test("blank lines are skipped without shifting line numbers", () => {
-		const path = join(dir, "gaps.jsonl");
-		const good = JSON.stringify({ ...exchange, time: "t" });
-		writeFileSync(path, `${good}\n\n{oops\n`);
+	test("a corrupted line is reported with its line number, counting blank lines", () => {
+		const path = file(
+			"broken.jsonl",
+			JSON.stringify(events[1]),
+			"",
+			"{oops",
+		);
 		expect(() => readRunLog(path)).toThrow("line 3 is not valid JSON");
 	});
 
-	test("a line with the wrong shape is reported", () => {
-		const path = join(dir, "wrong.jsonl");
-		writeFileSync(path, `${JSON.stringify({ hello: "world" })}\n`);
-		expect(() => readRunLog(path)).toThrow(
-			"line 1 is not a logged exchange",
-		);
+	test("an unknown kind of event is reported", () => {
+		const path = file("unknown.jsonl", JSON.stringify({ type: "party" }));
+		expect(() => readRunLog(path)).toThrow("line 1 is not a run event");
+	});
+
+	test("a logged bus message is checked with the bus's own rules", () => {
+		const leakyDecline = {
+			type: "bus",
+			event: {
+				seq: 1,
+				time: "t",
+				type: "sent",
+				message: {
+					decision: "decline",
+					reason: "My human wants climate work.",
+					proposalId: "prop-1",
+					from: "kemi",
+					to: "nia",
+				},
+			},
+		};
+		const path = file("leaky.jsonl", JSON.stringify(leakyDecline));
+		expect(() => readRunLog(path)).toThrow("line 1 is not a run event");
 	});
 });
