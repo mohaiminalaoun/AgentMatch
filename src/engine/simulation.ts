@@ -1,11 +1,13 @@
-import { contactOf } from "./agent.js";
+import { contactOf, type AgentMessage } from "./agent.js";
 import type { LlmClient } from "./client.js";
+import { runCommitment } from "./commitment.js";
 import { discover } from "./discovery.js";
 import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import { writeListings } from "./listing.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import { continued, createWorld, runRound, type World } from "./round.js";
+import type { Team } from "./team.js";
 
 export type SimulationOptions = {
 	rounds?: number;
@@ -30,11 +32,20 @@ export type PairOutcome = {
 
 export type SimulationSummary = {
 	agents: number;
-	rounds: { round: number; picks: number; proposals: number }[];
+	rounds: {
+		round: number;
+		picks: number;
+		proposals: number;
+		offers: number;
+		commits: number;
+	}[];
 	listings: number;
 	// How many listings ask for each role beyond the core four.
 	nonCoreRoles: Record<string, number>;
 	pairs: PairOutcome[];
+	teams: Team[];
+	// Agents on no team at the end.
+	unplaced: string[];
 	// Agents nobody sent a proposal to.
 	neverApproached: string[];
 	// Agents that took part in no conversation at all.
@@ -46,8 +57,9 @@ export type SimulationSummary = {
 	usage: TokenUsage;
 };
 
-// The whole system: every agent writes its board listing once, then each round everyone picks whom to
-// approach and all the resulting conversations play out at once. Everything shares one client and one bus.
+// The whole system: every agent writes its board listing once, then each round everyone still open picks whom
+// to approach, all the resulting conversations play out at once, and ready pairs become committed teams.
+// Everything shares one client and one bus.
 export async function runSimulation(
 	client: LlmClient,
 	profiles: readonly Profile[],
@@ -83,6 +95,15 @@ export async function runSimulation(
 		onPhase?.(
 			`round ${round}: conversations finished in ${result.ticks} ticks${result.quiet ? "" : " (stopped at the tick limit)"}`,
 		);
+		const commitment = await runCommitment(client, world, {
+			...(onEvent && { onEvent }),
+		});
+		world = commitment.world;
+		onPhase?.(
+			commitment.skipped
+				? `round ${round}: no offers (mail still waiting at the tick limit)`
+				: `round ${round}: ${commitment.offers} offers → ${commitment.commits} commits · teams: ${world.teams.length}`,
+		);
 	}
 	return world;
 }
@@ -95,18 +116,35 @@ export function summarize(
 	const ids = Object.keys(world.agents).sort();
 
 	// Discovery events come in one batch per round, before that round's "round" event.
+	// Offers and answers come after their round's "round" event, so they count toward round - 1.
 	const rounds: SimulationSummary["rounds"] = [];
+	const entry = (n: number) =>
+		(rounds[n - 1] ??= {
+			round: n,
+			picks: 0,
+			proposals: 0,
+			offers: 0,
+			commits: 0,
+		});
 	let round = 1;
 	for (const event of events) {
 		if (event.type === "round") {
 			round++;
 		} else if (event.type === "discovery") {
-			const entry = (rounds[round - 1] ??= {
-				round,
-				picks: 0,
-				proposals: 0,
-			});
-			entry.picks += event.approach.length;
+			entry(round).picks += event.approach.length;
+		} else if (
+			event.type === "bus" &&
+			event.event.type === "sent" &&
+			"kind" in event.event.message &&
+			(event.event.message.kind === "offer" ||
+				event.event.message.kind === "answer")
+		) {
+			const message = event.event.message;
+			if (message.kind === "offer") {
+				entry(round - 1).offers++;
+			} else if (message.answer === "commit") {
+				entry(round - 1).commits++;
+			}
 		} else if (
 			event.type === "bus" &&
 			event.event.type === "sent" &&
@@ -114,9 +152,7 @@ export function summarize(
 			!("kind" in event.event.message)
 		) {
 			const match = /^r(\d+)-/.exec(event.event.message.id);
-			const n = match ? Number(match[1]) : round - 1;
-			(rounds[n - 1] ??= { round: n, picks: 0, proposals: 0 })
-				.proposals++;
+			entry(match ? Number(match[1]) : round - 1).proposals++;
 		}
 	}
 
@@ -139,7 +175,8 @@ export function summarize(
 		for (const b of ids.slice(i + 1)) {
 			const ab = contactOf(world.agents[a]!, b);
 			const ba = contactOf(world.agents[b]!, a);
-			if (ab.history.length === 0 && ba.history.length === 0) {
+			// Teammates who only swapped names never had a conversation.
+			if (![...ab.history, ...ba.history].some(isProposal)) {
 				continue;
 			}
 			const ended = [...ab.history, ...ba.history].some(
@@ -164,7 +201,7 @@ export function summarize(
 	for (const agent of Object.values(world.agents)) {
 		for (const contact of Object.values(agent.contacts)) {
 			for (const m of contact.history) {
-				if (!("decision" in m) && !("kind" in m)) {
+				if (isProposal(m)) {
 					approached.add(m.to);
 				}
 			}
@@ -190,7 +227,9 @@ export function summarize(
 			(event.type === "decision" ||
 				event.type === "listing" ||
 				event.type === "interest" ||
-				event.type === "discovery") &&
+				event.type === "discovery" ||
+				event.type === "offers" ||
+				event.type === "commitment") &&
 			event.fellBack
 		) {
 			fallbacks++;
@@ -211,6 +250,10 @@ export function summarize(
 		listings,
 		nonCoreRoles,
 		pairs,
+		teams: world.teams,
+		unplaced: ids.filter(
+			(id) => !world.teams.some((t) => t.members.includes(id)),
+		),
 		neverApproached: ids.filter((id) => !approached.has(id)),
 		noConversation: ids.filter((id) => !talked.has(id)),
 		gateBlocks,
@@ -218,4 +261,9 @@ export function summarize(
 		calls,
 		usage,
 	};
+}
+
+// Whether `message` is a proposal: the only message with neither a decision nor a kind.
+function isProposal(message: AgentMessage): boolean {
+	return !("decision" in message) && !("kind" in message);
 }

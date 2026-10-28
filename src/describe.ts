@@ -9,9 +9,16 @@ import { estimateCost, type Prices } from "./engine/cost.js";
 // One line describing `message`, without its sender and recipient.
 export function describeMessage(message: AgentMessage): string {
 	if ("kind" in message) {
-		return message.kind === "share"
-			? `share (level ${message.level}): ${JSON.stringify(message.shared)}`
-			: `interest (level ${message.level}): ${message.interest}`;
+		switch (message.kind) {
+			case "share":
+				return `share (level ${message.level}): ${JSON.stringify(message.shared)}`;
+			case "interest":
+				return `interest (level ${message.level}): ${message.interest}`;
+			case "offer":
+				return `offer: a place on ${message.team}`;
+			case "answer":
+				return `${message.answer} (${message.team})`;
+		}
 	}
 	if ("decision" in message) {
 		const pitch = "pitch" in message ? `: "${message.pitch}"` : "";
@@ -57,6 +64,12 @@ export function formatEvent(
 			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "level":
 			return `     level: ${event.agent} with ${event.other}  ${event.from} → ${event.to}`;
+		case "offers":
+			return `  ${event.agent} offers a place to: ${event.to.join(", ") || "nobody"} (${event.places} left)${event.fellBack ? " (fell back)" : ""}${event.rationale === undefined ? "" : reasoning(event.rationale)}`;
+		case "commitment":
+			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "team":
+			return `  team ${event.team.id}: ${event.team.members.join(", ")} (${event.team.status}) · project: ${event.team.project.title}`;
 		case "exchange":
 			return undefined;
 	}
@@ -107,9 +120,11 @@ export function formatSummary(
 		`Board:    ${summary.listings} listings · roles beyond the core four: ${roles || "none"}`,
 		...summary.rounds.map(
 			(r) =>
-				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals`,
+				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals · ${r.offers} offers → ${r.commits} commits`,
 		),
 		`Pairs:    ${summary.pairs.length} talked · reached level 1: ${reachedAt(1)} · level 2: ${reachedAt(2)} · ready: ${summary.pairs.filter((p) => p.ready).length} · ended: ${summary.pairs.filter((p) => p.ended).length}`,
+		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")}`,
+		`On no team:         ${list(summary.unplaced)}`,
 		`Never approached:   ${list(summary.neverApproached)}`,
 		`In no conversation: ${list(summary.noConversation)}`,
 		`Gate blocks: ${summary.gateBlocks} · fallbacks: ${summary.fallbacks} · model calls: ${summary.calls}`,

@@ -43,8 +43,9 @@ const listings: Record<string, string[]> = {
 // Discovery picks per round.
 const picks: Record<number, Record<string, string[]>> = {
 	1: { a: ["b"], c: ["d"] },
-	// a picks b again, but they're already talking, so it's skipped; e asks to join a's project.
-	2: { a: ["b"], e: ["a"] },
+	// b is on a's team now, so off the board. d picks c, but they've talked already, so it's skipped;
+	// e asks to join a's project.
+	2: { d: ["c"], e: ["a"] },
 };
 const decisions: Record<string, object> = {
 	b: { decision: "accept" },
@@ -52,9 +53,11 @@ const decisions: Record<string, object> = {
 	a: { decision: "accept" },
 };
 
-// A fake model that recognizes each kind of prompt and answers from the scripts above.
+// A fake model that recognizes each kind of prompt and answers from the scripts above. Offers are always
+// taken: the first owner offering is committed to.
 function fakeClient() {
-	let discoveryCalls = 0;
+	// Each agent picks once per round it's still open, so its own call count is the round.
+	const discoveryCalls: Record<string, number> = {};
 	const fetch = (async (_url: unknown, init?: RequestInit) => {
 		const { messages } = JSON.parse(init!.body as string);
 		const who = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
@@ -68,8 +71,12 @@ function fakeClient() {
 				rolesNeeded: listings[who],
 			};
 		} else if (last.startsWith("Public board:")) {
-			const round = Math.ceil(++discoveryCalls / profiles.length);
+			const round = (discoveryCalls[who] =
+				(discoveryCalls[who] ?? 0) + 1);
 			reply = { rationale: "Picks.", approach: picks[round]![who] ?? [] };
+		} else if (last.startsWith("Offers:")) {
+			const [first] = JSON.parse(last.slice("Offers:".length));
+			reply = { rationale: "Joining.", commit: first.owner };
 		} else if (last.includes("Keep going, or withdraw?")) {
 			reply = { rationale: "Fits.", interest: "continue" };
 		} else {
@@ -110,10 +117,12 @@ describe("runSimulation", () => {
 			expect.stringMatching(
 				/^round 1: conversations finished in \d+ ticks$/,
 			),
+			"round 1: 1 offers → 1 commits · teams: 1",
 			"round 2: 1 picks → 1 proposals",
 			expect.stringMatching(
 				/^round 2: conversations finished in \d+ ticks$/,
 			),
+			"round 2: 1 offers → 1 commits · teams: 1",
 		]);
 	});
 
@@ -132,9 +141,10 @@ describe("runSimulation", () => {
 
 	test("conversations between different pairs stay independent", async () => {
 		const { world } = await simulate();
-		expect(contactOf(world.agents.a!, "b").level).toBe(2);
+		// a and b, then a and e, became teammates, so they're at level 3.
+		expect(contactOf(world.agents.a!, "b").level).toBe(3);
 		expect(contactOf(world.agents.c!, "d").level).toBe(0);
-		expect(contactOf(world.agents.a!, "e").level).toBe(2);
+		expect(contactOf(world.agents.a!, "e").level).toBe(3);
 	});
 });
 
@@ -142,16 +152,16 @@ describe("summarize", () => {
 	test("counts picks and proposals per round", async () => {
 		const { summary } = await simulate();
 		expect(summary.rounds).toEqual([
-			{ round: 1, picks: 2, proposals: 2 },
-			{ round: 2, picks: 1, proposals: 1 },
+			{ round: 1, picks: 2, proposals: 2, offers: 1, commits: 1 },
+			{ round: 2, picks: 1, proposals: 1, offers: 1, commits: 1 },
 		]);
 	});
 
 	test("reports every pair's outcome", async () => {
 		const { summary } = await simulate();
 		expect(summary.pairs).toEqual([
-			{ pair: ["a", "b"], level: 2, ready: true, ended: false },
-			{ pair: ["a", "e"], level: 2, ready: true, ended: false },
+			{ pair: ["a", "b"], level: 3, ready: true, ended: false },
+			{ pair: ["a", "e"], level: 3, ready: true, ended: false },
 			{ pair: ["c", "d"], level: 0, ready: false, ended: true },
 		]);
 	});
@@ -160,6 +170,18 @@ describe("summarize", () => {
 		const { summary } = await simulate();
 		expect(summary.neverApproached).toEqual(["c", "e"]);
 		expect(summary.noConversation).toEqual([]);
+	});
+
+	test("reports the committed teams and who is on none", async () => {
+		const { summary, world } = await simulate();
+		expect(summary.teams.map((t) => t.members)).toEqual([["a", "b", "e"]]);
+		expect(summary.unplaced).toEqual(["c", "d"]);
+		// b and e never talked, but as teammates they know each other's names.
+		expect(contactOf(world.agents.b!, "e").learned.name).toBe(
+			profiles.find((p) => p.id === "e")!.name,
+		);
+		// Swapping names isn't a conversation, so b and e aren't a pair.
+		expect(summary.pairs.map((p) => p.pair.join("–"))).not.toContain("b–e");
 	});
 
 	test("counts roles beyond the core four on the board", async () => {

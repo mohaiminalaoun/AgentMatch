@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
+import { isOpen } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import {
 	StructuredOutputError,
@@ -8,7 +9,7 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import type { Proposal } from "./proposal.js";
+import { JOIN_PREFIX, type Proposal } from "./proposal.js";
 import { publicPitch, type World } from "./round.js";
 
 // One agent's listing on the public board: only what it shows at level 0.
@@ -43,8 +44,10 @@ export type DiscoveryOptions = {
 const DEFAULT_PER_AGENT = 3;
 
 // The public board: every agent with a project idea, showing only its level-0 pitch and roles needed.
+// People already on a team are off it, except owners whose team still has places.
 export function buildBoard(world: World): BoardEntry[] {
 	return Object.values(world.agents)
+		.filter((agent) => isOpen(world, agent.id))
 		.flatMap((agent) => {
 			const terms = publicPitch(agent);
 			return terms ? [{ id: agent.id, ...terms }] : [];
@@ -86,7 +89,7 @@ export function discoveryMessages(
 	];
 }
 
-// Every agent looks at the board and picks whom to approach, all at once. Picks are checked (on the board,
+// Every agent still open looks at the board and picks whom to approach, all at once. Picks are checked (on the board,
 // not itself), trimmed to `perAgent`, and turned into proposals: an agent with a project idea pitches it;
 // one without asks to join the target's project. A pair already talking is skipped, and if two agents pick
 // each other, only one proposal is made, from whichever comes first in id order.
@@ -102,9 +105,10 @@ export async function discover(
 ): Promise<{ proposals: Proposal[]; picks: Pick[] }> {
 	const board = buildBoard(world);
 	const listed = new Map(board.map((entry) => [entry.id, entry]));
-	const agents = Object.values(world.agents).sort((a, b) =>
-		a.id < b.id ? -1 : 1,
-	);
+	// Someone on a team is done looking, unless they own it and it has places left.
+	const agents = Object.values(world.agents)
+		.filter((agent) => isOpen(world, agent.id))
+		.sort((a, b) => (a.id < b.id ? -1 : 1));
 	const llmOptions = {
 		onExchange: (exchange: Exchange) => {
 			onExchange?.(exchange);
@@ -180,7 +184,7 @@ export async function discover(
 							id,
 							from: pick.agent,
 							to,
-							pitch: `Join your project: ${target.pitch}`.slice(
+							pitch: `${JOIN_PREFIX}${target.pitch}`.slice(
 								0,
 								280,
 							),

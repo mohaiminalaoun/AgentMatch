@@ -2,13 +2,16 @@ import type { DisclosureLevel, ProfileField } from "./disclosure.js";
 import type { Profile } from "./profile.js";
 import type {
 	Interest,
+	Offer,
+	OfferAnswer,
 	Proposal,
 	ProposalResponse,
 	Share,
 	Terms,
 } from "./proposal.js";
 
-export type AgentMessage = Proposal | ProposalResponse | Share | Interest;
+export type AgentMessage =
+	Proposal | ProposalResponse | Share | Interest | Offer | OfferAnswer;
 
 // What one agent knows about its relationship with another.
 export type Contact = {

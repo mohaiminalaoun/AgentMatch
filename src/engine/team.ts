@@ -6,7 +6,7 @@ export const TeamStatus = z.enum(["tentative", "committed"]);
 
 export const Team = z.object({
 	id: z.string().min(1),
-	// Profile ids of the members.
+	// Profile ids of the members. The first is the project's owner, whose idea the team builds.
 	members: z
 		.array(z.string().min(1))
 		.min(2)

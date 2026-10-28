@@ -29,12 +29,14 @@ import {
 	type Share,
 	type Terms,
 } from "./proposal.js";
+import type { Team } from "./team.js";
 
-// Everything a run needs: every agent's state, plus the one bus they all talk through.
-// Agent states are plain data replaced as the run goes; the bus keeps its own inboxes and event count.
+// Everything a run needs: every agent's state, the one bus they all talk through, and the teams formed so far.
+// Agent states and teams are plain data replaced as the run goes; the bus keeps its own inboxes and event count.
 export type World = {
 	agents: Record<string, AgentState>;
 	bus: Bus;
+	teams: Team[];
 };
 
 // One decision an agent's model made, for printing and checking. The rationale is private
@@ -84,6 +86,7 @@ export function createWorld(profiles: readonly Profile[]): World {
 	return {
 		agents: Object.fromEntries(profiles.map((p) => [p.id, createAgent(p)])),
 		bus: createBus(profiles.map((p) => p.id)),
+		teams: [],
 	};
 }
 

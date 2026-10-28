@@ -19,6 +19,9 @@ export const Proposal = Terms.extend({
 
 export type Proposal = z.infer<typeof Proposal>;
 
+// How a proposal from someone with no project idea starts: they're asking to join the recipient's project.
+export const JOIN_PREFIX = "Join your project: ";
+
 const Accept = z.object({ decision: z.literal("accept") });
 const Counter = Terms.extend({ decision: z.literal("counter") });
 // A decline has no reason the model can fill in: there's nowhere to put an explanation, so none can leak.
@@ -104,3 +107,25 @@ export const Interest = z.object({
 });
 
 export type Interest = z.infer<typeof Interest>;
+
+// A binding place on a team, sent by the project's owner to someone both sides are ready with (both
+// continued through level 2). No text. Once sent, the owner can't take it back: a commit puts them on the team.
+export const Offer = z.object({
+	kind: z.literal("offer"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	team: z.string().min(1),
+});
+
+export type Offer = z.infer<typeof Offer>;
+
+// The answer to an offer. A commit is final; a decline says nothing more than that, like a withdrawal.
+export const OfferAnswer = z.object({
+	kind: z.literal("answer"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	team: z.string().min(1),
+	answer: z.enum(["commit", "decline"]),
+});
+
+export type OfferAnswer = z.infer<typeof OfferAnswer>;

@@ -112,7 +112,7 @@ function setup() {
 const summary = (events: BusEvent[]) =>
 	events.map((e) =>
 		e.type === "sent"
-			? `${e.message.from} → ${e.message.to}: ${"kind" in e.message ? (e.message.kind === "share" ? `share ${e.message.level}` : `${e.message.interest} ${e.message.level}`) : "decision" in e.message ? e.message.decision : "proposal"}`
+			? `${e.message.from} → ${e.message.to}: ${"kind" in e.message ? (e.message.kind === "share" ? `share ${e.message.level}` : e.message.kind === "interest" ? `${e.message.interest} ${e.message.level}` : e.message.kind) : "decision" in e.message ? e.message.decision : "proposal"}`
 			: `rejected: ${e.reason}`,
 	);
 

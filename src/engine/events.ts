@@ -3,6 +3,7 @@ import { validateMessage } from "./bus.js";
 import { DisclosureLevel } from "./disclosure.js";
 import type { Exchange } from "./llm.js";
 import { Decision } from "./proposal.js";
+import { Team } from "./team.js";
 
 // A bus message, checked with the same rules the bus uses when it's sent.
 const LoggedMessage = z.unknown().transform((message, ctx) => {
@@ -91,6 +92,27 @@ export const RunEvent = z.discriminatedUnion("type", [
 		from: DisclosureLevel,
 		to: DisclosureLevel,
 	}),
+	// A project owner chose whom to offer a place on its team. No model call (and no rationale) when
+	// everyone ready fit in the places left.
+	z.object({
+		type: z.literal("offers"),
+		agent: z.string(),
+		to: z.array(z.string()),
+		places: z.number().int(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
+	// An agent holding offers committed to one owner's team, or to none (`chose` null).
+	z.object({
+		type: z.literal("commitment"),
+		agent: z.string(),
+		offers: z.array(z.string()),
+		chose: z.string().nullable(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
+	// A team formed or gained a member.
+	z.object({ type: z.literal("team"), team: Team }),
 	// One model call: everything sent, the reply, and its cost.
 	z.object({
 		type: z.literal("exchange"),
