@@ -1,8 +1,8 @@
 import type { DisclosureLevel, ProfileField } from "./disclosure.js";
 import type { Profile } from "./profile.js";
-import type { Proposal, ProposalResponse } from "./proposal.js";
+import type { Proposal, ProposalResponse, Share } from "./proposal.js";
 
-export type AgentMessage = Proposal | ProposalResponse;
+export type AgentMessage = Proposal | ProposalResponse | Share;
 
 // What one agent knows about its relationship with another.
 export type Contact = {
@@ -66,16 +66,22 @@ export function recordRevealed(
 	}));
 }
 
-// Merges what `otherId` shared into what this agent knows about them.
+// Profile fields as they arrive in a message: any may be missing or explicitly undefined.
+export type SharedFields = { [K in keyof Profile]?: Profile[K] | undefined };
+
+// Merges what `otherId` shared into what this agent knows about them, skipping undefined values.
 // Only call it with what was actually in a received message.
 export function learn(
 	state: AgentState,
 	otherId: string,
-	shared: Partial<Profile>,
+	shared: SharedFields,
 ): AgentState {
+	const present = Object.fromEntries(
+		Object.entries(shared).filter(([, value]) => value !== undefined),
+	) as Partial<Profile>;
 	return updateContact(state, otherId, (contact) => ({
 		...contact,
-		learned: { ...contact.learned, ...shared },
+		learned: { ...contact.learned, ...present },
 	}));
 }
 

@@ -21,9 +21,11 @@ try {
 		}
 		const m = event.message;
 		const what =
-			"decision" in m
-				? `${m.decision}${"pitch" in m ? `: "${m.pitch}"` : ""}${"reason" in m ? `: "${m.reason}"` : ""}`
-				: `proposal: "${m.pitch}"  roles needed: ${m.rolesNeeded.join(", ")}`;
+			"kind" in m
+				? `share (level ${m.level}): ${JSON.stringify(m.shared)}`
+				: "decision" in m
+					? `${m.decision}${"pitch" in m ? `: "${m.pitch}"` : ""}${"reason" in m ? `: "${m.reason}"` : ""}`
+					: `proposal: "${m.pitch}"  roles needed: ${m.rolesNeeded.join(", ")}`;
 		console.log(`  bus #${event.seq}  ${m.from} → ${m.to}   ${what}`);
 	});
 

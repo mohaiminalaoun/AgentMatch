@@ -1,5 +1,5 @@
 import type { AgentMessage } from "./agent.js";
-import { Proposal, ProposalResponse } from "./proposal.js";
+import { Proposal, ProposalResponse, Share } from "./proposal.js";
 
 // Everything the bus does, in order. `seq` counts every event, so a log of events is a complete, ordered record.
 export type BusEvent =
@@ -19,6 +19,8 @@ export type Bus = {
 	receive: (agentId: string) => AgentMessage[];
 	// Calls `listener` with every event from now on; returns a function that stops it.
 	subscribe: (listener: (event: BusEvent) => void) => () => void;
+	// How many messages are delivered but not yet received, across all inboxes.
+	waiting: () => number;
 };
 
 // A message the bus refused; always a bug in the sending code.
@@ -100,19 +102,21 @@ export function createBus(agentIds: readonly string[]): Bus {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
 		},
+		waiting: () =>
+			[...inboxes.values()].reduce((sum, inbox) => sum + inbox.length, 0),
 	};
 }
 
 // The message checked against its schema, or a description of the first problem.
-// Responses carry a `decision`; proposals don't.
+// Shares have `kind: "share"`, responses carry a `decision`, and anything else must be a proposal.
 function validate(message: unknown): AgentMessage | string {
-	const isResponse =
-		typeof message === "object" &&
-		message !== null &&
-		"decision" in message;
-	const result = isResponse
-		? ProposalResponse.safeParse(message)
-		: Proposal.safeParse(message);
+	const object = typeof message === "object" && message !== null;
+	const result =
+		object && "kind" in message && message.kind === "share"
+			? Share.safeParse(message)
+			: object && "decision" in message
+				? ProposalResponse.safeParse(message)
+				: Proposal.safeParse(message);
 	if (result.success) {
 		return result.data;
 	}

@@ -177,3 +177,39 @@ describe("copies", () => {
 		expect((bus.receive("ben")[0] as Proposal).pitch).toBe(proposal.pitch);
 	});
 });
+
+describe("shares", () => {
+	const share = {
+		kind: "share" as const,
+		from: "a",
+		to: "ben",
+		level: 1 as const,
+		shared: { interests: ["climate"] },
+	};
+
+	test("a share is delivered like any other message", () => {
+		const { bus } = setup();
+		bus.send("a", share);
+		expect(bus.receive("ben")).toEqual([share]);
+	});
+
+	test("a share with a field from another level is rejected", () => {
+		const { bus } = setup();
+		const wrongLevel = {
+			...share,
+			shared: { skills: [{ name: "ml", level: "expert" as const }] },
+		};
+		expect(() => bus.send("a", wrongLevel)).toThrow(
+			"shared fields must all belong to the share's level",
+		);
+	});
+
+	test("waiting counts messages not yet received", () => {
+		const { bus } = setup();
+		bus.send("a", share);
+		bus.send("a", proposal);
+		expect(bus.waiting()).toBe(2);
+		bus.receive("ben");
+		expect(bus.waiting()).toBe(0);
+	});
+});

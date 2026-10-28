@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { FIELD_LEVELS, type ProfileField } from "./disclosure.js";
+import { Profile } from "./profile.js";
 
 // What is being offered. Proposals and counters both carry these terms.
 export const Terms = z.object({
@@ -70,3 +72,23 @@ export function toResponse(
 		? { ...decision, ...envelope, reason: STANDARD_REFUSAL }
 		: { ...decision, ...envelope };
 }
+
+// Profile data an agent hands over when both sides open a new level. Built by code from the real profile,
+// never written by the model, and it may only contain fields that belong to exactly that level.
+export const Share = z
+	.object({
+		kind: z.literal("share"),
+		from: z.string().min(1),
+		to: z.string().min(1),
+		level: z.literal([1, 2, 3]),
+		shared: Profile.partial(),
+	})
+	.refine(
+		(share) =>
+			Object.keys(share.shared).every(
+				(field) => FIELD_LEVELS[field as ProfileField] === share.level,
+			),
+		{ error: "shared fields must all belong to the share's level" },
+	);
+
+export type Share = z.infer<typeof Share>;
