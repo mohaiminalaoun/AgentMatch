@@ -18,7 +18,8 @@ import {
 } from "./disclosure.js";
 import { checkDisclosure, fieldsMentioned } from "./gate.js";
 import { checkInterest, type InterestResult } from "./interest.js";
-import type { ChatOptions } from "./llm.js";
+import { exchangeEvent, type RunEvent } from "./events.js";
+import type { ChatOptions, Exchange } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
 	toResponse,
@@ -61,6 +62,8 @@ export type RoundOptions = {
 	onExchange?: ChatOptions["onExchange"];
 	// Called after each tick with the world so far, e.g. to print levels as they change.
 	onTick?: (tick: number, world: World) => void;
+	// Called with every event of the run, in order: for logging, live output, and later the UI.
+	onEvent?: (event: RunEvent) => void;
 };
 
 export type RoundResult = {
@@ -124,202 +127,269 @@ export async function runRound(
 		maxLevel = DEFAULT_MAX_LEVEL,
 		onTick,
 		onExchange,
+		onEvent,
 	}: RoundOptions = {},
 ): Promise<RoundResult> {
 	const { bus } = world;
 	const agents = { ...world.agents };
 	const report: RoundEntry[] = [];
 	const interests: InterestEntry[] = [];
-	const llmOptions = onExchange ? { onExchange } : {};
-
-	// Sends `message` from `from` and records it, and what it revealed, in the sender's state.
-	const send = (
-		from: string,
-		message: AgentMessage,
-		revealed: ProfileField[],
-	) => {
-		bus.send(from, message);
-		agents[from] = recordRevealed(
-			recordMessage(agentOf(agents, from), message.to, message),
-			message.to,
-			revealed,
-		);
+	const emit = (event: RunEvent) => onEvent?.(event);
+	const llmOptions = {
+		onExchange: (exchange: Exchange) => {
+			onExchange?.(exchange);
+			emit(exchangeEvent(exchange));
+		},
 	};
 
-	// Both sides wanted the same thing, so `id` opens `level` with `otherId` and shares that level's fields.
-	const openLevel = (id: string, otherId: string, level: DisclosureLevel) => {
-		const agent = agentOf(agents, id);
-		if (
-			level === 0 ||
-			level > maxLevel ||
-			contactOf(agent, otherId).level >= level
-		) {
-			return;
-		}
-		agents[id] = raiseLevel(agent, otherId, level);
-		const fields = (Object.keys(FIELD_LEVELS) as ProfileField[]).filter(
-			(field) => FIELD_LEVELS[field] === level,
-		);
-		const shared = Object.fromEntries(
-			fields.map((field) => [field, agent.profile[field]]),
-		) as Partial<Profile>;
-		// Built from the profile, so this always passes; checked anyway, as a second line of defense.
-		const violations = checkDisclosure(agent.profile, level, {
-			texts: {},
-			shared,
-		});
-		if (violations.length > 0) {
-			throw new Error(
-				`share from ${id} broke the rules: ${JSON.stringify(violations)}`,
-			);
-		}
-		const share: Share = {
-			kind: "share",
-			from: id,
-			to: otherId,
-			level,
-			shared,
-		};
-		send(id, share, fields);
-	};
-
-	// If both `id` and `otherId` have said continue at `level`, opens the next one.
-	const openNextIfMutual = (
-		id: string,
-		otherId: string,
-		level: DisclosureLevel,
-	) => {
-		const agent = agentOf(agents, id);
-		if (
-			continued(agent, id, otherId, level) &&
-			continued(agent, otherId, id, level)
-		) {
-			openLevel(id, otherId, (level + 1) as DisclosureLevel);
-		}
-	};
-
-	for (const proposal of [...proposals].sort((a, b) => compare(a.id, b.id))) {
-		const sender = agentOf(agents, proposal.from);
-		send(
-			proposal.from,
-			proposal,
-			// Its roles are ones the proposer lacks, by construction, so only the pitch can reveal anything.
-			fieldsMentioned(sender.profile, proposal.pitch),
-		);
+	emit({
+		type: "round",
+		time: new Date().toISOString(),
+		model: client.model,
+		agents: Object.keys(agents).sort(),
+	});
+	// The bus's own events join the stream, so a caller gets one ordered record of everything.
+	const unsubscribe = bus.subscribe((event) => emit({ type: "bus", event }));
+	try {
+		return await play();
+	} finally {
+		unsubscribe();
 	}
 
-	let ticks = 0;
-	while (bus.waiting() > 0 && ticks < maxTicks) {
-		ticks++;
-		const incoming = Object.keys(agents)
-			.sort()
-			.flatMap((receiver) =>
-				bus.receive(receiver).map((message) => ({ receiver, message })),
+	// The round itself; a separate function so the bus subscription above is always removed.
+	async function play(): Promise<RoundResult> {
+		// Sends `message` from `from` and records it, and what it revealed, in the sender's state.
+		const send = (
+			from: string,
+			message: AgentMessage,
+			revealed: ProfileField[],
+		) => {
+			bus.send(from, message);
+			agents[from] = recordRevealed(
+				recordMessage(agentOf(agents, from), message.to, message),
+				message.to,
+				revealed,
 			);
+		};
 
-		// Decisions use each agent's state from before this tick's mail, so the message being decided on
-		// isn't listed twice in the prompt. Interest checks use the state after learning the share,
-		// since judging what was just shared is the point.
-		const before = { ...agents };
-		for (const { receiver, message } of incoming) {
-			agents[receiver] = recordMessage(
-				agentOf(agents, receiver),
-				message.from,
-				message,
+		// Both sides wanted the same thing, so `id` opens `level` with `otherId` and shares that level's fields.
+		const openLevel = (
+			id: string,
+			otherId: string,
+			level: DisclosureLevel,
+		) => {
+			const agent = agentOf(agents, id);
+			if (
+				level === 0 ||
+				level > maxLevel ||
+				contactOf(agent, otherId).level >= level
+			) {
+				return;
+			}
+			emit({
+				type: "level",
+				agent: id,
+				other: otherId,
+				from: contactOf(agent, otherId).level,
+				to: level,
+			});
+			agents[id] = raiseLevel(agent, otherId, level);
+			const fields = (Object.keys(FIELD_LEVELS) as ProfileField[]).filter(
+				(field) => FIELD_LEVELS[field] === level,
 			);
-			if (isShare(message)) {
-				agents[receiver] = learn(
+			const shared = Object.fromEntries(
+				fields.map((field) => [field, agent.profile[field]]),
+			) as Partial<Profile>;
+			// Built from the profile, so this always passes; checked anyway, as a second line of defense.
+			const violations = checkDisclosure(agent.profile, level, {
+				texts: {},
+				shared,
+			});
+			if (violations.length > 0) {
+				throw new Error(
+					`share from ${id} broke the rules: ${JSON.stringify(violations)}`,
+				);
+			}
+			const share: Share = {
+				kind: "share",
+				from: id,
+				to: otherId,
+				level,
+				shared,
+			};
+			send(id, share, fields);
+		};
+
+		// If both `id` and `otherId` have said continue at `level`, opens the next one.
+		const openNextIfMutual = (
+			id: string,
+			otherId: string,
+			level: DisclosureLevel,
+		) => {
+			const agent = agentOf(agents, id);
+			if (
+				continued(agent, id, otherId, level) &&
+				continued(agent, otherId, id, level)
+			) {
+				openLevel(id, otherId, (level + 1) as DisclosureLevel);
+			}
+		};
+
+		for (const proposal of [...proposals].sort((a, b) =>
+			compare(a.id, b.id),
+		)) {
+			const sender = agentOf(agents, proposal.from);
+			send(
+				proposal.from,
+				proposal,
+				// Its roles are ones the proposer lacks, by construction, so only the pitch can reveal anything.
+				fieldsMentioned(sender.profile, proposal.pitch),
+			);
+		}
+
+		let ticks = 0;
+		while (bus.waiting() > 0 && ticks < maxTicks) {
+			ticks++;
+			emit({ type: "tick", n: ticks });
+			const incoming = Object.keys(agents)
+				.sort()
+				.flatMap((receiver) =>
+					bus
+						.receive(receiver)
+						.map((message) => ({ receiver, message })),
+				);
+
+			// Decisions use each agent's state from before this tick's mail, so the message being decided on
+			// isn't listed twice in the prompt. Interest checks use the state after learning the share,
+			// since judging what was just shared is the point.
+			const before = { ...agents };
+			for (const { receiver, message } of incoming) {
+				agents[receiver] = recordMessage(
 					agentOf(agents, receiver),
 					message.from,
-					message.shared,
+					message,
 				);
-			}
-		}
-		const toDecide = incoming.flatMap(({ receiver, message }) => {
-			const proposal = asProposal(message);
-			return proposal ? [{ receiver, proposal }] : [];
-		});
-		const toCheck = incoming.flatMap(({ receiver, message }) =>
-			isShare(message) ? [{ receiver, share: message }] : [],
-		);
-		const [results, checks] = await Promise.all([
-			Promise.all(
-				toDecide.map(({ receiver, proposal }) =>
-					decideOnProposal(
-						client,
-						agentOf(before, receiver),
-						proposal,
-						llmOptions,
-					),
-				),
-			),
-			Promise.all(
-				toCheck.map(({ receiver, share }) =>
-					checkInterest(
-						client,
+				if (isShare(message)) {
+					agents[receiver] = learn(
 						agentOf(agents, receiver),
-						share.from,
-						llmOptions,
+						message.from,
+						message.shared,
+					);
+				}
+			}
+			const toDecide = incoming.flatMap(({ receiver, message }) => {
+				const proposal = asProposal(message);
+				return proposal ? [{ receiver, proposal }] : [];
+			});
+			const toCheck = incoming.flatMap(({ receiver, message }) =>
+				isShare(message) ? [{ receiver, share: message }] : [],
+			);
+			const [results, checks] = await Promise.all([
+				Promise.all(
+					toDecide.map(({ receiver, proposal }) =>
+						decideOnProposal(
+							client,
+							agentOf(before, receiver),
+							proposal,
+							llmOptions,
+						),
 					),
 				),
-			),
-		]);
+				Promise.all(
+					toCheck.map(({ receiver, share }) =>
+						checkInterest(
+							client,
+							agentOf(agents, receiver),
+							share.from,
+							llmOptions,
+						),
+					),
+				),
+			]);
 
-		// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
-		let decided = 0;
-		let checked = 0;
-		for (const { receiver, message } of incoming) {
-			const proposal = asProposal(message);
-			if (proposal) {
-				const result = results[decided++]!;
-				const response = toResponse(proposal, result.decision);
-				const pitch =
-					"pitch" in response
-						? `${response.pitch} ${response.rolesNeeded.join(", ")}`
-						: "";
-				send(
-					receiver,
-					response,
-					fieldsMentioned(agentOf(agents, receiver).profile, pitch),
-				);
-				report.push({ proposal, result, response });
-				if (response.decision === "accept") {
-					openLevel(receiver, proposal.from, 1);
+			// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
+			let decided = 0;
+			let checked = 0;
+			for (const { receiver, message } of incoming) {
+				const proposal = asProposal(message);
+				if (proposal) {
+					const result = results[decided++]!;
+					const response = toResponse(proposal, result.decision);
+					const pitch =
+						"pitch" in response
+							? `${response.pitch} ${response.rolesNeeded.join(", ")}`
+							: "";
+					send(
+						receiver,
+						response,
+						fieldsMentioned(
+							agentOf(agents, receiver).profile,
+							pitch,
+						),
+					);
+					report.push({ proposal, result, response });
+					emit({
+						type: "decision",
+						agent: receiver,
+						proposalId: proposal.id,
+						decision: result.decision,
+						rationale: result.rationale,
+						gateBlocks: result.gateBlocks,
+						fellBack: result.fellBack,
+					});
+					if (response.decision === "accept") {
+						openLevel(receiver, proposal.from, 1);
+					}
+				} else if (
+					"decision" in message &&
+					message.decision === "accept"
+				) {
+					openLevel(receiver, message.from, 1);
+				} else if (isShare(message)) {
+					const result = checks[checked++]!;
+					const interest: Interest = {
+						kind: "interest",
+						from: receiver,
+						to: message.from,
+						level: message.level,
+						interest: result.interest,
+					};
+					send(receiver, interest, []);
+					interests.push({
+						agent: receiver,
+						otherId: message.from,
+						level: message.level,
+						result,
+					});
+					emit({
+						type: "interest",
+						agent: receiver,
+						other: message.from,
+						level: message.level,
+						interest: result.interest,
+						rationale: result.rationale,
+						fellBack: result.fellBack,
+					});
+					openNextIfMutual(receiver, message.from, message.level);
+				} else if (
+					isInterest(message) &&
+					message.interest === "continue"
+				) {
+					openNextIfMutual(receiver, message.from, message.level);
 				}
-			} else if ("decision" in message && message.decision === "accept") {
-				openLevel(receiver, message.from, 1);
-			} else if (isShare(message)) {
-				const result = checks[checked++]!;
-				const interest: Interest = {
-					kind: "interest",
-					from: receiver,
-					to: message.from,
-					level: message.level,
-					interest: result.interest,
-				};
-				send(receiver, interest, []);
-				interests.push({
-					agent: receiver,
-					otherId: message.from,
-					level: message.level,
-					result,
-				});
-				openNextIfMutual(receiver, message.from, message.level);
-			} else if (isInterest(message) && message.interest === "continue") {
-				openNextIfMutual(receiver, message.from, message.level);
 			}
+
+			onTick?.(ticks, { ...world, agents: { ...agents } });
 		}
 
-		onTick?.(ticks, { ...world, agents: { ...agents } });
+		return {
+			world: { ...world, agents },
+			report,
+			interests,
+			ticks,
+			quiet: bus.waiting() === 0,
+		};
 	}
-
-	return {
-		world: { ...world, agents },
-		report,
-		interests,
-		ticks,
-		quiet: bus.waiting() === 0,
-	};
 }
 
 // What `message` asks its receiver to decide on: a proposal as is, or a counter's terms as a new

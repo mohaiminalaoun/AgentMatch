@@ -58,7 +58,7 @@ export function createBus(agentIds: readonly string[]): Bus {
 
 	return {
 		send: (from, message) => {
-			const parsed = validate(message);
+			const parsed = validateMessage(message);
 			if (typeof parsed === "string") {
 				return reject(from, `invalid message from ${from}: ${parsed}`);
 			}
@@ -109,7 +109,7 @@ export function createBus(agentIds: readonly string[]): Bus {
 
 // The message checked against its schema, or a description of the first problem.
 // Shares and interests say what they are in `kind`; responses carry a `decision`; anything else must be a proposal.
-function validate(message: unknown): AgentMessage | string {
+export function validateMessage(message: unknown): AgentMessage | string {
 	const kind =
 		typeof message === "object" && message !== null && "kind" in message
 			? message.kind

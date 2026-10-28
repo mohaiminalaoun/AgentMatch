@@ -36,6 +36,8 @@ export type LlmClient = {
 		attempts: number;
 	}>;
 	readonly stats: ClientStats;
+	// The model every call uses, for labelling logs.
+	readonly model: string;
 };
 
 export type ClientOptions = {
@@ -99,5 +101,6 @@ export function createLlmClient(
 				send: queuedChat,
 			}),
 		stats,
+		model: config.model,
 	};
 }
