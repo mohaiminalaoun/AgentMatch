@@ -10,21 +10,19 @@ import {
 } from "./agent.js";
 import { createBus, type Bus } from "./bus.js";
 import type { LlmClient } from "./client.js";
-import {
-	decideOnProposal,
-	type AgentDecision,
-	type DecisionResult,
-} from "./decision.js";
+import { decideOnProposal, type DecisionResult } from "./decision.js";
 import {
 	FIELD_LEVELS,
 	type DisclosureLevel,
 	type ProfileField,
 } from "./disclosure.js";
 import { checkDisclosure, fieldsMentioned } from "./gate.js";
-import type { ChatJsonOptions } from "./llm.js";
+import { checkInterest, type InterestResult } from "./interest.js";
+import type { ChatOptions } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
 	toResponse,
+	type Interest,
 	type Proposal,
 	type ProposalResponse,
 	type Share,
@@ -45,9 +43,22 @@ export type RoundEntry = {
 	response: ProposalResponse;
 };
 
-export type RoundOptions = ChatJsonOptions<AgentDecision> & {
+// One interest check: after learning `otherId`'s share at `level`, whether `agent` kept going.
+// The rationale is private to the agent's human, like a decision's.
+export type InterestEntry = {
+	agent: string;
+	otherId: string;
+	level: DisclosureLevel;
+	result: InterestResult;
+};
+
+export type RoundOptions = {
 	// Stop after this many ticks even if messages are still waiting, so counters can't loop forever.
 	maxTicks?: number;
+	// The highest level two agents can open. A mutual continue at this level means they're ready to commit.
+	maxLevel?: DisclosureLevel;
+	// Called after every successful model call, e.g. to log the conversation.
+	onExchange?: ChatOptions["onExchange"];
 	// Called after each tick with the world so far, e.g. to print levels as they change.
 	onTick?: (tick: number, world: World) => void;
 };
@@ -55,12 +66,14 @@ export type RoundOptions = ChatJsonOptions<AgentDecision> & {
 export type RoundResult = {
 	world: World;
 	report: RoundEntry[];
+	interests: InterestEntry[];
 	ticks: number;
 	// True if every inbox was empty at the end; false if it stopped at maxTicks with mail waiting.
 	quiet: boolean;
 };
 
-const DEFAULT_MAX_TICKS = 8;
+const DEFAULT_MAX_TICKS = 12;
+const DEFAULT_MAX_LEVEL = 2;
 
 // A world with one agent per profile, all on a fresh bus.
 export function createWorld(profiles: readonly Profile[]): World {
@@ -95,18 +108,29 @@ export function proposalFrom(
 }
 
 // Sends `proposals`, then runs ticks until no mail is waiting (or maxTicks). In each tick every agent
-// handles its whole inbox: proposals and counters go to its model, all at once; an accept opens level 1
-// and both sides share that level's fields; a share is learned. Replies go out in inbox order, which
-// doesn't depend on which model call finished first. Returns a new world; the one passed in is unchanged.
+// handles its whole inbox, with all model calls at once:
+// - a proposal or counter is decided on (accept, counter, or decline);
+// - an accept means mutual interest: level 1 opens and both sides share that level's fields;
+// - a share is learned, then the agent checks whether to keep going and sends continue or withdraw;
+// - once both sides have continued at a level, the next one opens, up to maxLevel.
+// Replies go out in inbox order, which doesn't depend on which model call finished first.
+// Returns a new world; the one passed in is unchanged.
 export async function runRound(
 	world: World,
 	client: LlmClient,
 	proposals: readonly Proposal[],
-	{ maxTicks = DEFAULT_MAX_TICKS, onTick, ...options }: RoundOptions = {},
+	{
+		maxTicks = DEFAULT_MAX_TICKS,
+		maxLevel = DEFAULT_MAX_LEVEL,
+		onTick,
+		onExchange,
+	}: RoundOptions = {},
 ): Promise<RoundResult> {
 	const { bus } = world;
 	const agents = { ...world.agents };
 	const report: RoundEntry[] = [];
+	const interests: InterestEntry[] = [];
+	const llmOptions = onExchange ? { onExchange } : {};
 
 	// Sends `message` from `from` and records it, and what it revealed, in the sender's state.
 	const send = (
@@ -125,7 +149,11 @@ export async function runRound(
 	// Both sides wanted the same thing, so `id` opens `level` with `otherId` and shares that level's fields.
 	const openLevel = (id: string, otherId: string, level: DisclosureLevel) => {
 		const agent = agentOf(agents, id);
-		if (level === 0 || contactOf(agent, otherId).level >= level) {
+		if (
+			level === 0 ||
+			level > maxLevel ||
+			contactOf(agent, otherId).level >= level
+		) {
 			return;
 		}
 		agents[id] = raiseLevel(agent, otherId, level);
@@ -155,11 +183,27 @@ export async function runRound(
 		send(id, share, fields);
 	};
 
+	// If both `id` and `otherId` have said continue at `level`, opens the next one.
+	const openNextIfMutual = (
+		id: string,
+		otherId: string,
+		level: DisclosureLevel,
+	) => {
+		const agent = agentOf(agents, id);
+		if (
+			continued(agent, id, otherId, level) &&
+			continued(agent, otherId, id, level)
+		) {
+			openLevel(id, otherId, (level + 1) as DisclosureLevel);
+		}
+	};
+
 	for (const proposal of [...proposals].sort((a, b) => compare(a.id, b.id))) {
 		const sender = agentOf(agents, proposal.from);
 		send(
 			proposal.from,
 			proposal,
+			// Its roles are ones the proposer lacks, by construction, so only the pitch can reveal anything.
 			fieldsMentioned(sender.profile, proposal.pitch),
 		);
 	}
@@ -173,30 +217,17 @@ export async function runRound(
 				bus.receive(receiver).map((message) => ({ receiver, message })),
 			);
 
-		// Proposals and counters need the model; decide on them all at once, with each agent's state
-		// from before this tick's mail, so the message being decided on isn't listed twice in the prompt.
-		const toDecide = incoming.flatMap(({ receiver, message }) => {
-			const proposal = asProposal(message);
-			return proposal ? [{ receiver, proposal }] : [];
-		});
-		const results = await Promise.all(
-			toDecide.map(({ receiver, proposal }) =>
-				decideOnProposal(
-					client,
-					agentOf(agents, receiver),
-					proposal,
-					options,
-				),
-			),
-		);
-
+		// Decisions use each agent's state from before this tick's mail, so the message being decided on
+		// isn't listed twice in the prompt. Interest checks use the state after learning the share,
+		// since judging what was just shared is the point.
+		const before = { ...agents };
 		for (const { receiver, message } of incoming) {
 			agents[receiver] = recordMessage(
 				agentOf(agents, receiver),
 				message.from,
 				message,
 			);
-			if ("kind" in message) {
+			if (isShare(message)) {
 				agents[receiver] = learn(
 					agentOf(agents, receiver),
 					message.from,
@@ -204,15 +235,48 @@ export async function runRound(
 				);
 			}
 		}
+		const toDecide = incoming.flatMap(({ receiver, message }) => {
+			const proposal = asProposal(message);
+			return proposal ? [{ receiver, proposal }] : [];
+		});
+		const toCheck = incoming.flatMap(({ receiver, message }) =>
+			isShare(message) ? [{ receiver, share: message }] : [],
+		);
+		const [results, checks] = await Promise.all([
+			Promise.all(
+				toDecide.map(({ receiver, proposal }) =>
+					decideOnProposal(
+						client,
+						agentOf(before, receiver),
+						proposal,
+						llmOptions,
+					),
+				),
+			),
+			Promise.all(
+				toCheck.map(({ receiver, share }) =>
+					checkInterest(
+						client,
+						agentOf(agents, receiver),
+						share.from,
+						llmOptions,
+					),
+				),
+			),
+		]);
 
 		// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
 		let decided = 0;
+		let checked = 0;
 		for (const { receiver, message } of incoming) {
 			const proposal = asProposal(message);
 			if (proposal) {
 				const result = results[decided++]!;
 				const response = toResponse(proposal, result.decision);
-				const pitch = "pitch" in response ? response.pitch : "";
+				const pitch =
+					"pitch" in response
+						? `${response.pitch} ${response.rolesNeeded.join(", ")}`
+						: "";
 				send(
 					receiver,
 					response,
@@ -224,6 +288,25 @@ export async function runRound(
 				}
 			} else if ("decision" in message && message.decision === "accept") {
 				openLevel(receiver, message.from, 1);
+			} else if (isShare(message)) {
+				const result = checks[checked++]!;
+				const interest: Interest = {
+					kind: "interest",
+					from: receiver,
+					to: message.from,
+					level: message.level,
+					interest: result.interest,
+				};
+				send(receiver, interest, []);
+				interests.push({
+					agent: receiver,
+					otherId: message.from,
+					level: message.level,
+					result,
+				});
+				openNextIfMutual(receiver, message.from, message.level);
+			} else if (isInterest(message) && message.interest === "continue") {
+				openNextIfMutual(receiver, message.from, message.level);
 			}
 		}
 
@@ -233,6 +316,7 @@ export async function runRound(
 	return {
 		world: { ...world, agents },
 		report,
+		interests,
 		ticks,
 		quiet: bus.waiting() === 0,
 	};
@@ -257,6 +341,33 @@ function asProposal(message: AgentMessage): Proposal | undefined {
 		};
 	}
 	return undefined;
+}
+
+// Whether `agent`'s conversation history shows `by` saying continue to `to` at `level`.
+export function continued(
+	agent: AgentState,
+	by: string,
+	to: string,
+	level: DisclosureLevel,
+): boolean {
+	const other = agent.id === by ? to : by;
+	return contactOf(agent, other).history.some(
+		(m) =>
+			isInterest(m) &&
+			m.from === by &&
+			m.level === level &&
+			m.interest === "continue",
+	);
+}
+
+// Whether `message` is a share.
+function isShare(message: AgentMessage): message is Share {
+	return "kind" in message && message.kind === "share";
+}
+
+// Whether `message` is an interest.
+function isInterest(message: AgentMessage): message is Interest {
+	return "kind" in message && message.kind === "interest";
 }
 
 // Orders two ids, for sorting.

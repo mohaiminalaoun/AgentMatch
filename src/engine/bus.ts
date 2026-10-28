@@ -1,5 +1,5 @@
 import type { AgentMessage } from "./agent.js";
-import { Proposal, ProposalResponse, Share } from "./proposal.js";
+import { Interest, Proposal, ProposalResponse, Share } from "./proposal.js";
 
 // Everything the bus does, in order. `seq` counts every event, so a log of events is a complete, ordered record.
 export type BusEvent =
@@ -108,15 +108,24 @@ export function createBus(agentIds: readonly string[]): Bus {
 }
 
 // The message checked against its schema, or a description of the first problem.
-// Shares have `kind: "share"`, responses carry a `decision`, and anything else must be a proposal.
+// Shares and interests say what they are in `kind`; responses carry a `decision`; anything else must be a proposal.
 function validate(message: unknown): AgentMessage | string {
-	const object = typeof message === "object" && message !== null;
+	const kind =
+		typeof message === "object" && message !== null && "kind" in message
+			? message.kind
+			: undefined;
+	const isResponse =
+		typeof message === "object" &&
+		message !== null &&
+		"decision" in message;
 	const result =
-		object && "kind" in message && message.kind === "share"
+		kind === "share"
 			? Share.safeParse(message)
-			: object && "decision" in message
-				? ProposalResponse.safeParse(message)
-				: Proposal.safeParse(message);
+			: kind === "interest"
+				? Interest.safeParse(message)
+				: isResponse
+					? ProposalResponse.safeParse(message)
+					: Proposal.safeParse(message);
 	if (result.success) {
 		return result.data;
 	}

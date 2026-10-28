@@ -92,3 +92,15 @@ export const Share = z
 	);
 
 export type Share = z.infer<typeof Share>;
+
+// After learning a share, whether to keep going toward a team. No text, so it can't reveal anything:
+// a withdrawal says no more than the standard refusal.
+export const Interest = z.object({
+	kind: z.literal("interest"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	level: z.literal([1, 2, 3]),
+	interest: z.enum(["continue", "withdraw"]),
+});
+
+export type Interest = z.infer<typeof Interest>;

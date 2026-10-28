@@ -1,6 +1,7 @@
 // Entry point for `npm run round`: one live round on the bus. Ivan proposes his project to Ben, Ben's agent
 // decides, and the reply comes back, printing each phase and both agents' state afterwards.
 import { contactOf } from "./engine/agent.js";
+import { describeMessage } from "./describe.js";
 import { createLlmClient } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import { createWorld, proposalFrom, runRound } from "./engine/round.js";
@@ -20,13 +21,9 @@ try {
 			return;
 		}
 		const m = event.message;
-		const what =
-			"kind" in m
-				? `share (level ${m.level}): ${JSON.stringify(m.shared)}`
-				: "decision" in m
-					? `${m.decision}${"pitch" in m ? `: "${m.pitch}"` : ""}${"reason" in m ? `: "${m.reason}"` : ""}`
-					: `proposal: "${m.pitch}"  roles needed: ${m.rolesNeeded.join(", ")}`;
-		console.log(`  bus #${event.seq}  ${m.from} → ${m.to}   ${what}`);
+		console.log(
+			`  bus #${event.seq}  ${m.from} → ${m.to}   ${describeMessage(m)}`,
+		);
 	});
 
 	const proposal = proposalFrom(world.agents.ivan!, "ben", "prop-1");

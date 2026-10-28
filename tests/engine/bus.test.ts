@@ -213,3 +213,38 @@ describe("shares", () => {
 		expect(bus.waiting()).toBe(0);
 	});
 });
+
+describe("interests", () => {
+	const interest = {
+		kind: "interest" as const,
+		from: "a",
+		to: "ben",
+		level: 1 as const,
+		interest: "continue" as const,
+	};
+
+	test("an interest is delivered like any other message", () => {
+		const { bus } = setup();
+		bus.send("a", interest);
+		expect(bus.receive("ben")).toEqual([interest]);
+	});
+
+	test("an interest that isn't continue or withdraw is rejected", () => {
+		const { bus } = setup();
+		const maybe = {
+			...interest,
+			interest: "maybe",
+		} as unknown as AgentMessage;
+		expect(() => bus.send("a", maybe)).toThrow("invalid message from a");
+	});
+
+	test("text added to an interest is stripped before delivery", () => {
+		const { bus } = setup();
+		const chatty = {
+			...interest,
+			note: "My human is a backend engineer.",
+		} as unknown as AgentMessage;
+		bus.send("a", chatty);
+		expect(bus.receive("ben")).toEqual([interest]);
+	});
+});

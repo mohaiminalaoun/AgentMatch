@@ -40,7 +40,7 @@ const decisions: Record<string, object> = {
 	kemi: {
 		decision: "counter",
 		pitch: "Carbon tracker: Estimate a household's footprint from receipts, for schools.",
-		rolesNeeded: ["frontend"],
+		rolesNeeded: ["design"],
 	},
 	omar: { decision: "accept" },
 	// Ada's answer when Kemi's counter comes back to her.
@@ -49,7 +49,12 @@ const decisions: Record<string, object> = {
 
 // A client whose fake model decides by who is asking (found in the profile in the prompt),
 // optionally after a random delay so replies finish in a random order.
-function fakeClient(randomDelays = false, script = decisions) {
+// Interest checks answer "withdraw" unless `interests` says otherwise for that agent.
+function fakeClient(
+	randomDelays = false,
+	script = decisions,
+	interests: Record<string, "continue" | "withdraw"> = {},
+) {
 	const fetch = (async (_url: unknown, init?: RequestInit) => {
 		const { messages } = JSON.parse(init!.body as string);
 		const receiver = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
@@ -58,10 +63,20 @@ function fakeClient(randomDelays = false, script = decisions) {
 				setTimeout(resolve, Math.random() * 20),
 			);
 		}
-		const content = JSON.stringify({
-			rationale: `Private reasoning for ${receiver}.`,
-			decision: script[receiver],
-		});
+		const isInterestCheck = messages
+			.at(-1)
+			.content.includes("Keep going, or withdraw?");
+		const content = JSON.stringify(
+			isInterestCheck
+				? {
+						rationale: `Private interest reasoning for ${receiver}.`,
+						interest: interests[receiver] ?? "withdraw",
+					}
+				: {
+						rationale: `Private reasoning for ${receiver}.`,
+						decision: script[receiver],
+					},
+		);
 		return new Response(
 			JSON.stringify({
 				choices: [{ message: { content } }],
@@ -91,7 +106,7 @@ function setup() {
 const summary = (events: BusEvent[]) =>
 	events.map((e) =>
 		e.type === "sent"
-			? `${e.message.from} → ${e.message.to}: ${"kind" in e.message ? `share ${e.message.level}` : "decision" in e.message ? e.message.decision : "proposal"}`
+			? `${e.message.from} → ${e.message.to}: ${"kind" in e.message ? (e.message.kind === "share" ? `share ${e.message.level}` : `${e.message.interest} ${e.message.level}`) : "decision" in e.message ? e.message.decision : "proposal"}`
 			: `rejected: ${e.reason}`,
 	);
 
@@ -189,9 +204,13 @@ describe("runRound", () => {
 			`kemi → ${ada.id}: counter`,
 			`omar → ${ada.id}: accept`,
 			`omar → ${ada.id}: share 1`,
-			// Tick 2: Ada declines Kemi's counter, and shares with Omar now that she's seen his accept.
+			// Tick 2: Ada declines Kemi's counter, shares with Omar now that she's seen his accept,
+			// then checks Omar's share and (by default in this fake) withdraws.
 			`${ada.id} → kemi: decline`,
 			`${ada.id} → omar: share 1`,
+			`${ada.id} → omar: withdraw 1`,
+			// Tick 3: Omar checks Ada's share and withdraws too.
+			`omar → ${ada.id}: withdraw 1`,
 		]);
 	});
 
@@ -308,6 +327,9 @@ describe("staged disclosure to level 1", () => {
 			"nia → kemi: accept",
 			"nia → kemi: share 1",
 			"kemi → nia: share 1",
+			// Each checks the other's share; this fake withdraws by default.
+			"kemi → nia: withdraw 1",
+			"nia → kemi: withdraw 1",
 		]);
 		const niaSide = contactOf(after.agents.nia!, "kemi");
 		const kemiSide = contactOf(after.agents.kemi!, "nia");
@@ -358,9 +380,10 @@ describe("staged disclosure to level 1", () => {
 
 	test("endless counters stop at maxTicks, with mail still waiting", async () => {
 		const { world, proposal } = pair();
+		const niaCounter = { ...kemiCounter, rolesNeeded: ["design"] };
 		const client = fakeClient(false, {
 			kemi: kemiCounter,
-			nia: kemiCounter,
+			nia: niaCounter,
 		});
 		const result = await runRound(world, client, [proposal], {
 			maxTicks: 4,
@@ -395,5 +418,99 @@ describe("staged disclosure to level 1", () => {
 		);
 		expect(niaPrompts.length).toBeGreaterThan(0);
 		expect(niaPrompts.join("")).not.toContain("zz-secret-skill");
+	});
+
+	test("both continuing after each share takes them from level 0 to level 2", async () => {
+		const { world, events, proposal } = pair();
+		const client = fakeClient(
+			false,
+			{ kemi: kemiCounter, nia: { decision: "accept" } },
+			{ kemi: "continue", nia: "continue" },
+		);
+		const { world: after, quiet } = await runRound(world, client, [
+			proposal,
+		]);
+
+		expect(quiet).toBe(true);
+		expect(summary(events)).toEqual([
+			"nia → kemi: proposal",
+			"kemi → nia: counter",
+			"nia → kemi: accept",
+			"nia → kemi: share 1",
+			"kemi → nia: share 1",
+			"kemi → nia: continue 1",
+			"nia → kemi: continue 1",
+			// Nia has now seen both continues: level 2 opens.
+			"nia → kemi: share 2",
+			"kemi → nia: share 2",
+			"kemi → nia: continue 2",
+			"nia → kemi: continue 2",
+		]);
+		const niaSide = contactOf(after.agents.nia!, "kemi");
+		const kemiSide = contactOf(after.agents.kemi!, "nia");
+		expect([niaSide.level, kemiSide.level]).toEqual([2, 2]);
+		expect(niaSide.learned).toEqual({
+			interests: kemi.interests,
+			availability: kemi.availability,
+			skills: kemi.skills,
+			preferences: kemi.preferences,
+		});
+		expect(kemiSide.learned).not.toHaveProperty("name");
+	});
+
+	test("a withdrawal at level 1 ends it there: no skills are ever shared", async () => {
+		const { world, events, proposal } = pair();
+		const client = fakeClient(
+			false,
+			{ kemi: kemiCounter, nia: { decision: "accept" } },
+			{ kemi: "withdraw", nia: "continue" },
+		);
+		const { world: after } = await runRound(world, client, [proposal]);
+		expect(summary(events)).not.toContain("nia → kemi: share 2");
+		expect(summary(events)).not.toContain("kemi → nia: share 2");
+		expect(contactOf(after.agents.nia!, "kemi").level).toBe(1);
+		expect(contactOf(after.agents.nia!, "kemi").learned).not.toHaveProperty(
+			"skills",
+		);
+	});
+
+	test("raising maxLevel lets a mutual continue at level 2 open level 3", async () => {
+		const { world, proposal } = pair();
+		const client = fakeClient(
+			false,
+			{ kemi: kemiCounter, nia: { decision: "accept" } },
+			{ kemi: "continue", nia: "continue" },
+		);
+		const { world: after } = await runRound(world, client, [proposal], {
+			maxLevel: 3,
+		});
+		expect(contactOf(after.agents.nia!, "kemi").level).toBe(3);
+		expect(contactOf(after.agents.nia!, "kemi").learned.name).toBe(
+			kemi.name,
+		);
+	});
+
+	test("interest rationales are reported but never sent", async () => {
+		const { world, events, proposal } = pair();
+		const client = fakeClient(
+			false,
+			{ kemi: kemiCounter, nia: { decision: "accept" } },
+			{ kemi: "continue", nia: "continue" },
+		);
+		const { interests } = await runRound(world, client, [proposal]);
+		expect(
+			interests.map((i) => [i.agent, i.level, i.result.interest]),
+		).toEqual([
+			["kemi", 1, "continue"],
+			["nia", 1, "continue"],
+			["kemi", 2, "continue"],
+			["nia", 2, "continue"],
+		]);
+		expect(interests[0]!.result.rationale).toBe(
+			"Private interest reasoning for kemi.",
+		);
+		expect(JSON.stringify(events)).not.toContain(
+			"Private interest reasoning",
+		);
 	});
 });
