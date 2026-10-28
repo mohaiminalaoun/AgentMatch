@@ -116,6 +116,28 @@ function checkTexts(
 	return violations;
 }
 
+// Every profile field that `text` mentions, allowed or not, for recording what a message revealed.
+// Uses the same matching as the gate. A term only counts toward a field if it isn't already public
+// through a lower-level one: "climate" in a pitch built from a project idea about climate reveals
+// the project idea, not the interest.
+export function fieldsMentioned(
+	profile: Profile,
+	text: string,
+): ProfileField[] {
+	return (Object.keys(FIELD_LEVELS) as ProfileField[]).filter((field) => {
+		const level = FIELD_LEVELS[field];
+		const publicBelow =
+			level === 0
+				? ""
+				: JSON.stringify(
+						fieldsAtLevel(profile, (level - 1) as DisclosureLevel),
+					);
+		return revealingTerms(profile, field).some(
+			(term) => mentions(text, term) && !mentions(publicBelow, term),
+		);
+	});
+}
+
 // Words and phrases that would reveal `field` of `profile` if they appeared in a message.
 function revealingTerms(profile: Profile, field: ProfileField): string[] {
 	switch (field) {
@@ -138,9 +160,13 @@ function revealingTerms(profile: Profile, field: ProfileField): string[] {
 				`GMT${sign}${offset}`,
 			];
 		}
-		case "id":
 		case "projectIdeas":
-			// Level 0: always public, never a leak.
+			// Level 0, so never a leak; listed so fieldsMentioned can record that ideas were shared.
+			return profile.projectIdeas.flatMap((idea) => [
+				idea.title,
+				idea.description,
+			]);
+		case "id":
 			return [];
 	}
 }

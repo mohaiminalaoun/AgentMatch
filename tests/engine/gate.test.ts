@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { checkDisclosure, draftOf } from "../../src/engine/gate.js";
+import {
+	checkDisclosure,
+	draftOf,
+	fieldsMentioned,
+} from "../../src/engine/gate.js";
 import type { Profile } from "../../src/engine/profile.js";
 
 // Ben, as described in the reliability runs: a backend engineer who wants to start a climate-change non-profit.
@@ -219,5 +223,34 @@ describe("draftOf", () => {
 
 	test("an accept has no text", () => {
 		expect(draftOf({ decision: "accept" })).toEqual({ texts: {} });
+	});
+});
+
+describe("fieldsMentioned", () => {
+	test("lists every field a text mentions, allowed or not", () => {
+		expect(
+			fieldsMentioned(
+				ben,
+				"Climate-change non-profit, built by a backend engineer named Ben.",
+			),
+		).toEqual(["projectIdeas", "skills", "preferences", "name"]);
+	});
+
+	test("an interest that's also in a public project idea counts as the project idea only", () => {
+		expect(fieldsMentioned(ben, "Something for climate.")).toEqual([]);
+		expect(fieldsMentioned(ben, "We love open source.")).toEqual([
+			"interests",
+		]);
+	});
+
+	test("a pitch built from the project idea mentions only the project idea", () => {
+		const idea = ben.projectIdeas[0]!;
+		expect(
+			fieldsMentioned(ben, `${idea.title}: ${idea.description}`),
+		).toEqual(["projectIdeas"]);
+	});
+
+	test("an unrelated text mentions nothing", () => {
+		expect(fieldsMentioned(ben, "Not a fit right now.")).toEqual([]);
 	});
 });
