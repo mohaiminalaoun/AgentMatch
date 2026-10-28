@@ -38,6 +38,7 @@ Domain types are zod schemas, and each TypeScript type comes from its schema wit
 - ESM with `NodeNext` resolution: relative imports need a `.js` extension (`import { Profile } from "./profile.js"`).
 - LLM settings (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) live in a gitignored `.env`; copy `.env.example` to create it. Entry points call `readEnvFile()` once, then pass `loadConfig(process.env)` down to whatever needs it. Never log the config or the API key.
 - Optional `LLM_PRICE_*` settings (USD per million tokens) let reports estimate cost (`cost.ts`). The `-contributor` models are about 95% cheaper because the provider trains on their inputs: use them only with synthetic profiles, never with real people's data.
+- Optional `LLM_REASONING_EFFORT` (`minimal`, `low`, `medium`, `high`) is sent as `reasoning_effort`. Hidden reasoning was about 95% of output tokens in simulations; `minimal` cut one decision from 25s to 2.5s.
 - The tsconfig is strict, with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`. Use `import type` for type-only imports.
 - `steps.md` (the build plan), `readme-inprogress.md` (strategy notes), and `demo-notes.md` (demo moments and transcripts) are private and gitignored. Never commit them or copy their contents into tracked files. Work through `steps.md` one step at a time unless asked to combine steps.
 - Use the `/commit-changes` skill for commits: one-line Conventional Commits messages, with no attribution lines.

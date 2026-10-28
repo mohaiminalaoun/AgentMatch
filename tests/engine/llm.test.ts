@@ -66,6 +66,18 @@ describe("chat", () => {
 		});
 	});
 
+	test("sends reasoning_effort only when the config sets it", async () => {
+		const { fn, calls } = fakeFetch(goodReply);
+		await chat({ ...config, reasoningEffort: "low" }, messages, {
+			fetch: fn,
+		});
+		expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+			model: "test-model",
+			messages,
+			reasoning_effort: "low",
+		});
+	});
+
 	test("returns the reply text and token usage", async () => {
 		const { fn } = fakeFetch(goodReply);
 		expect(await chat(config, messages, { fetch: fn })).toEqual({

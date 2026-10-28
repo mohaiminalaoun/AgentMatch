@@ -119,7 +119,13 @@ export async function chat(
 				Authorization: `Bearer ${config.apiKey}`,
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ model: config.model, messages }),
+			body: JSON.stringify({
+				model: config.model,
+				messages,
+				...(config.reasoningEffort && {
+					reasoning_effort: config.reasoningEffort,
+				}),
+			}),
 			// Fires by itself after `timeoutMs`, making fetch cancel the request and reject.
 			signal: AbortSignal.timeout(timeoutMs),
 		});

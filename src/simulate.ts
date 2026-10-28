@@ -33,7 +33,7 @@ try {
 	const started = performance.now();
 
 	console.log(
-		`${agents} agents · ${rounds} rounds · seed ${seed} · ${config.model}\n`,
+		`${agents} agents · ${rounds} rounds · seed ${seed} · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}\n`,
 	);
 	const world = await runSimulation(client, generateProfiles(agents, seed), {
 		rounds,

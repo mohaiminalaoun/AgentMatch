@@ -17,6 +17,10 @@ const price = z.coerce
 	.min(0, { error: "must be a number of dollars per million tokens" })
 	.optional();
 
+// How long reasoning models think before answering, sent as `reasoning_effort` on OpenAI-compatible APIs.
+export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
 const Env = z.object({
 	LLM_BASE_URL: z.url({ error: "must be a URL like https://host/v1" }),
 	LLM_API_KEY: filledIn,
@@ -29,6 +33,11 @@ const Env = z.object({
 	LLM_PRICE_INPUT: price,
 	LLM_PRICE_CACHED_INPUT: price,
 	LLM_PRICE_OUTPUT: price,
+	LLM_REASONING_EFFORT: z
+		.enum(REASONING_EFFORTS, {
+			error: `must be one of ${REASONING_EFFORTS.join(", ")}`,
+		})
+		.optional(),
 });
 
 // Requests in flight at once when LLM_MAX_CONCURRENCY isn't set.
@@ -41,6 +50,8 @@ export type Config = {
 	maxConcurrency: number;
 	// Set when LLM_PRICE_INPUT and LLM_PRICE_OUTPUT are, so reports can estimate cost.
 	prices?: Prices | undefined;
+	// Unset leaves the provider's default; lower is faster and cheaper but may decide less carefully.
+	reasoningEffort?: ReasoningEffort | undefined;
 };
 
 // Checks the LLM settings and renames them; takes `env` as a parameter so tests never need real secrets.
@@ -83,6 +94,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
 				? undefined
 				: // Without a cached price, cached input is assumed to cost the same as normal input.
 					{ input, cachedInput: cachedInput ?? input, output },
+		reasoningEffort: result.data.LLM_REASONING_EFFORT,
 	};
 }
 

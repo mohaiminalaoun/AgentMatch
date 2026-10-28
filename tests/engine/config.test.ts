@@ -27,6 +27,20 @@ describe("loadConfig", () => {
 		});
 	});
 
+	test("LLM_REASONING_EFFORT is read when set", () => {
+		expect(
+			loadConfig({ ...env, LLM_REASONING_EFFORT: "minimal" })
+				.reasoningEffort,
+		).toBe("minimal");
+		expect(loadConfig(env).reasoningEffort).toBeUndefined();
+	});
+
+	test("an unknown LLM_REASONING_EFFORT fails, listing the allowed values", () => {
+		expect(errorFor({ ...env, LLM_REASONING_EFFORT: "none" })).toContain(
+			"LLM_REASONING_EFFORT must be one of minimal, low, medium, high",
+		);
+	});
+
 	test("LLM_MAX_CONCURRENCY is read as a number", () => {
 		expect(
 			loadConfig({ ...env, LLM_MAX_CONCURRENCY: "20" }).maxConcurrency,
