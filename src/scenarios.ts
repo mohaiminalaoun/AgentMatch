@@ -57,7 +57,7 @@ export const kemi: Profile = {
 };
 
 // An ML engineer interested in finance who only works on open-source projects.
-const omar: Profile = {
+export const omar: Profile = {
 	id: "omar",
 	name: "Omar",
 	skills: [
@@ -77,7 +77,7 @@ const omar: Profile = {
 };
 
 // A product designer who loves music and multiplayer games.
-const rosa: Profile = {
+export const rosa: Profile = {
 	id: "rosa",
 	name: "Rosa",
 	skills: [

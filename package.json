@@ -16,7 +16,8 @@
 		"show-run": "tsx src/show-run.ts",
 		"load-test": "tsx src/load-test.ts",
 		"round": "tsx src/round.ts",
-		"negotiate": "tsx src/negotiate.ts"
+		"negotiate": "tsx src/negotiate.ts",
+		"discover": "tsx src/discover.ts"
 	},
 	"repository": {
 		"type": "git",
