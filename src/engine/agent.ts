@@ -5,6 +5,7 @@ import type {
 	Proposal,
 	ProposalResponse,
 	Share,
+	Terms,
 } from "./proposal.js";
 
 export type AgentMessage = Proposal | ProposalResponse | Share | Interest;
@@ -27,12 +28,15 @@ export type AgentState = {
 	id: string;
 	// Its own human's full profile; never shared directly.
 	profile: Profile;
+	// What it shows on the public board, written once by its model and gate-checked at level 0.
+	// Undefined until written; then the board falls back to a pitch built from the first project idea.
+	listing: Terms | undefined;
 	contacts: Record<string, Contact>;
 };
 
 // A new agent for `profile`'s human, using the profile's id, with no contacts yet.
 export function createAgent(profile: Profile): AgentState {
-	return { id: profile.id, profile, contacts: {} };
+	return { id: profile.id, profile, listing: undefined, contacts: {} };
 }
 
 // The agent's contact with `otherId`, or a fresh level-0 contact that knows nothing if they haven't met.

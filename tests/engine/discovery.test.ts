@@ -1,0 +1,196 @@
+import { describe, expect, test } from "vitest";
+import { recordMessage } from "../../src/engine/agent.js";
+import { createLlmClient } from "../../src/engine/client.js";
+import type { Config } from "../../src/engine/config.js";
+import { buildBoard, discover } from "../../src/engine/discovery.js";
+import type { RunEvent } from "../../src/engine/events.js";
+import type { Profile } from "../../src/engine/profile.js";
+import { createWorld } from "../../src/engine/round.js";
+import { person } from "../fixtures.js";
+
+const config: Config = {
+	baseUrl: "https://llm.example.com/v1",
+	apiKey: "test-key-123",
+	model: "test-model",
+	maxConcurrency: 4,
+};
+
+// A person with one project idea, or none if `title` is undefined.
+function withIdea(p: Profile, title?: string): Profile {
+	return {
+		...p,
+		projectIdeas: title
+			? [{ title, description: `${title}, as a hackathon project.` }]
+			: [],
+	};
+}
+
+const ben = withIdea(
+	person("ben", [{ name: "backend", level: "expert" }], ["climate"], -5),
+	"City emissions tracker",
+);
+const kemi = withIdea(
+	person("kemi", [{ name: "frontend", level: "expert" }], ["education"], 1),
+	"Accessible study tools",
+);
+const nia = withIdea(
+	person("nia", [{ name: "ml", level: "expert" }], ["education"], 0),
+	"AI note-taking app",
+);
+// No project idea: can browse and ask to join, but isn't on the board.
+const omar = withIdea(
+	person("omar", [{ name: "design", level: "expert" }], ["climate"], 5.5),
+);
+
+// A client whose fake model picks by who is asking, recording every prompt it was sent.
+function fakeClient(picks: Record<string, string[]>) {
+	const prompts: Record<string, string> = {};
+	const fetch = (async (_url: unknown, init?: RequestInit) => {
+		const { messages } = JSON.parse(init!.body as string);
+		const agent = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
+		prompts[agent] = JSON.stringify(messages);
+		const content = JSON.stringify({
+			rationale: `Private reasoning for ${agent}.`,
+			approach: picks[agent] ?? [],
+		});
+		return new Response(
+			JSON.stringify({ choices: [{ message: { content } }] }),
+		);
+	}) as typeof globalThis.fetch;
+	const client = createLlmClient(config, {
+		fetch,
+		retry: { sleep: async () => {} },
+	});
+	return { client, prompts };
+}
+
+const world = () => createWorld([ben, kemi, nia, omar]);
+const pairs = (proposals: { from: string; to: string }[]) =>
+	proposals.map((p) => `${p.from}→${p.to}`);
+
+describe("buildBoard", () => {
+	test("lists only agents with a project idea, with only their level-0 pitch and roles", () => {
+		const board = buildBoard(world());
+		expect(board.map((e) => e.id)).toEqual(["ben", "kemi", "nia"]);
+		expect(board[0]).toEqual({
+			id: "ben",
+			pitch: "City emissions tracker: City emissions tracker, as a hackathon project.",
+			rolesNeeded: ["frontend", "design", "product"],
+		});
+		expect(Object.keys(board[0]!).sort()).toEqual([
+			"id",
+			"pitch",
+			"rolesNeeded",
+		]);
+	});
+});
+
+describe("discover", () => {
+	test("each agent's picks become proposals carrying its own public pitch", async () => {
+		const { client } = fakeClient({ kemi: ["nia"], ben: ["kemi"] });
+		const { proposals } = await discover(client, world());
+		expect(pairs(proposals)).toEqual(["ben→kemi", "kemi→nia"]);
+		expect(proposals.find((p) => p.from === "kemi")).toMatchObject({
+			id: "r1-kemi-nia",
+			pitch: "Accessible study tools: Accessible study tools, as a hackathon project.",
+		});
+	});
+
+	test("an agent with no project idea asks to join the target's project", async () => {
+		const { client } = fakeClient({ omar: ["ben"] });
+		const { proposals } = await discover(client, world());
+		expect(proposals).toEqual([
+			{
+				id: "r1-omar-ben",
+				from: "omar",
+				to: "ben",
+				pitch: "Join your project: City emissions tracker: City emissions tracker, as a hackathon project.",
+				rolesNeeded: ["frontend", "design", "product"],
+			},
+		]);
+	});
+
+	test("two agents who pick each other get one proposal, from the first in id order", async () => {
+		const { client } = fakeClient({ kemi: ["nia"], nia: ["kemi"] });
+		const { proposals } = await discover(client, world());
+		expect(pairs(proposals)).toEqual(["kemi→nia"]);
+	});
+
+	test("picks are trimmed to perAgent and duplicates dropped", async () => {
+		const { client } = fakeClient({ omar: ["ben", "ben", "kemi", "nia"] });
+		const { picks } = await discover(client, world(), { perAgent: 2 });
+		expect(picks.find((p) => p.agent === "omar")!.approach).toEqual([
+			"ben",
+			"kemi",
+		]);
+	});
+
+	test("an id that isn't on the board, or the agent itself, is retried, then dropped to nobody", async () => {
+		const { client } = fakeClient({ kemi: ["kemi", "nobody"] });
+		const { picks, proposals } = await discover(client, world());
+		const kemiPick = picks.find((p) => p.agent === "kemi")!;
+		expect(kemiPick).toMatchObject({ approach: [], fellBack: true });
+		expect(proposals).toEqual([]);
+	});
+
+	test("agents already talking aren't approached again", async () => {
+		const w = world();
+		w.agents.kemi = recordMessage(w.agents.kemi!, "nia", {
+			id: "earlier",
+			from: "kemi",
+			to: "nia",
+			pitch: "Hello",
+			rolesNeeded: ["ml"],
+		});
+		const { client } = fakeClient({ kemi: ["nia", "ben"] });
+		const { proposals } = await discover(client, w);
+		expect(pairs(proposals)).toEqual(["kemi→ben"]);
+	});
+
+	test("the round number goes into proposal ids", async () => {
+		const { client } = fakeClient({ kemi: ["nia"] });
+		const { proposals } = await discover(client, world(), { round: 2 });
+		expect(proposals[0]!.id).toBe("r2-kemi-nia");
+	});
+
+	test("each agent's choice is emitted as a discovery event, with its private rationale", async () => {
+		const { client } = fakeClient({ kemi: ["nia"] });
+		const events: RunEvent[] = [];
+		await discover(client, world(), { onEvent: (e) => events.push(e) });
+		const discoveries = events.filter((e) => e.type === "discovery");
+		expect(discoveries.map((e) => e.agent)).toEqual([
+			"ben",
+			"kemi",
+			"nia",
+			"omar",
+		]);
+		expect(discoveries[1]).toMatchObject({
+			approach: ["nia"],
+			rationale: "Private reasoning for kemi.",
+		});
+		expect(events.some((e) => e.type === "exchange")).toBe(true);
+	});
+
+	test("discovery prompts never contain another agent's private fields", async () => {
+		const marked: Profile = {
+			...kemi,
+			skills: [{ name: "zz-secret-skill", level: "expert" }],
+			interests: ["zz-secret-interest"],
+			name: "ZzKemiName",
+		};
+		const { client, prompts } = fakeClient({});
+		await discover(client, createWorld([ben, marked, nia, omar]));
+		for (const agent of ["ben", "nia", "omar"]) {
+			for (const secret of [
+				"zz-secret-skill",
+				"zz-secret-interest",
+				"ZzKemiName",
+			]) {
+				expect(prompts[agent]).not.toContain(secret);
+			}
+			// Kemi's public pitch is on everyone else's board.
+			expect(prompts[agent]).toContain("Accessible study tools");
+		}
+		expect(prompts.kemi).toContain("zz-secret-skill");
+	});
+});

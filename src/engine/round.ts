@@ -27,6 +27,7 @@ import {
 	type Proposal,
 	type ProposalResponse,
 	type Share,
+	type Terms,
 } from "./proposal.js";
 
 // Everything a run needs: every agent's state, plus the one bus they all talk through.
@@ -86,28 +87,34 @@ export function createWorld(profiles: readonly Profile[]): World {
 	};
 }
 
-// A proposal built from the proposer's public information only: their first project idea as the pitch,
-// and the core roles they have no skill in as the roles needed. Undefined if they have no project idea,
-// since without one they have nothing public to pitch.
+// What `agent` shows the world at level 0: its listing if its model has written one; otherwise its first
+// project idea as the pitch and the core roles it has no skill in as the roles needed. Undefined if it
+// has no project idea, since then it has nothing public to pitch.
+export function publicPitch(agent: AgentState): Terms | undefined {
+	if (agent.listing) {
+		return agent.listing;
+	}
+	const idea = agent.profile.projectIdeas[0];
+	if (!idea) {
+		return undefined;
+	}
+	const skills = new Set(agent.profile.skills.map((s) => s.name));
+	const missing = CORE_ROLES.filter((role) => !skills.has(role));
+	return {
+		pitch: `${idea.title}: ${idea.description}`.slice(0, 280),
+		// Someone who already covers every core role still needs teammates, just not a particular one.
+		rolesNeeded: missing.length > 0 ? missing : ["any"],
+	};
+}
+
+// A proposal from `proposer` to `to` carrying only its public pitch; undefined if it has none.
 export function proposalFrom(
 	proposer: AgentState,
 	to: string,
 	id: string,
 ): Proposal | undefined {
-	const idea = proposer.profile.projectIdeas[0];
-	if (!idea) {
-		return undefined;
-	}
-	const skills = new Set(proposer.profile.skills.map((s) => s.name));
-	const missing = CORE_ROLES.filter((role) => !skills.has(role));
-	return {
-		id,
-		from: proposer.id,
-		to,
-		pitch: `${idea.title}: ${idea.description}`.slice(0, 280),
-		// Someone who already covers every core role still needs teammates, just not a particular one.
-		rolesNeeded: missing.length > 0 ? missing : ["any"],
-	};
+	const terms = publicPitch(proposer);
+	return terms && { id, from: proposer.id, to, ...terms };
 }
 
 // Sends `proposals`, then runs ticks until no mail is waiting (or maxTicks). In each tick every agent

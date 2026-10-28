@@ -24,6 +24,10 @@ export function formatEvent(event: RunEvent): string | undefined {
 	switch (event.type) {
 		case "round":
 			return `round · ${event.time} · ${event.model} · agents: ${event.agents.join(", ")}`;
+		case "listing":
+			return `  ${event.agent} lists: "${event.pitch}" · needs ${event.rolesNeeded.join(", ")}${event.gateBlocks > 0 ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back to the built-in pitch)" : ""} · private: ${event.rationale ?? "(none)"}`;
+		case "discovery":
+			return `  ${event.agent} chooses to approach: ${event.approach.join(", ") || "nobody"}${event.fellBack ? " (fell back)" : ""} · private: ${event.rationale ?? "(none)"}`;
 		case "tick":
 			return `\n── tick ${event.n} ──`;
 		case "bus": {

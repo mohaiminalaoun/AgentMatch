@@ -41,6 +41,24 @@ export const RunEvent = z.discriminatedUnion("type", [
 		model: z.string(),
 		agents: z.array(z.string()),
 	}),
+	// An agent's model wrote its public board listing.
+	z.object({
+		type: z.literal("listing"),
+		agent: z.string(),
+		pitch: z.string(),
+		rolesNeeded: z.array(z.string()),
+		rationale: z.string().optional(),
+		gateBlocks: z.number().int(),
+		fellBack: z.boolean(),
+	}),
+	// An agent looked at the public board and chose whom to approach.
+	z.object({
+		type: z.literal("discovery"),
+		agent: z.string(),
+		approach: z.array(z.string()),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
 	// A tick began: every agent is about to handle its inbox.
 	z.object({ type: z.literal("tick"), n: z.number().int() }),
 	// Something the bus did, with its own sequence number.
