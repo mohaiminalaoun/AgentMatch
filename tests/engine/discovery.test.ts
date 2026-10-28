@@ -2,7 +2,12 @@ import { describe, expect, test } from "vitest";
 import { recordMessage } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
-import { buildBoard, discover } from "../../src/engine/discovery.js";
+import {
+	buildBoard,
+	buildSeekers,
+	discover,
+	discoveryMessages,
+} from "../../src/engine/discovery.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
 import { createWorld } from "../../src/engine/round.js";
@@ -192,5 +197,89 @@ describe("discover", () => {
 			expect(prompts[agent]).toContain("Accessible study tools");
 		}
 		expect(prompts.kemi).toContain("zz-secret-skill");
+	});
+});
+
+describe("people looking to join", () => {
+	test("are listed by id only, and only while they're open", () => {
+		expect(buildSeekers(world())).toEqual([{ id: "omar" }]);
+		const w = world();
+		w.teams = [
+			{
+				id: "team-ben",
+				members: ["ben", "omar"],
+				project: ben.projectIdeas[0]!,
+				status: "committed",
+			},
+		];
+		expect(buildSeekers(w)).toEqual([]);
+	});
+
+	test("are shown to agents with a project, not to other seekers", async () => {
+		const { client, prompts } = fakeClient({});
+		await discover(client, world());
+		expect(prompts.kemi).toContain("Looking to join");
+		expect(prompts.kemi).toContain('{\\"id\\":\\"omar\\"}');
+		expect(prompts.omar).not.toContain("Looking to join");
+	});
+
+	test("an owner can approach one with its own pitch", async () => {
+		const { client } = fakeClient({ kemi: ["omar"] });
+		const { proposals } = await discover(client, world());
+		expect(proposals).toEqual([
+			{
+				id: "r1-kemi-omar",
+				from: "kemi",
+				to: "omar",
+				pitch: "Accessible study tools: Accessible study tools, as a hackathon project.",
+				rolesNeeded: ["backend", "design", "product"],
+			},
+		]);
+	});
+
+	test("someone with no project can't approach another seeker", async () => {
+		const extra = withIdea(
+			person("lea", [{ name: "data", level: "expert" }], ["music"], 0),
+		);
+		const { client } = fakeClient({ omar: ["lea"] });
+		const { picks, proposals } = await discover(
+			client,
+			createWorld([ben, kemi, nia, omar, extra]),
+		);
+		expect(picks.find((p) => p.agent === "omar")).toMatchObject({
+			approach: [],
+			fellBack: true,
+		});
+		expect(proposals).toEqual([]);
+	});
+
+	test("nothing private about a seeker reaches anyone else's prompt", async () => {
+		const marked: Profile = {
+			...omar,
+			skills: [{ name: "zz-secret-skill", level: "expert" }],
+			interests: ["zz-secret-interest"],
+			name: "ZzOmarName",
+		};
+		const { client, prompts } = fakeClient({});
+		await discover(client, createWorld([ben, kemi, nia, marked]));
+		for (const agent of ["ben", "kemi", "nia"]) {
+			for (const secret of [
+				"zz-secret-skill",
+				"zz-secret-interest",
+				"ZzOmarName",
+			]) {
+				expect(prompts[agent]).not.toContain(secret);
+			}
+		}
+	});
+
+	test("the prompt counts a strong role fit even when interests overlap loosely", () => {
+		const [system] = discoveryMessages(
+			createWorld([ben]).agents.ben!,
+			[],
+			3,
+		);
+		expect(system!.content).toContain("a strong role fit counts");
+		expect(system!.content).not.toContain("Approach only");
 	});
 });

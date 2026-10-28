@@ -249,6 +249,12 @@ describe("decideOnProposal", () => {
 		expect(sent[0]!.at(-1)!.content).not.toContain("counters");
 	});
 
+	test("the prompt doesn't require shared interests when the role fit is strong", () => {
+		const [system] = decisionMessages(ada, proposal);
+		expect(system!.content).toContain("a strong role fit counts");
+		expect(system!.content).not.toContain("accept only if");
+	});
+
 	test("the prompt says roles needed are for others to fill", () => {
 		const [system] = decisionMessages(ada, proposal);
 		expect(system!.content).toContain(

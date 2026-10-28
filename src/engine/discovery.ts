@@ -71,14 +71,34 @@ export function buildBoard(world: World): BoardEntry[] {
 		.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
+// Someone looking to join, as the board lists them: only their id (and how many committed teams they've
+// left, if any). They have no project to pitch, and nothing else about them is public.
+export type Seeker = { id: string; leftTeams?: number };
+
+// Everyone still open with no project idea, so owners can approach them.
+export function buildSeekers(world: World): Seeker[] {
+	return Object.values(world.agents)
+		.filter((agent) => isOpen(world, agent.id) && !publicPitch(agent))
+		.map((agent) => ({
+			id: agent.id,
+			...(agent.leftTeams > 0 && { leftTeams: agent.leftTeams }),
+		}))
+		.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
 // The prompt asking `agent` whom to approach: its own profile, plus the board and nothing else
-// about anyone. Being on the board reveals only what's already public.
+// about anyone. Being on the board reveals only what's already public. People looking to join are shown
+// only to agents with a project to pitch them.
 export function discoveryMessages(
 	agent: AgentState,
 	board: readonly BoardEntry[],
 	perAgent: number,
+	seekers: readonly Seeker[] = [],
 ): Message[] {
 	const others = board.filter((entry) => entry.id !== agent.id);
+	const joiners = publicPitch(agent)
+		? seekers.filter((seeker) => seeker.id !== agent.id)
+		: [];
 	const talking = Object.keys(agent.contacts).filter(
 		(id) => contactOf(agent, id).history.length > 0,
 	);
@@ -90,8 +110,13 @@ export function discoveryMessages(
 				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
-					"Approach only where the project could fit your human's project ideas or interests, and your human could fill a role it needs or they could fill one yours needs.",
-					...(others.some((entry) => entry.leftTeams)
+					"Approach where your human could fill a role a project needs, or the other person could fill one your human's project needs, and the project is something your human would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",
+					...(joiners.length > 0
+						? [
+								"People looking to join have no project of their own, and only their ids are public. You may approach them with your human's project.",
+							]
+						: []),
+					...([...others, ...joiners].some((entry) => entry.leftTeams)
 						? [
 								"leftTeams on an entry is how many committed teams that person has left before; weigh their reliability.",
 							]
@@ -104,13 +129,17 @@ export function discoveryMessages(
 			role: "user",
 			content: [
 				`Public board: ${JSON.stringify(others)}`,
+				...(joiners.length > 0
+					? [`Looking to join: ${JSON.stringify(joiners)}`]
+					: []),
 				`Already talking with (don't pick): ${talking.length > 0 ? talking.join(", ") : "nobody"}`,
 			].join("\n"),
 		},
 	];
 }
 
-// Every agent still open looks at the board and picks whom to approach, all at once. Picks are checked (on the board,
+// Every agent still open looks at the board and picks whom to approach, all at once; agents with a project
+// may also pick people looking to join. Picks are checked (on the board,
 // not itself), trimmed to `perAgent`, and turned into proposals: an agent with a project idea pitches it;
 // one without asks to join the target's project. A pair already talking is skipped, and if two agents pick
 // each other, only one proposal is made, from whichever comes first in id order.
@@ -126,6 +155,8 @@ export async function discover(
 ): Promise<{ proposals: Proposal[]; picks: Pick[] }> {
 	const board = buildBoard(world);
 	const listed = new Map(board.map((entry) => [entry.id, entry]));
+	const seekers = buildSeekers(world);
+	const seeking = new Set(seekers.map((seeker) => seeker.id));
 	// Someone on a team is done looking, unless they own it and it has places left.
 	const agents = Object.values(world.agents)
 		.filter((agent) => isOpen(world, agent.id))
@@ -141,7 +172,7 @@ export async function discover(
 		agents.map(async (agent): Promise<Pick> => {
 			try {
 				const { data } = await client.chatJson(
-					discoveryMessages(agent, board, perAgent),
+					discoveryMessages(agent, board, perAgent, seekers),
 					AgentPicks,
 					{
 						...llmOptions,
@@ -151,11 +182,17 @@ export async function discover(
 									? [
 											`approach: "${id}" is you; pick other people`,
 										]
-									: listed.has(id)
+									: listed.has(id) ||
+										  (seeking.has(id) &&
+												publicPitch(agent))
 										? []
-										: [
-												`approach: "${id}" isn't on the board; use ids from the board only`,
-											],
+										: seeking.has(id)
+											? [
+													`approach: "${id}" is looking to join too; with no project of your own, pick from the project board`,
+												]
+											: [
+													`approach: "${id}" isn't on the board; use ids from the board only`,
+												],
 							),
 					},
 				);

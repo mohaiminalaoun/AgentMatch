@@ -121,7 +121,7 @@ export function formatSummary(
 	const list = (ids: string[]) =>
 		ids.length > 0 ? `${ids.length} (${ids.join(", ")})` : "0";
 	return [
-		`Board:    ${summary.listings} listings · roles beyond the core four: ${roles || "none"}`,
+		`Board:    ${summary.listings} listings · ${summary.seekers} looking to join · roles beyond the core four: ${roles || "none"}`,
 		...summary.rounds.map(
 			(r) =>
 				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals · ${r.offers} offers → ${r.commits} commits`,

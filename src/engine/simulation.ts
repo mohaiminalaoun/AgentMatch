@@ -40,6 +40,8 @@ export type SimulationSummary = {
 		commits: number;
 	}[];
 	listings: number;
+	// Agents with no project idea, listed on the board as looking to join.
+	seekers: number;
 	// How many listings ask for each role beyond the core four.
 	nonCoreRoles: Record<string, number>;
 	pairs: PairOutcome[];
@@ -251,6 +253,9 @@ export function summarize(
 		agents: ids.length,
 		rounds,
 		listings,
+		seekers: Object.values(world.agents).filter(
+			(a) => a.profile.projectIdeas.length === 0,
+		).length,
 		nonCoreRoles,
 		pairs,
 		teams: world.teams,
