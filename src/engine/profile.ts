@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+// Skills are named by role, so "who covers which role" is a simple lookup.
+export const ROLES = [
+	"frontend",
+	"backend",
+	"mobile",
+	"ml",
+	"data",
+	"design",
+	"devops",
+	"product",
+] as const;
+
 // Roles most hackathon projects need. Other roles only matter for some projects.
 export const CORE_ROLES = ["frontend", "backend", "design", "product"] as const;
 

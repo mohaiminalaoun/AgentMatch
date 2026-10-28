@@ -1,4 +1,4 @@
-import { Profile, SkillLevel } from "../engine/profile.js";
+import { Profile, ROLES, SkillLevel } from "../engine/profile.js";
 import {
 	createRng,
 	pick,
@@ -6,18 +6,6 @@ import {
 	sample,
 	type Rng,
 } from "../engine/random.js";
-
-// Skills are named by role, so "who covers which role" is a simple lookup.
-export const ROLES = [
-	"frontend",
-	"backend",
-	"mobile",
-	"ml",
-	"data",
-	"design",
-	"devops",
-	"product",
-] as const;
 
 export const INTERESTS = [
 	"climate",
