@@ -36,6 +36,17 @@ export type DecisionResult = {
 	usage: TokenUsage | undefined;
 };
 
+// The most counters one conversation may have, from both sides together. After that, the next decision must
+// accept or decline, so two agents can't counter each other forever.
+export const MAX_COUNTERS = 2;
+
+// How many counters have gone back and forth with `otherId`.
+function countersWith(agent: AgentState, otherId: string): number {
+	return contactOf(agent, otherId).history.filter(
+		(m) => "decision" in m && m.decision === "counter",
+	).length;
+}
+
 // How each profile field reads in the prompt's disclosure rules.
 const FIELD_NAMES: Record<ProfileField, string> = {
 	id: "your agent id",
@@ -61,6 +72,7 @@ export function decisionMessages(
 	const mayNot = fields.filter((f) => FIELD_LEVELS[f] > contact.level);
 	const list = (items: ProfileField[]) =>
 		items.map((f) => FIELD_NAMES[f]).join("; ") || "nothing";
+	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
 
 	return [
 		{
@@ -97,12 +109,18 @@ export function decisionMessages(
 					: []),
 				`What you have learned about them so far: ${JSON.stringify(contact.learned)}`,
 				`Earlier messages between you: ${contact.history.length === 0 ? "none" : JSON.stringify(contact.history)}`,
+				...(countersLeft
+					? []
+					: [
+							`You have already exchanged ${MAX_COUNTERS} counters, the most allowed: this time, accept or decline. A counter won't be sent.`,
+						]),
 			].join("\n"),
 		},
 	];
 }
 
-// Decides on `proposal` for `agent`, with every outgoing word passed through the disclosure gate.
+// Decides on `proposal` for `agent`, with every outgoing word passed through the disclosure gate. Once a
+// conversation has had MAX_COUNTERS counters, another counter is refused and the model asked again.
 // A counter that reveals too much is redrafted; if nothing allowed comes back, a plain decline is sent.
 // Declines can't leak by construction: they have no text. Updating the agent's state is left to the caller.
 export async function decideOnProposal(
@@ -112,6 +130,7 @@ export async function decideOnProposal(
 	options: ChatJsonOptions<AgentDecision> = {},
 ): Promise<DecisionResult> {
 	const level = contactOf(agent, proposal.from).level;
+	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
 	let gateBlocks = 0;
 
 	try {
@@ -121,6 +140,11 @@ export async function decideOnProposal(
 			{
 				...options,
 				check: ({ decision }) => {
+					if (decision.decision === "counter" && !countersLeft) {
+						return [
+							`no counters are left in this conversation (${MAX_COUNTERS} already exchanged); accept or decline`,
+						];
+					}
 					const violations = checkDisclosure(
 						agent.profile,
 						level,

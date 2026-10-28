@@ -4,6 +4,7 @@ import {
 	createAgent,
 	learn,
 	raiseLevel,
+	recordMessage,
 } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
@@ -216,6 +217,36 @@ describe("decideOnProposal", () => {
 		const feedback = sent[1]!.at(-1)!.content;
 		expect(feedback).toContain("your roles needed list mentions");
 		expect(feedback).toContain('"backend"');
+	});
+
+	test("after two counters, a third is refused and the model must accept or decline", async () => {
+		let agent = ada;
+		for (const pitch of ["Version one.", "Version two."]) {
+			agent = recordMessage(agent, "p9", {
+				decision: "counter",
+				proposalId: "prop-1",
+				from: "p9",
+				to: sampleProfile.id,
+				pitch,
+				rolesNeeded: ["frontend"],
+			});
+		}
+		const { client, sent } = fakeModel(counter("Version three."), {
+			rationale: "Close enough.",
+			decision: { decision: "accept" },
+		});
+		const result = await decideOnProposal(client, agent, proposal);
+		expect(result.decision).toEqual({ decision: "accept" });
+		expect(result.gateBlocks).toBe(0);
+		expect(sent[0]!.at(-1)!.content).toContain("accept or decline");
+		expect(sent[1]!.at(-1)!.content).toContain("no counters are left");
+	});
+
+	test("before the limit, counters are allowed and the prompt doesn't mention it", async () => {
+		const { client, sent } = fakeModel(counter("Version one."));
+		const result = await decideOnProposal(client, ada, proposal);
+		expect(result.decision.decision).toBe("counter");
+		expect(sent[0]!.at(-1)!.content).not.toContain("counters");
 	});
 
 	test("the prompt says roles needed are for others to fill", () => {
