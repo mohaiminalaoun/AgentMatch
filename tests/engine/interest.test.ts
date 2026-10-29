@@ -190,3 +190,36 @@ describe("revisions", () => {
 		).toMatchObject({ adopt: false, fellBack: true });
 	});
 });
+
+describe("level 2 and the roles a team needs", () => {
+	// Ada at level 2 with p9, having accepted p9's proposal for a project needing mobile and backend.
+	const agreedAt = (level: 1 | 2) =>
+		recordMessage(
+			recordMessage(at(level), "p9", {
+				id: "p1",
+				from: "p9",
+				to: sampleProfile.id,
+				pitch: "A carbon tracker.",
+				rolesNeeded: ["mobile", "backend"],
+			}),
+			"p9",
+			{
+				decision: "accept",
+				proposalId: "p1",
+				from: sampleProfile.id,
+				to: "p9",
+			},
+		);
+
+	test("at level 2, the check says a team only forms if someone fills a needed role", () => {
+		const [, user] = interestMessages(agreedAt(2), "p9", 2);
+		expect(user!.content).toContain(
+			"A team only forms if someone fills a role the version you've agreed on needs (mobile, backend",
+		);
+	});
+
+	test("at level 1, skills aren't known yet, so it isn't said", () => {
+		const [, user] = interestMessages(agreedAt(1), "p9", 1);
+		expect(user!.content).not.toContain("A team only forms");
+	});
+});

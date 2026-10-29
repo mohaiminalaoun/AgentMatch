@@ -676,6 +676,33 @@ describe("the agreed project", () => {
 		expect(candidatesOf(world, "a")).toEqual(["j"]);
 	});
 
+	test("a joiner whose own revision was adopted can be offered a place, though it lists no role they fill", () => {
+		// As p5 and p9 did: j (a designer with no idea of their own) asks to join a's project, a accepts, and at
+		// level 2 j's revision is adopted. Its roles are what's needed from people other than j, so design isn't
+		// in them; ownership falls back to a, who has the idea.
+		const world = createWorld([human("a"), human("j", false, 4, "design")]);
+		ready(world, "a", "j");
+		const messages: AgentMessage[] = [
+			{ decision: "accept", proposalId: "j-a", from: "a", to: "j" },
+			{
+				kind: "revision",
+				from: "j",
+				to: "a",
+				level: 2,
+				pitch: "A mobile-first take on a's project.",
+				rolesNeeded: ["mobile", "backend"],
+			},
+			{ kind: "revisionAnswer", from: "a", to: "j", adopt: true },
+		];
+		for (const m of messages) {
+			world.agents.a = recordMessage(world.agents.a!, "j", m);
+			world.agents.j = recordMessage(world.agents.j!, "a", m);
+		}
+		expect(projectOwner(world, "a", "j")).toBe("a");
+		expect(candidatesOf(world, "a")).toEqual(["j"]);
+		expect(selectOffers(world, "a", ["j"])).toEqual(["j"]);
+	});
+
 	test("once a team exists, its version decides which roles are still needed", () => {
 		const world = createWorld([human("a"), human("j", false)]);
 		world.teams = [

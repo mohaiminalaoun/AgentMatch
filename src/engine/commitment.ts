@@ -176,6 +176,16 @@ export function stillNeeded(
 	);
 }
 
+// Whether `id` wrote the version of `owner`'s project they'd join: before there's a team, a version agreed
+// with `owner` and authored by `id`. Its roles list names what's needed from people other than `id`, so `id`
+// has a place in it by design even though it lists no role they fill.
+function wroteTheirVersion(world: World, owner: string, id: string): boolean {
+	return (
+		!teamOf(world, owner) &&
+		agreedVersion(world.agents[owner]!, id)?.author === id
+	);
+}
+
 // The roles in `needed` that `id` would fill for `owner`.
 function fills(
 	world: World,
@@ -236,7 +246,15 @@ export function selectOffers(
 			needed ?? stillNeeded(world, owner, theirs),
 		);
 		const newLimit = Math.min(limit, maxSizeFor(world, owner, id));
-		if (filled.length === 0 || size + kept.length + 1 > newLimit) {
+		// Only the first person kept can be offered their own version; anyone after joins theirs.
+		const ownPlace =
+			kept.length === 0 &&
+			!version &&
+			wroteTheirVersion(world, owner, id);
+		if (
+			(filled.length === 0 && !ownPlace) ||
+			size + kept.length + 1 > newLimit
+		) {
 			continue;
 		}
 		kept.push(id);
@@ -292,7 +310,8 @@ export function projectOwner(
 
 // Everyone `owner` could offer a place now: both continued through level 2 in a conversation about
 // `owner`'s project, on no team yet, hasn't declined an offer from `owner` or left its team before, fills a
-// role still needed by the version they'd join, and wants a team at least as big as this one would become.
+// role still needed by the version they'd join (or wrote that version themselves), and wants a team at least
+// as big as this one would become.
 export function candidatesOf(world: World, owner: string): string[] {
 	const agent = world.agents[owner]!;
 	const size = membersOf(world, owner).length;
@@ -304,12 +323,13 @@ export function candidatesOf(world: World, owner: string): string[] {
 				continued(agent, id, owner, READY_LEVEL) &&
 				projectOwner(world, owner, id) === owner &&
 				!teamOf(world, id) &&
-				fills(
+				(fills(
 					world,
 					owner,
 					id,
 					stillNeeded(world, owner, versionFor(world, owner, id)),
-				).length > 0 &&
+				).length > 0 ||
+					wroteTheirVersion(world, owner, id)) &&
 				maxSizeFor(world, owner, id) >= size + 1 &&
 				!contactOf(agent, id).history.some(
 					(m) =>

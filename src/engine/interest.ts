@@ -78,6 +78,7 @@ export function interestMessages(
 	const contact = contactOf(agent, otherId);
 	const revise = mayRevise(agent, otherId, level);
 	const steer = steerText(hunch, "interest");
+	const agreed = agreedTerms(agent, otherId);
 	return [
 		{
 			role: "system",
@@ -107,9 +108,14 @@ export function interestMessages(
 		{
 			role: "user",
 			content: [
-				`The version of the project you've agreed on: ${JSON.stringify(agreedTerms(agent, otherId) ?? "none yet")}`,
+				`The version of the project you've agreed on: ${JSON.stringify(agreed ?? "none yet")}`,
 				`What agent ${otherId} has shared with you so far: ${JSON.stringify(contact.learned)}`,
 				`Messages between you so far: ${JSON.stringify(contact.history)}`,
+				...(level === 2 && agreed
+					? [
+							`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). Continue only if one of you does, or add a revision whose roles fit you both; otherwise no offer can follow, however well you get along.`,
+						]
+					: []),
 				...(steer ? [steer] : []),
 				"Keep going, or withdraw?",
 			].join("\n"),
