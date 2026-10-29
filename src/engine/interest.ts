@@ -11,6 +11,7 @@ import type { LlmClient } from "./client.js";
 import { describeViolation, disclosureRules } from "./decision.js";
 import type { DisclosureLevel } from "./disclosure.js";
 import { checkDisclosure, draftOf } from "./gate.js";
+import { steerText, type Hunch } from "./hunch.js";
 import {
 	StructuredOutputError,
 	type ChatJsonOptions,
@@ -35,6 +36,8 @@ export type InterestResult = {
 	revision?: Terms | undefined;
 	// How many times the gate stopped a revision from going out.
 	gateBlocks: number;
+	// The private hunch that steered this check, for agents with "never" notes.
+	hunch?: Hunch | undefined;
 	// Why, for the agent's own human and logs only; never sent. Missing if no valid reply came back.
 	rationale: string | undefined;
 	// True when no valid reply came back and the agent withdrew to be safe.
@@ -69,9 +72,12 @@ export function interestMessages(
 	agent: AgentState,
 	otherId: string,
 	level: DisclosureLevel = contactOf(agent, otherId).level,
+	// A private hunch, which adds only a fixed sentence for its steer.
+	hunch?: Hunch,
 ): Message[] {
 	const contact = contactOf(agent, otherId);
 	const revise = mayRevise(agent, otherId, level);
+	const steer = steerText(hunch, "interest");
 	return [
 		{
 			role: "system",
@@ -104,6 +110,7 @@ export function interestMessages(
 				`The version of the project you've agreed on: ${JSON.stringify(agreedTerms(agent, otherId) ?? "none yet")}`,
 				`What agent ${otherId} has shared with you so far: ${JSON.stringify(contact.learned)}`,
 				`Messages between you so far: ${JSON.stringify(contact.history)}`,
+				...(steer ? [steer] : []),
 				"Keep going, or withdraw?",
 			].join("\n"),
 		},
@@ -119,11 +126,23 @@ export async function checkInterest(
 	// The level of the share that prompted the check; defaults to the contact's current level.
 	level: DisclosureLevel = contactOf(agent, otherId).level,
 	options: ChatJsonOptions<AgentInterest> = {},
+	// A private hunch from the agent's "never" notes: "stop" withdraws with no call.
+	hunch?: Hunch,
 ): Promise<InterestResult> {
 	let gateBlocks = 0;
+	if (hunch?.steer === "stop") {
+		return {
+			interest: "withdraw",
+			rationale: undefined,
+			gateBlocks,
+			fellBack: false,
+			usage: undefined,
+			hunch,
+		};
+	}
 	try {
 		const { data, usage } = await client.chatJson(
-			interestMessages(agent, otherId, level),
+			interestMessages(agent, otherId, level, hunch),
 			AgentInterest,
 			{
 				...options,
@@ -158,6 +177,7 @@ export async function checkInterest(
 			gateBlocks,
 			fellBack: false,
 			usage,
+			hunch,
 		};
 	} catch (error) {
 		if (!(error instanceof StructuredOutputError)) {
@@ -169,6 +189,7 @@ export async function checkInterest(
 			gateBlocks,
 			fellBack: true,
 			usage: undefined,
+			hunch,
 		};
 	}
 }

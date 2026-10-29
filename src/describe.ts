@@ -70,6 +70,8 @@ export function formatEvent(
 		}
 		case "interest":
 			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.revision ? ` · proposes: "${event.revision.pitch}" (needs ${event.revision.rolesNeeded.join(", ")})` : ""}${event.gateBlocks ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "hunch":
+			return `     ${event.agent}'s private hunch about ${event.other}: ${event.steer}${event.riskArea ? ` (${event.riskArea})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "revisionAnswer":
 			return `     ${event.agent} on ${event.other}'s revision: ${event.adopt ? "adopts it" : "keeps the current version"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "level":

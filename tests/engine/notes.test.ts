@@ -161,11 +161,20 @@ describe("in a live run", () => {
 			const who = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
 			(prompts[who] ??= []).push(JSON.stringify(messages));
 			const last: string = messages.at(-1).content;
-			const reply = last.includes("Keep going, or withdraw?")
-				? { rationale: "Fits.", interest: "continue" }
-				: last.startsWith("Public board:")
-					? { rationale: "None.", approach: [] }
-					: { rationale: "Fits.", decision: { decision: "accept" } };
+			const reply = last.includes("What's your steer?")
+				? {
+						rationale: "Nothing private bears on it.",
+						steer: "neutral",
+						riskArea: null,
+					}
+				: last.includes("Keep going, or withdraw?")
+					? { rationale: "Fits.", interest: "continue" }
+					: last.startsWith("Public board:")
+						? { rationale: "None.", approach: [] }
+						: {
+								rationale: "Fits.",
+								decision: { decision: "accept" },
+							};
 			return new Response(
 				JSON.stringify({
 					choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -203,10 +212,13 @@ describe("in a live run", () => {
 		for (const prompt of prompts.omar!) {
 			expect(seen(prompt)).toEqual([]);
 		}
-		// Ada's own prompts reached level 2, so they hold her notes up to there, and never the "never" one.
-		const adas = prompts[sampleProfile.id]!.join("\n");
-		expect(adas).toContain("zz-note-level2");
-		expect(adas).not.toContain("zz-note-level3");
-		expect(adas).not.toContain("zz-note-never");
+		// Ada's prompts that write anything reached level 2, so they hold her notes up to there. Her private
+		// hunch calls see every note, but their output is only a steer from a fixed list.
+		const hunch = (prompt: string) => prompt.includes("What's your steer?");
+		const writing = prompts[sampleProfile.id]!.filter((p) => !hunch(p));
+		expect(writing.join("\n")).toContain("zz-note-level2");
+		expect(writing.join("\n")).not.toContain("zz-note-level3");
+		expect(writing.join("\n")).not.toContain("zz-note-never");
+		expect(prompts[sampleProfile.id]!.some(hunch)).toBe(true);
 	});
 });

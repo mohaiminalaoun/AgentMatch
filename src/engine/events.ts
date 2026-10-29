@@ -2,6 +2,7 @@ import { z } from "zod";
 import { validateMessage } from "./bus.js";
 import { DisclosureLevel } from "./disclosure.js";
 import type { Exchange } from "./llm.js";
+import { RiskArea, Steer } from "./hunch.js";
 import { Decision, Terms } from "./proposal.js";
 import { Team } from "./team.js";
 
@@ -85,6 +86,17 @@ export const RunEvent = z.discriminatedUnion("type", [
 		revision: Terms.optional(),
 		// How many times the gate stopped a revision; missing in older logs.
 		gateBlocks: z.number().int().optional(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
+	// An agent with "never" notes formed a private hunch before deciding. Only its steer and risk area shaped
+	// what was sent; the rationale is for the human's own log.
+	z.object({
+		type: z.literal("hunch"),
+		agent: z.string(),
+		other: z.string(),
+		steer: Steer,
+		riskArea: RiskArea.nullable(),
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),

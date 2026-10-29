@@ -209,6 +209,36 @@ export const coevolveNotes: Record<string, Note[]> = {
 	],
 };
 
+// The pair for `npm run hunch`: Lena pitches a fitness app to Rafa, a mobile developer into fitness. On paper
+// it's a great fit. Rafa's "never" note is why his agent shouldn't just accept.
+export const rafa: Profile = {
+	id: "rafa",
+	name: "Rafa",
+	skills: [
+		{ name: "mobile", level: "expert" },
+		{ name: "frontend", level: "intermediate" },
+	],
+	interests: ["fitness", "sports"],
+	projectIdeas: [],
+	availability: { hoursPerWeek: 20, utcOffset: 0 },
+	preferences: { minTeamSize: 2, maxTeamSize: 4, preferredRoles: ["mobile"] },
+};
+
+export const rafaNotes: Note[] = [
+	{
+		text: "Built a jiu-jitsu training app last year with a friend. It died: almost nobody opened it again after the second week, and we lost months on it.",
+		level: "never",
+	},
+];
+
+export const lenaPitch: Proposal = {
+	id: "hunch-1",
+	from: "lena",
+	to: "rafa",
+	pitch: "A fitness app that helps people build daily workout habits.",
+	rolesNeeded: ["mobile"],
+};
+
 export const SCENARIOS: Scenario[] = [
 	{
 		name: "invoicing vs climate",

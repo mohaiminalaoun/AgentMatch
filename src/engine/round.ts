@@ -23,6 +23,7 @@ import {
 	type InterestResult,
 } from "./interest.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
+import { getHunch, type Hunch } from "./hunch.js";
 import type { ChatOptions, Exchange } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
@@ -158,6 +159,18 @@ export async function runRound(
 	const report: RoundEntry[] = [];
 	const interests: InterestEntry[] = [];
 	const emit = (event: RunEvent) => onEvent?.(event);
+	// A private hunch, as an event for the human's own log: its rationale may draw on "never" notes.
+	const emitHunch = (agent: string, other: string, hunch?: Hunch) =>
+		hunch &&
+		emit({
+			type: "hunch",
+			agent,
+			other,
+			steer: hunch.steer,
+			riskArea: hunch.riskArea,
+			rationale: hunch.rationale,
+			fellBack: hunch.fellBack,
+		});
 	const llmOptions = {
 		onExchange: (exchange: Exchange) => {
 			onExchange?.(exchange);
@@ -311,26 +324,45 @@ export async function runRound(
 				isRevision(message) ? [{ receiver, revision: message }] : [],
 			);
 			const [results, checks, adoptions] = await Promise.all([
+				// An agent with "never" notes gets a private hunch first, which steers the call after it.
 				Promise.all(
-					toDecide.map(({ receiver, proposal }) =>
-						decideOnProposal(
+					toDecide.map(async ({ receiver, proposal }) => {
+						const agent = agentOf(before, receiver);
+						const hunch = await getHunch(
 							client,
-							agentOf(before, receiver),
+							agent,
+							proposal.from,
+							`They propose: ${JSON.stringify({ pitch: proposal.pitch, rolesNeeded: proposal.rolesNeeded })}. Your agent will accept, counter, or decline.`,
+							llmOptions,
+						);
+						return decideOnProposal(
+							client,
+							agent,
 							proposal,
 							llmOptions,
-						),
-					),
+							hunch,
+						);
+					}),
 				),
 				Promise.all(
-					toCheck.map(({ receiver, share }) =>
-						checkInterest(
+					toCheck.map(async ({ receiver, share }) => {
+						const agent = agentOf(agents, receiver);
+						const hunch = await getHunch(
 							client,
-							agentOf(agents, receiver),
+							agent,
+							share.from,
+							`They just shared their level-${share.level} details. Your agent will decide whether to keep going toward a team.`,
+							llmOptions,
+						);
+						return checkInterest(
+							client,
+							agent,
 							share.from,
 							share.level,
 							llmOptions,
-						),
-					),
+							hunch,
+						);
+					}),
 				),
 				Promise.all(
 					toConsider.map(({ receiver, revision }) =>
@@ -352,6 +384,7 @@ export async function runRound(
 				const proposal = asProposal(message);
 				if (proposal) {
 					const result = results[decided++]!;
+					emitHunch(receiver, proposal.from, result.hunch);
 					const response = toResponse(proposal, result.decision);
 					const pitch =
 						"pitch" in response
@@ -385,6 +418,7 @@ export async function runRound(
 					openLevel(receiver, message.from, 1);
 				} else if (isShare(message)) {
 					const result = checks[checked++]!;
+					emitHunch(receiver, message.from, result.hunch);
 					const interest: Interest = {
 						kind: "interest",
 						from: receiver,

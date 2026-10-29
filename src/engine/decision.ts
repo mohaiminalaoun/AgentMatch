@@ -14,6 +14,7 @@ import {
 	type Message,
 	type TokenUsage,
 } from "./llm.js";
+import { steerText, type Hunch } from "./hunch.js";
 import { Decision, type Proposal } from "./proposal.js";
 
 // What the model returns: its private reasoning, then the decision that gets sent.
@@ -35,6 +36,8 @@ export type DecisionResult = {
 	// True when no allowed decision came back and a plain decline was sent instead.
 	fellBack: boolean;
 	usage: TokenUsage | undefined;
+	// The private hunch that steered this decision, for agents with "never" notes.
+	hunch?: Hunch | undefined;
 };
 
 // The most counters one conversation may have, from both sides together. After that, the next decision must
@@ -81,7 +84,10 @@ export function disclosureRules(level: DisclosureLevel): string {
 export function decisionMessages(
 	agent: AgentState,
 	proposal: Proposal,
+	// A private hunch, which adds only a fixed sentence for its steer.
+	hunch?: Hunch,
 ): Message[] {
+	const steer = steerText(hunch, "decision");
 	const contact = contactOf(agent, proposal.from);
 	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
 
@@ -120,6 +126,7 @@ export function decisionMessages(
 					: [
 							`You have already exchanged ${MAX_COUNTERS} counters, the most allowed: this time, accept or decline. A counter won't be sent.`,
 						]),
+				...(steer ? [steer] : []),
 			].join("\n"),
 		},
 	];
@@ -134,18 +141,39 @@ export async function decideOnProposal(
 	agent: AgentState,
 	proposal: Proposal,
 	options: ChatJsonOptions<AgentDecision> = {},
+	// A private hunch from the agent's "never" notes: "stop" declines with no call, and "careful" rules out a
+	// plain accept.
+	hunch?: Hunch,
 ): Promise<DecisionResult> {
 	const level = contactOf(agent, proposal.from).level;
 	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
 	let gateBlocks = 0;
+	if (hunch?.steer === "stop") {
+		return {
+			decision: { decision: "decline" },
+			rationale: undefined,
+			gateBlocks,
+			fellBack: false,
+			usage: undefined,
+			hunch,
+		};
+	}
 
 	try {
 		const { data, usage } = await client.chatJson(
-			decisionMessages(agent, proposal),
+			decisionMessages(agent, proposal, hunch),
 			AgentDecision,
 			{
 				...options,
 				check: ({ decision }) => {
+					if (
+						decision.decision === "accept" &&
+						hunch?.steer === "careful"
+					) {
+						return [
+							"your human has private reasons for caution: don't accept as is; counter with a question or change that addresses it, or decline",
+						];
+					}
 					if (decision.decision === "counter" && !countersLeft) {
 						return [
 							`no counters are left in this conversation (${MAX_COUNTERS} already exchanged); accept or decline`,
@@ -169,6 +197,7 @@ export async function decideOnProposal(
 			gateBlocks,
 			fellBack: false,
 			usage,
+			hunch,
 		};
 	} catch (error) {
 		if (!(error instanceof StructuredOutputError)) {
@@ -180,6 +209,7 @@ export async function decideOnProposal(
 			gateBlocks,
 			fellBack: true,
 			usage: undefined,
+			hunch,
 		};
 	}
 }

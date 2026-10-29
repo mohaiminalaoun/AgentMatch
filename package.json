@@ -18,6 +18,7 @@
 		"round": "tsx src/round.ts",
 		"negotiate": "tsx src/negotiate.ts",
 		"coevolve": "tsx src/coevolve.ts",
+		"hunch": "tsx src/hunch.ts",
 		"discover": "tsx src/discover.ts",
 		"simulate": "tsx src/simulate.ts"
 	},

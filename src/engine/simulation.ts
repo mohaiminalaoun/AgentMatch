@@ -291,7 +291,8 @@ export function summarize(
 				event.type === "offers" ||
 				event.type === "commitment" ||
 				event.type === "recheck" ||
-				event.type === "revisionAnswer") &&
+				event.type === "revisionAnswer" ||
+				event.type === "hunch") &&
 			event.fellBack
 		) {
 			fallbacks++;
