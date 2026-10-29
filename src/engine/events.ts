@@ -124,6 +124,12 @@ export const RunEvent = z.discriminatedUnion("type", [
 	}),
 	// A team formed, gained a member, or lost one.
 	z.object({ type: z.literal("team"), team: Team }),
+	// A simulation ended: after a round that changed nothing, or at its round limit.
+	z.object({
+		type: z.literal("stopped"),
+		rounds: z.number().int(),
+		reason: z.enum(["stable", "limit"]),
+	}),
 	// One model call: everything sent, the reply, and its cost.
 	z.object({
 		type: z.literal("exchange"),

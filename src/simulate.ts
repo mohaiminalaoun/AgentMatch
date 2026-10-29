@@ -1,5 +1,5 @@
 // Entry point for `npm run simulate [-- --agents N --rounds R --seed S --private]`: the whole system on
-// generated people. Agents write listings, then each round pick whom to approach and negotiate, all at once.
+// generated people, for up to R rounds (default 6), stopping sooner once a round changes nothing. Agents write listings, then each round pick whom to approach and negotiate, all at once.
 // Prints every event as it happens (with private rationales only under --private), a live status line while
 // model calls are out, and a report at the end; the full timeline is in the run log (`npm run show-run`).
 import { formatEvent, formatSummary } from "./describe.js";
@@ -22,7 +22,8 @@ function flag(name: string, fallback: number): number {
 }
 
 const agents = flag("agents", 10);
-const rounds = flag("rounds", 2);
+// The most rounds; the run stops sooner once a round changes nothing.
+const maxRounds = flag("rounds", 6);
 const seed = flag("seed", 1);
 const showPrivate = process.argv.includes("--private");
 
@@ -73,10 +74,10 @@ try {
 	const status = createStatus(started);
 
 	console.log(
-		`${agents} agents · ${rounds} rounds · seed ${seed} · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}\n`,
+		`${agents} agents · up to ${maxRounds} rounds · seed ${seed} · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}\n`,
 	);
 	const world = await runSimulation(client, generateProfiles(agents, seed), {
-		rounds,
+		maxRounds,
 		onEvent: (event) => {
 			events.push(event);
 			log.write(event);

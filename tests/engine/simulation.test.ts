@@ -56,8 +56,8 @@ const decisions: Record<string, object> = {
 
 // A fake model that recognizes each kind of prompt and answers from the scripts above. Offers are always
 // taken (the first owner offering is committed to), and members always stay when their team grows.
-function fakeClient() {
-	// Each agent picks once per round it's still open, so its own call count is the round.
+function fakeClient(script: typeof picks = picks) {
+	// `script[n]` is what each agent picks the n-th time it's asked (its round, unless it was skipped).
 	const discoveryCalls: Record<string, number> = {};
 	const fetch = (async (_url: unknown, init?: RequestInit) => {
 		const { messages } = JSON.parse(init!.body as string);
@@ -74,7 +74,10 @@ function fakeClient() {
 		} else if (last.startsWith("Public board:")) {
 			const round = (discoveryCalls[who] =
 				(discoveryCalls[who] ?? 0) + 1);
-			reply = { rationale: "Picks.", approach: picks[round]![who] ?? [] };
+			reply = {
+				rationale: "Picks.",
+				approach: script[round]?.[who] ?? [],
+			};
 		} else if (last.startsWith("Your teammates")) {
 			reply = { rationale: "Still a fit.", decision: "stay" };
 		} else if (last.startsWith("Offers:")) {
@@ -100,11 +103,11 @@ function fakeClient() {
 }
 
 // Runs the scripted two-round simulation, recording every event and progress line.
-async function simulate() {
+async function simulate(maxRounds = 2, script = picks) {
 	const events: RunEvent[] = [];
 	const phases: string[] = [];
-	const world = await runSimulation(fakeClient(), profiles, {
-		rounds: 2,
+	const world = await runSimulation(fakeClient(script), profiles, {
+		maxRounds,
 		onEvent: (e) => events.push(e),
 		onPhase: (line) => phases.push(line),
 	});
@@ -148,6 +151,40 @@ describe("runSimulation", () => {
 		expect(contactOf(world.agents.a!, "b").level).toBe(3);
 		expect(contactOf(world.agents.c!, "d").level).toBe(0);
 		expect(contactOf(world.agents.a!, "e").level).toBe(3);
+	});
+});
+
+describe("stopping", () => {
+	test("at the round limit, the run says so", async () => {
+		const { events, summary } = await simulate(2);
+		expect(events.at(-1)).toEqual({
+			type: "stopped",
+			rounds: 2,
+			reason: "limit",
+		});
+		expect(summary.stopped).toEqual({ rounds: 2, reason: "limit" });
+	});
+
+	test("with room to go on, it stops by itself after a round that changes nothing", async () => {
+		const { summary } = await simulate(6);
+		// Round 3: nobody has anyone new to approach, and no team changes.
+		expect(summary.stopped).toEqual({ rounds: 3, reason: "stable" });
+		expect(summary.rounds).toHaveLength(3);
+	});
+
+	test("an agent that picked nobody isn't asked again while the board hasn't changed", async () => {
+		// Round 1: only c approaches anyone (d, who declines), so no team forms and the board stays the same.
+		const { events, phases, summary } = await simulate(6, {
+			1: { c: ["d"] },
+		});
+		// All 5 are asked in round 1; in round 2, only c, the one who picked someone.
+		expect(events.filter((e) => e.type === "discovery")).toHaveLength(
+			5 + 1,
+		);
+		expect(phases).toContain(
+			"round 2: 0 picks → 0 proposals · 4 not asked (board unchanged)",
+		);
+		expect(summary.stopped).toEqual({ rounds: 2, reason: "stable" });
 	});
 });
 

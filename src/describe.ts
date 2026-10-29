@@ -72,6 +72,10 @@ export function formatEvent(
 			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : event.busy ? "busy with its own offers" : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "recheck":
 			return `  ${event.agent} rechecks ${event.team} after it grew → ${event.decision}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "stopped":
+			return event.reason === "stable"
+				? `stopped after ${event.rounds} round${event.rounds === 1 ? "" : "s"}: stable (nothing new to try, and no team changed)`
+				: `stopped at the round limit (${event.rounds})`;
 		case "team":
 			return `  team ${event.team.id}: ${event.team.members.join(", ")} (${event.team.status}) · project: ${event.team.project.title}`;
 		case "exchange":
@@ -127,6 +131,7 @@ export function formatSummary(
 				`Round ${r.round}:  ${r.picks} picks → ${r.proposals} proposals · ${r.offers} offers → ${r.commits} commits`,
 		),
 		`Pairs:    ${summary.pairs.length} talked · reached level 1: ${reachedAt(1)} · level 2: ${reachedAt(2)} · ready: ${summary.pairs.filter((p) => p.ready).length} · ended: ${summary.pairs.filter((p) => p.ended).length}`,
+		`Stopped:  ${summary.stopped ? (summary.stopped.reason === "stable" ? `stable after ${summary.stopped.rounds} rounds` : `at the round limit (${summary.stopped.rounds})`) : "not recorded"}`,
 		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")} · members who left: ${summary.departures}`,
 		...summary.teamChecks.map(
 			(t) =>

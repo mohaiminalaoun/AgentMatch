@@ -43,6 +43,9 @@ export type DiscoveryOptions = {
 	perAgent?: number;
 	// Used in proposal ids, so rounds don't reuse them.
 	round?: number;
+	// Agents not asked this round, for example because nothing they could see has changed since they
+	// last picked nobody. They make no model call and approach nobody.
+	skip?: ReadonlySet<string>;
 	onExchange?: ChatOptions["onExchange"];
 	onEvent?: (event: RunEvent) => void;
 };
@@ -149,6 +152,7 @@ export async function discover(
 	{
 		perAgent = DEFAULT_PER_AGENT,
 		round = 1,
+		skip = new Set(),
 		onExchange,
 		onEvent,
 	}: DiscoveryOptions = {},
@@ -159,7 +163,7 @@ export async function discover(
 	const seeking = new Set(seekers.map((seeker) => seeker.id));
 	// Someone on a team is done looking, unless they own it and it has places left.
 	const agents = Object.values(world.agents)
-		.filter((agent) => isOpen(world, agent.id))
+		.filter((agent) => isOpen(world, agent.id) && !skip.has(agent.id))
 		.sort((a, b) => (a.id < b.id ? -1 : 1));
 	const llmOptions = {
 		onExchange: (exchange: Exchange) => {

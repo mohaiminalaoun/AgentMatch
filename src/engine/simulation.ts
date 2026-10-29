@@ -1,7 +1,7 @@
 import { contactOf, type AgentMessage } from "./agent.js";
 import type { LlmClient } from "./client.js";
 import { runCommitment } from "./commitment.js";
-import { discover } from "./discovery.js";
+import { buildBoard, buildSeekers, discover } from "./discovery.js";
 import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import { writeListings } from "./listing.js";
@@ -16,7 +16,8 @@ import {
 import type { Team } from "./team.js";
 
 export type SimulationOptions = {
-	rounds?: number;
+	// The most rounds to run; the run stops sooner once a round changes nothing.
+	maxRounds?: number;
 	// The most agents one agent may approach per round.
 	perAgent?: number;
 	maxTicks?: number;
@@ -62,6 +63,8 @@ export type SimulationSummary = {
 	}[];
 	// Members who left a team after it grew.
 	departures: number;
+	// How the run ended, if it did.
+	stopped: { rounds: number; reason: "stable" | "limit" } | undefined;
 	// Agents on no team at the end.
 	unplaced: string[];
 	// Agents nobody sent a proposal to.
@@ -77,12 +80,15 @@ export type SimulationSummary = {
 
 // The whole system: every agent writes its board listing once, then each round everyone still open picks whom
 // to approach, all the resulting conversations play out at once, and ready pairs become committed teams.
+// Rounds repeat until one changes nothing (no proposals, commits, or departures, and no mail left) or
+// `maxRounds` is reached. It always ends: a pair that has talked is never approached again, so the untried
+// pairs run out. An agent that picked nobody isn't asked again until the board changes.
 // Everything shares one client and one bus.
 export async function runSimulation(
 	client: LlmClient,
 	profiles: readonly Profile[],
 	{
-		rounds = 2,
+		maxRounds = DEFAULT_MAX_ROUNDS,
 		perAgent,
 		maxTicks,
 		onEvent,
@@ -95,15 +101,29 @@ export async function runSimulation(
 	const listed = Object.values(world.agents).filter((a) => a.listing).length;
 	onPhase?.(`listings written: ${listed}`);
 
-	for (let round = 1; round <= rounds; round++) {
+	// What the board showed when each agent last picked nobody, so they aren't asked again until it changes.
+	let lastBoard: string | undefined;
+	let pickedNobody = new Set<string>();
+	for (let round = 1; ; round++) {
+		const board = JSON.stringify([buildBoard(world), buildSeekers(world)]);
+		const skip = board === lastBoard ? pickedNobody : new Set<string>();
 		const { proposals, picks } = await discover(client, world, {
 			round,
+			skip,
 			...(perAgent && { perAgent }),
 			...(onEvent && { onEvent }),
 		});
+		lastBoard = board;
+		// A fallback is a failed call, not a choice, so that agent is asked again.
+		pickedNobody = new Set([
+			...skip,
+			...picks
+				.filter((p) => p.approach.length === 0 && !p.fellBack)
+				.map((p) => p.agent),
+		]);
 		const picked = picks.reduce((sum, p) => sum + p.approach.length, 0);
 		onPhase?.(
-			`round ${round}: ${picked} picks → ${proposals.length} proposals`,
+			`round ${round}: ${picked} picks → ${proposals.length} proposals${skip.size > 0 ? ` · ${skip.size} not asked (board unchanged)` : ""}`,
 		);
 		const result = await runRound(world, client, proposals, {
 			...(maxTicks && { maxTicks }),
@@ -122,9 +142,26 @@ export async function runSimulation(
 				? `round ${round}: no offers (mail still waiting at the tick limit)`
 				: `round ${round}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"}${commitment.departures > 0 ? ` · ${commitment.departures} left` : ""} · teams: ${world.teams.length}`,
 		);
+
+		const stable =
+			proposals.length === 0 &&
+			result.quiet &&
+			!commitment.skipped &&
+			commitment.commits === 0 &&
+			commitment.departures === 0;
+		if (stable || round >= maxRounds) {
+			const stop: RunEvent = {
+				type: "stopped",
+				rounds: round,
+				reason: stable ? "stable" : "limit",
+			};
+			onEvent?.(stop);
+			return world;
+		}
 	}
-	return world;
 }
+
+const DEFAULT_MAX_ROUNDS = 6;
 
 // What happened in a simulation, worked out from the final world and its events. Pure: no model calls.
 export function summarize(
@@ -273,6 +310,7 @@ export function summarize(
 		nonCoreRoles,
 		pairs,
 		teams: world.teams,
+		stopped: stopOf(events),
 		teamChecks: world.teams.map((team) => {
 			const [owner, ...joined] = team.members.map(
 				(id) => world.agents[id]!,
@@ -312,4 +350,12 @@ export function summarize(
 // Whether `message` is a proposal: the only message with neither a decision nor a kind.
 function isProposal(message: AgentMessage): boolean {
 	return !("decision" in message) && !("kind" in message);
+}
+
+// How the run ended, from its last "stopped" event.
+function stopOf(events: readonly RunEvent[]): SimulationSummary["stopped"] {
+	const stop = events.findLast((e) => e.type === "stopped");
+	return stop?.type === "stopped"
+		? { rounds: stop.rounds, reason: stop.reason }
+		: undefined;
 }
