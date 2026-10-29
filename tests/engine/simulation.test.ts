@@ -183,6 +183,24 @@ describe("runSimulation", () => {
 		expect(contactOf(world.agents.c!, "d").level).toBe(0);
 		expect(contactOf(world.agents.a!, "e").level).toBe(3);
 	});
+
+	test("each human's notes reach their own agent, and names can wait for approval", async () => {
+		const notes = {
+			a: [{ text: "Has led two teams.", level: 2 as const }],
+		};
+		const world = await runSimulation(fakeClient(picks), profiles, {
+			maxRounds: 2,
+			brainstorm: false,
+			notes,
+			revealNames: false,
+		});
+		expect(world.agents.a!.notes).toEqual(notes.a);
+		expect(world.agents.b!.notes).toEqual([]);
+		// a and b still became teammates, but stopped at level 2: no names were swapped.
+		expect(world.teams[0]?.members).toEqual(["a", "b", "e"]);
+		expect(contactOf(world.agents.a!, "b").level).toBe(2);
+		expect(contactOf(world.agents.a!, "b").learned.name).toBeUndefined();
+	});
 });
 
 describe("stopping", () => {
