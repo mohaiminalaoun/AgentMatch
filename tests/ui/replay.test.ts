@@ -3,6 +3,7 @@ import {
 	board,
 	demoEvents,
 	describe as describeEvent,
+	describeMessage,
 	ideaVersions,
 	pairEvents,
 	parseLog,
@@ -177,6 +178,39 @@ describe("browser replay", () => {
 			"p3 posted: “A developer tools app.” · needs frontend, backend",
 			"p8 countered: “A developer tools API.”",
 		]);
+	});
+	it("describes shared skills, availability, and preferences in words", () => {
+		const share = (level: 1 | 2, shared: object) =>
+			describeMessage({
+				kind: "share",
+				from: "p1",
+				to: "p2",
+				level,
+				shared,
+			} as Parameters<typeof describeMessage>[0]);
+		expect(
+			share(1, {
+				interests: ["climate", "education"],
+				availability: { hoursPerWeek: 12, utcOffset: -5 },
+			}),
+		).toBe(
+			"shared level 1: interests climate, education · availability 12 h/week, UTC−5",
+		);
+		expect(
+			share(2, {
+				skills: [
+					{ name: "backend", level: "expert" },
+					{ name: "design", level: "beginner" },
+				],
+				preferences: {
+					minTeamSize: 2,
+					maxTeamSize: 3,
+					preferredRoles: ["backend"],
+				},
+			}),
+		).toBe(
+			"shared level 2: skills backend (expert), design (beginner) · preferences team of 2–3, prefers backend",
+		);
 	});
 	it("keeps only what passed between two agents, in either direction", () => {
 		const sent = (id: string, from: string, to: string) => ({

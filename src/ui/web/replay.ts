@@ -437,18 +437,41 @@ export function describe(e: Event): string {
 			return "Run activity";
 	}
 }
+// Shared profile fields in words, e.g. "skills backend (expert), design (beginner) · preferences team of 2–3,
+// prefers backend".
+function describeShared(
+	shared: Extract<AgentMessage, { kind: "share" }>["shared"],
+) {
+	const { skills, availability: a, preferences: p, projectIdeas } = shared;
+	const offset = (h: number) => `UTC${h < 0 ? "−" : "+"}${Math.abs(h)}`;
+	const words: Record<string, string | undefined> = {
+		...shared,
+		skills: skills?.map((s) => `${s.name} (${s.level})`).join(", "),
+		interests: shared.interests?.join(", "),
+		projectIdeas: projectIdeas?.map((i) => i.title).join(", "),
+		availability: a && `${a.hoursPerWeek} h/week, ${offset(a.utcOffset)}`,
+		preferences:
+			p &&
+			[
+				p.minTeamSize === p.maxTeamSize
+					? `team of ${p.minTeamSize}`
+					: `team of ${p.minTeamSize}–${p.maxTeamSize}`,
+				...(p.preferredRoles.length > 0
+					? [`prefers ${p.preferredRoles.join(", ")}`]
+					: []),
+			].join(", "),
+	};
+	return Object.keys(shared)
+		.map((k) => `${k} ${words[k] ?? ""}`)
+		.join(" · ");
+}
 // What a bus message says, without its sender and recipient. Mirrors `describeMessage` in
 // src/describe.ts, which the browser can't import.
 export function describeMessage(m: AgentMessage): string {
 	if ("kind" in m) {
 		switch (m.kind) {
 			case "share":
-				return `shared level ${m.level}: ${Object.entries(m.shared)
-					.map(
-						([k, v]) =>
-							`${k} ${Array.isArray(v) ? v.join(", ") : String(v)}`,
-					)
-					.join(" · ")}`;
+				return `shared level ${m.level}: ${describeShared(m.shared)}`;
 			case "interest":
 				return m.interest === "continue"
 					? `continues at level ${m.level}`
