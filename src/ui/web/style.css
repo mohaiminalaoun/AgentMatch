@@ -76,15 +76,15 @@ a {
 	width: 43px;
 	height: 43px;
 	border-radius: 12px;
-	color: #a0a0af;
+	color: #6b6b75;
 	position: relative;
 }
 .rail-button:hover {
 	background: #f5f2fa;
-	color: #8270b6;
+	color: #7263a0;
 }
 .rail-button.active {
-	color: #8c75bc;
+	color: #76629e;
 	background: #f0ebf9;
 }
 .rail-button.active:before {
@@ -120,7 +120,7 @@ a {
 	width: 31px;
 	height: 31px;
 	background: #e7e7ee;
-	color: #767184;
+	color: #6f6a7c;
 	border-radius: 50%;
 	font-weight: 600;
 	font-size: 12px;
@@ -149,7 +149,7 @@ main {
 }
 .wordmark > span:first-child {
 	font-weight: 500;
-	color: #8a789e;
+	color: #756686;
 }
 .beta {
 	font:
@@ -158,7 +158,7 @@ main {
 	letter-spacing: 1px;
 	border: 1px solid #e6dfee;
 	background: #f6f2fa;
-	color: #9c88b3;
+	color: #756686;
 	padding: 3px 5px;
 	border-radius: 4px;
 	margin-left: 9px;
@@ -168,7 +168,7 @@ main {
 	align-items: center;
 	gap: 13px;
 	font-size: 11px;
-	color: #aaa8b3;
+	color: #6d6c73;
 }
 .breadcrumb span {
 	color: #696573;
@@ -181,7 +181,7 @@ main {
 }
 .local-badge {
 	font-size: 11px;
-	color: #898694;
+	color: #6e6b76;
 	display: flex;
 	align-items: center;
 	gap: 7px;
@@ -201,14 +201,14 @@ main {
 .icon-button {
 	display: grid;
 	place-items: center;
-	color: #92909e;
+	color: #6c6b75;
 	width: 28px;
 	height: 29px;
 	border-radius: 7px;
 }
 .icon-button:hover {
 	background: #eeebf4;
-	color: #8570b0;
+	color: #75639b;
 }
 .workspace {
 	max-width: 1570px;
@@ -225,7 +225,7 @@ main {
 .eyebrow {
 	font-size: 9px;
 	letter-spacing: 1.6px;
-	color: #a396b1;
+	color: #72697c;
 	font-weight: 600;
 	display: flex;
 	align-items: center;
@@ -240,10 +240,10 @@ h1 {
 	color: #383342;
 }
 h1 > span {
-	color: #a48cc8;
+	color: #766590;
 }
 .page-title p {
-	color: #9793a2;
+	color: #6d6a75;
 	font-size: 12px;
 	margin: 0;
 }
@@ -270,7 +270,7 @@ h1 > span {
 }
 .import-button > span {
 	font-size: 9px;
-	color: #aaa4b3;
+	color: #6e6b74;
 	border-left: 1px solid #e9e5ef;
 	padding-left: 9px;
 	margin-left: 4px;
@@ -293,7 +293,7 @@ h1 > span {
 	place-items: center;
 	background: #f0ebf8;
 	border: 1px solid #e8e0f3;
-	color: #9b85bc;
+	color: #76658f;
 	border-radius: 11px;
 	flex-shrink: 0;
 }
@@ -314,12 +314,12 @@ h1 > span {
 }
 .run-info > span {
 	font-size: 9px;
-	color: #a19aaa;
+	color: #6f6a75;
 	letter-spacing: 0.1px;
 }
 .run-info b {
 	padding: 0 7px;
-	color: #c2bacd;
+	color: #6f6a75;
 }
 .run-stat {
 	border-left: 1px solid #e8e3ee;
@@ -339,13 +339,13 @@ h1 > span {
 .run-stat > span,
 .run-stat div > span {
 	font-size: 9px;
-	color: #a59aaa;
+	color: #706974;
 }
 .run-stat.protection {
 	flex-direction: row;
 	gap: 9px;
 	align-items: center;
-	color: #8b9c91;
+	color: #636f67;
 	min-width: 180px;
 }
 .run-stat.protection div {
@@ -357,7 +357,7 @@ h1 > span {
 	font-family: inherit;
 	font-size: 11px;
 	font-weight: 500;
-	color: #748e80;
+	color: #5c7065;
 }
 .studio-grid {
 	display: grid;
@@ -391,7 +391,7 @@ h1 > span {
 	align-items: center;
 	gap: 8px;
 	font-size: 11px;
-	color: #aaa4b2;
+	color: #6e6b74;
 	position: relative;
 	padding: 0 1px;
 }
@@ -412,7 +412,7 @@ h1 > span {
 	font-size: 9px;
 	padding: 2px 5px;
 	border-radius: 4px;
-	color: #9a8baa;
+	color: #73687f;
 }
 .toolbar-right {
 	display: flex;
@@ -422,7 +422,7 @@ h1 > span {
 .replay-badge {
 	font-size: 8px;
 	letter-spacing: 1px;
-	color: #b0a2bf;
+	color: #71687a;
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -464,7 +464,7 @@ h1 > span {
 	font-size: 8px;
 	font-weight: 600;
 	letter-spacing: 1.4px;
-	color: #a29aac;
+	color: #706a77;
 	z-index: 1;
 	pointer-events: none;
 }
@@ -478,7 +478,7 @@ h1 > span {
 	letter-spacing: 0;
 	font-weight: 400;
 	font-size: 10px;
-	color: #b8b0c1;
+	color: #6e6a74;
 	padding: 8px 0 0 12px;
 }
 .agent-node {
@@ -509,17 +509,17 @@ h1 > span {
 	font:
 		10px "DM Sans",
 		sans-serif;
-	fill: #88828e;
+	fill: #706b74;
 }
 .is-selected .node-label {
-	fill: #8d70b5;
+	fill: #79609c;
 	font-weight: 600;
 }
 .team-halo {
 	animation: appear 0.7s ease;
 }
 .team-label {
-	fill: #9986ad;
+	fill: #746683;
 	font:
 		500 11px "DM Sans",
 		sans-serif;
@@ -537,7 +537,7 @@ h1 > span {
 	border-radius: 7px;
 	padding: 9px 10px;
 	box-shadow: 0 2px 7px #352b4404;
-	color: #b0a7bb;
+	color: #6f6976;
 	width: 204px;
 }
 .canvas-search input {
@@ -545,11 +545,11 @@ h1 > span {
 	border: 0;
 	outline: none;
 	font-size: 10px;
-	color: #756a83;
+	color: #736880;
 	width: 145px;
 }
 .canvas-search input::placeholder {
-	color: #b0a7bb;
+	color: #6f6976;
 }
 .canvas-search > span {
 	font-size: 12px;
@@ -560,7 +560,7 @@ h1 > span {
 	position: absolute;
 	bottom: 31px;
 	right: 23px;
-	color: #a49aaf;
+	color: #706977;
 	font-size: 8px;
 }
 .canvas-legend > span {
@@ -618,7 +618,7 @@ h1 > span {
 	justify-content: space-between;
 	gap: 10px;
 	font-size: 9px;
-	color: #8f829e;
+	color: #72687e;
 	margin-bottom: 7px;
 }
 .timeline > div > span:first-child {
@@ -628,7 +628,7 @@ h1 > span {
 }
 .timeline b {
 	font-weight: 400;
-	color: #bbb3c4;
+	color: #6e6a74;
 }
 .timeline input {
 	appearance: none;
@@ -668,7 +668,7 @@ h1 > span {
 	align-items: center;
 	gap: 8px;
 	font-size: 10px;
-	color: #a395b3;
+	color: #72687d;
 }
 .inspector {
 	background: #fff;
@@ -685,7 +685,7 @@ h1 > span {
 	align-items: center;
 	justify-content: space-between;
 	padding: 0 20px;
-	color: #b2a6bd;
+	color: #706977;
 	font-size: 8px;
 	letter-spacing: 1.4px;
 }
@@ -706,7 +706,7 @@ h1 > span {
 	position: relative;
 	font-family: Manrope, sans-serif;
 	font-size: 22px;
-	color: #a58cbe;
+	color: #776589;
 }
 .profile-avatar > span {
 	position: absolute;
@@ -727,7 +727,7 @@ h1 > span {
 }
 .status-pill {
 	font-size: 8px;
-	color: #8b7b9d;
+	color: #756784;
 	background: #f5f1fa;
 	border: 1px solid #eee8f5;
 	border-radius: 20px;
@@ -735,7 +735,7 @@ h1 > span {
 }
 .agent-id {
 	font-size: 8px;
-	color: #b4abbf;
+	color: #706a76;
 	margin-top: 11px;
 }
 .inspector-tabs {
@@ -746,7 +746,7 @@ h1 > span {
 }
 .inspector-tabs > button {
 	font-size: 10px;
-	color: #b0a7bb;
+	color: #6f6976;
 	padding: 0 0 12px;
 	position: relative;
 	display: flex;
@@ -754,7 +754,7 @@ h1 > span {
 	align-items: center;
 }
 .inspector-tabs > button.selected {
-	color: #8a709e;
+	color: #7b648d;
 }
 .inspector-tabs > button.selected:after {
 	content: "";
@@ -784,20 +784,20 @@ h1 > span {
 	gap: 6px;
 	align-items: center;
 	letter-spacing: 1px;
-	color: #aa9cb7;
+	color: #72697b;
 	font-size: 8px;
 	font-weight: 500;
 }
 .detail-label > span {
 	margin-left: auto;
 	font-size: 7px;
-	color: #b2a3bf;
+	color: #72687a;
 	letter-spacing: 0.5px;
 }
 .pitch {
 	font-size: 12px;
 	line-height: 1.85;
-	color: #80718f;
+	color: #746782;
 	margin: 11px 0 22px;
 	font-weight: 400;
 }
@@ -812,7 +812,7 @@ h1 > span {
 	border: 1px solid #ece6f1;
 	border-radius: 4px;
 	padding: 4px 7px;
-	color: #9d8dac;
+	color: #73677e;
 	background: #fdfbff;
 }
 .disclosure-card {
@@ -826,7 +826,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	color: #9a83b0;
+	color: #776588;
 }
 .disclosure-card strong {
 	font-size: 10px;
@@ -834,7 +834,7 @@ h1 > span {
 }
 .disclosure-card > p {
 	font-size: 8px;
-	color: #b2a4be;
+	color: #72697a;
 	margin: 6px 0 15px 23px;
 }
 .level-row {
@@ -842,7 +842,7 @@ h1 > span {
 	align-items: center;
 	gap: 9px;
 	font-size: 8px;
-	color: #bcb2c6;
+	color: #6f6975;
 	padding: 6px 0;
 	position: relative;
 }
@@ -853,7 +853,7 @@ h1 > span {
 	width: 16px;
 	height: 16px;
 	background: #eeebf3;
-	color: #c1b8cb;
+	color: #706b76;
 	z-index: 1;
 }
 .level-row:not(:nth-last-child(2)):after {
@@ -866,21 +866,21 @@ h1 > span {
 	background: #e6dfee;
 }
 .level-row.unlocked {
-	color: #927ea6;
+	color: #766686;
 }
 .level-row.unlocked > span {
 	background: #e8e0f2;
-	color: #a189bb;
+	color: #77658a;
 }
 .level-row small {
 	margin-left: auto;
 	font-size: 7px;
-	color: #bfb3cb;
+	color: #716a78;
 }
 .disclosure-footnote {
 	display: block;
 	font-size: 7px;
-	color: #b6a9c1;
+	color: #716978;
 	margin-top: 9px;
 	line-height: 1.5;
 }
@@ -894,7 +894,7 @@ h1 > span {
 	width: 100%;
 	text-align: left;
 	padding: 9px 0;
-	color: #9686a3;
+	color: #73677e;
 }
 .tiny-avatar {
 	width: 27px;
@@ -905,7 +905,7 @@ h1 > span {
 	display: grid;
 	place-items: center;
 	font-size: 9px;
-	color: #a18cb8;
+	color: #766686;
 }
 .connection-list button > div {
 	font-size: 10px;
@@ -913,19 +913,19 @@ h1 > span {
 .connection-list small {
 	font-size: 8px;
 	display: block;
-	color: #b5a9bf;
+	color: #706976;
 	margin-top: 4px;
 }
 .connection-list button > svg {
 	margin-left: auto;
-	color: #b8acc2;
+	color: #706976;
 }
 .pair-bar {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	font-size: 10px;
-	color: #8a709e;
+	color: #7b648d;
 	background: #f6f2fa;
 	border-radius: 8px;
 	padding: 7px 10px;
@@ -950,7 +950,7 @@ h1 > span {
 .idea-same {
 	font-size: 10px;
 	font-style: italic;
-	color: #a69ab2;
+	color: #716979;
 	margin: 6px 0 0;
 }
 .idea-roles {
@@ -964,26 +964,26 @@ h1 > span {
 	border: 1px solid #ece6f1;
 	border-radius: 4px;
 	padding: 2px 6px;
-	color: #9d8dac;
+	color: #73677e;
 	background: #fff;
 }
 .idea-roles > span.added {
-	color: #3f7d6c;
+	color: #3c7767;
 	border-color: #cde6de;
 	background: #f0f8f5;
 }
 .idea-roles > span.dropped {
-	color: #b9a5ab;
+	color: #75686c;
 	text-decoration: line-through;
 	border-style: dashed;
 }
 .idea-meta {
 	font-size: 9px;
-	color: #a69ab2;
+	color: #716979;
 	margin: 6px 0 0;
 }
 .idea-meta .good {
-	color: #3f7d6c;
+	color: #3c7767;
 }
 .idea-history {
 	list-style: none;
@@ -996,7 +996,7 @@ h1 > span {
 }
 .idea-step {
 	font-size: 10px;
-	color: #8a709e;
+	color: #7b648d;
 }
 .idea-end {
 	border-top: 1px solid #ece6f1;
@@ -1006,11 +1006,11 @@ h1 > span {
 .pair-bar > button {
 	display: flex;
 	font-size: 9px;
-	color: #a18cb8;
+	color: #766686;
 }
 .inspector-footer {
 	font-size: 8px;
-	color: #b5a6c1;
+	color: #72697a;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1041,11 +1041,11 @@ h1 > span {
 	margin: 0;
 	font-weight: 500;
 	font-size: 11px;
-	color: #867492;
+	color: #766680;
 }
 .activity-heading > div > span:last-child {
 	font-size: 8px;
-	color: #b5a8c0;
+	color: #706877;
 	border: 1px solid #eee8f4;
 	border-radius: 4px;
 	padding: 2px 6px;
@@ -1056,7 +1056,7 @@ h1 > span {
 	align-items: center;
 	gap: 7px;
 	font-size: 9px;
-	color: #b0a0bd;
+	color: #72687b;
 }
 .activity-feed {
 	padding: 5px 20px;
@@ -1073,7 +1073,7 @@ h1 > span {
 	gap: 11px;
 	padding: 10px 0;
 	font-size: 10px;
-	color: #96869f;
+	color: #73677a;
 	border-bottom: 1px solid #f6f3f9;
 	animation: appear 0.3s ease;
 }
@@ -1087,23 +1087,23 @@ h1 > span {
 	border-radius: 7px;
 	display: grid;
 	place-items: center;
-	color: #aaa0b9;
+	color: #706a7a;
 	background: #faf9fc;
 	flex-shrink: 0;
 }
 .feed-icon.purple {
 	background: #f5f0fb;
-	color: #ac94c5;
+	color: #776688;
 }
 .feed-icon.green {
 	background: #eef6f2;
-	color: #83a995;
+	color: #587164;
 	border-color: #e5f0ea;
 }
 .event-type {
 	margin-left: auto;
 	font-size: 8px;
-	color: #b9acc4;
+	color: #716978;
 	background: #faf7fd;
 	border: 1px solid #eee7f5;
 	border-radius: 4px;
@@ -1111,7 +1111,7 @@ h1 > span {
 }
 .feed-row > small {
 	font-size: 8px;
-	color: #c4b8cd;
+	color: #706975;
 	min-width: 30px;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
@@ -1120,7 +1120,7 @@ h1 > span {
 	display: flex;
 	justify-content: space-between;
 	padding: 22px 0;
-	color: #b1a6bc;
+	color: #706976;
 	font-size: 8px;
 }
 .page-footer > span {
@@ -1134,11 +1134,11 @@ h1 > span {
 }
 .footer-star {
 	font-size: 17px;
-	color: #ad9abe;
+	color: #74677f;
 	padding: 0 5px;
 }
 .muted {
-	color: #b3a8bf;
+	color: #716a78;
 	font-size: 10px;
 	line-height: 1.8;
 }
@@ -1159,7 +1159,7 @@ h1 > span {
 }
 .teams-view > p {
 	font-size: 11px;
-	color: #ac9bb8;
+	color: #73687b;
 	line-height: 1.7;
 	margin-bottom: 24px;
 }
@@ -1183,7 +1183,7 @@ h1 > span {
 }
 .team-card-top > span {
 	font-size: 8px;
-	color: #99ac9b;
+	color: #637065;
 	background: #f0f6f1;
 	border-radius: 4px;
 	padding: 3px 6px;
@@ -1207,7 +1207,7 @@ h1 > span {
 .team-card p {
 	font-size: 10px;
 	line-height: 1.7;
-	color: #b09fbb;
+	color: #72677a;
 	min-height: 35px;
 }
 .team-member-row {
@@ -1221,7 +1221,7 @@ h1 > span {
 	border-radius: 4px;
 	padding: 4px 6px;
 	background: #f5f1fa;
-	color: #a08caf;
+	color: #756680;
 }
 .approval-row {
 	border-top: 1px solid #f0eaf5;
@@ -1234,34 +1234,34 @@ h1 > span {
 	padding: 7px 9px;
 }
 .button.primary {
-	background: #9180b3;
+	background: #6e5b96;
 	color: #fff;
-	border-color: #9180b3;
+	border-color: #6e5b96;
 }
 .button.primary:hover {
-	background: #8069a6;
+	background: #5e4c85;
 }
 .approval-status {
 	display: flex;
 	align-items: center;
 	gap: 5px;
 	font-size: 9px;
-	color: #8b9d90;
+	color: #636f66;
 }
 .approval-status > button {
-	color: #b49fbe;
+	color: #75677b;
 	text-decoration: underline;
 }
 .empty-state {
 	padding: 35px 12px;
 	text-align: center;
-	color: #af9fbb;
+	color: #72677a;
 	line-height: 1.8;
 }
 .empty-state h3 {
 	font-weight: 500;
 	font-size: 15px;
-	color: #93809f;
+	color: #76667f;
 }
 .empty-state p {
 	font-size: 11px;
@@ -1270,7 +1270,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	color: #a28caf;
+	color: #766680;
 	font-size: 9px;
 	margin-bottom: 17px;
 }
@@ -1300,7 +1300,7 @@ h1 > span {
 	font-size: 9px;
 	line-height: 1.8;
 	background: #faf5ec;
-	color: #b09972;
+	color: #796a4f;
 	border: 1px solid #f2e8d8;
 	padding: 9px;
 	border-radius: 6px;
@@ -1323,7 +1323,7 @@ h1 > span {
 .agent-activity > p {
 	font-size: 10px;
 	line-height: 1.7;
-	color: #9883a6;
+	color: #776681;
 }
 .agent-activity blockquote {
 	font-size: 9px;
@@ -1333,13 +1333,13 @@ h1 > span {
 	border: 1px solid #efe7f5;
 	border-radius: 6px;
 	padding: 9px;
-	color: #b29abe;
+	color: #75667d;
 }
 .error {
 	display: flex;
 	justify-content: space-between;
 	background: #fff1f0;
-	color: #a65f60;
+	color: #9c595a;
 	border: 1px solid #efd2d3;
 	padding: 12px;
 	border-radius: 8px;
@@ -1379,7 +1379,7 @@ h1 > span {
 }
 .modal p {
 	font-size: 12px;
-	color: #a18dab;
+	color: #76677d;
 	line-height: 1.8;
 }
 .modal .button {
@@ -1775,67 +1775,67 @@ h1 > span {
 }
 /* Keep quiet secondary text legible while the canvas carries the visual hierarchy. */
 .page-title p {
-	color: #81798d;
+	color: #70697b;
 }
 .run-info > span {
-	color: #8b8098;
+	color: #72697d;
 }
 .eyebrow {
-	color: #8e7b9f;
+	color: #766684;
 }
 .detail-label {
-	color: #897498;
+	color: #776584;
 }
 .pitch {
 	color: #756382;
 }
 .agent-id {
-	color: #92839f;
+	color: #73677e;
 }
 .canvas-caption {
-	color: #8c7c9b;
+	color: #746781;
 }
 .canvas-caption > span:last-child {
-	color: #a190af;
+	color: #74687e;
 }
 .canvas-legend {
-	color: #8e7c9d;
+	color: #766782;
 }
 .node-label {
-	fill: #7f6e8e;
+	fill: #766684;
 }
 .level-row {
-	color: #9b8ba8;
+	color: #74687e;
 }
 .level-row.unlocked {
 	color: #79628f;
 }
 .disclosure-card > p {
-	color: #9985a9;
+	color: #766682;
 }
 .disclosure-footnote {
-	color: #9d8aab;
+	color: #766780;
 }
 .inspector-footer {
-	color: #9b87aa;
+	color: #766781;
 }
 .connection-list small {
-	color: #9e8aac;
+	color: #75667f;
 }
 .activity-heading > button {
-	color: #8f77a2;
+	color: #786488;
 }
 .feed-row {
-	color: #80698f;
+	color: #7a6488;
 }
 .event-type {
-	color: #9a82ad;
+	color: #786587;
 }
 .feed-row > small {
-	color: #a591b5;
+	color: #756781;
 }
 .timeline > div {
-	color: #8b719f;
+	color: #7a638c;
 }
 .agent-node {
 	transition:
@@ -1859,7 +1859,7 @@ h1 > span {
 	position: absolute;
 	right: 24px;
 	top: 18px;
-	color: #c9badf;
+	color: #71687d;
 	font-size: 20px;
 }
 .meet-intro {
@@ -1875,19 +1875,19 @@ h1 > span {
 	margin: 12px 0;
 }
 .meet-intro h2 > span {
-	color: #aa95cf;
+	color: #74658d;
 	font-weight: 400;
 	font-size: 22px;
 }
 .meet-intro p {
 	font-size: 13px;
 	line-height: 1.8;
-	color: #718097;
+	color: #606d80;
 }
 .mascot-note {
 	display: block;
 	font-size: 9px;
-	color: #94a0b3;
+	color: #656d7a;
 	margin-top: 22px;
 }
 .your-character {
@@ -1905,7 +1905,7 @@ h1 > span {
 }
 .your-character > span {
 	font-size: 9px;
-	color: #718198;
+	color: #606e81;
 	margin-top: 7px;
 }
 .character-examples {
@@ -1924,7 +1924,7 @@ h1 > span {
 }
 .character-example > span {
 	font-size: 9px;
-	color: #718097;
+	color: #606d80;
 	text-align: center;
 }
 .speech-bubble {
