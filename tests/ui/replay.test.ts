@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	board,
 	demoEvents,
 	describe as describeEvent,
 	ideaVersions,
 	pairEvents,
 	parseLog,
 	project,
+	type Event,
 } from "../../src/ui/web/replay.js";
 describe("browser replay", () => {
 	it("rejects malformed events before they reach rendering", () => {
@@ -298,5 +300,84 @@ describe("browser replay", () => {
 		]);
 		expect(versions[0]?.pitch).toBe("A civic app.");
 		expect(agreed).toBe(1);
+	});
+	it("builds the public board: listings, people looking to join, and each one's status", () => {
+		const team = (id: string, members: string[]): Event => ({
+			type: "team",
+			team: {
+				id,
+				members,
+				project: { title: "T", description: "D" },
+				rolesNeeded: [],
+				status: "committed",
+			},
+		});
+		const listing = (agent: string): Event => ({
+			type: "listing",
+			agent,
+			pitch: `${agent}'s idea`,
+			rolesNeeded: ["design"],
+			gateBlocks: 0,
+			fellBack: false,
+		});
+		const discovery = (agent: string, approach: string[]): Event => ({
+			type: "discovery",
+			agent,
+			approach,
+			fellBack: false,
+		});
+		const events: Event[] = [
+			listing("ana"),
+			listing("ben"),
+			listing("cy"),
+			{
+				type: "round",
+				time: "",
+				model: "",
+				agents: ["ana", "ben", "cy", "dee", "eli"],
+			},
+			discovery("ana", ["dee", "ben"]),
+			discovery("cy", ["ben"]),
+			team("t-ana", ["ana", "dee"]),
+			team("t-cy", ["cy", "eli"]),
+			// eli leaves, which dissolves cy's team without a team event.
+			{
+				type: "recheck",
+				agent: "eli",
+				team: "t-cy",
+				decision: "leave",
+				fellBack: false,
+			},
+		];
+		const byId = (es: Event[]) =>
+			Object.fromEntries(board(es).map((b) => [b.id, b]));
+		const before = byId(events);
+		expect(board(events).map((b) => b.id)).toEqual([
+			"ana",
+			"ben",
+			"cy",
+			"dee",
+			"eli",
+		]);
+		expect(before.ana).toMatchObject({ status: "owner", approachedBy: 0 });
+		expect(before.ben).toMatchObject({
+			pitch: "ben's idea",
+			status: "exploring",
+			approachedBy: 2,
+		});
+		expect(before.cy?.status).toBe("exploring");
+		expect(before.dee).toMatchObject({
+			status: "member",
+			joined: "ana",
+			rolesNeeded: [],
+			approachedBy: 1,
+		});
+		expect(before.dee?.pitch).toBeUndefined();
+		expect(before.ana?.joined).toBeUndefined();
+		expect(before.eli).toMatchObject({ status: "exploring", leftTeams: 1 });
+		// Discovery only runs for owners with places left.
+		expect(byId([...events, discovery("ana", [])]).ana?.status).toBe(
+			"owner-open",
+		);
 	});
 });

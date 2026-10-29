@@ -626,6 +626,93 @@ export function ideaVersions(
 	}
 	return { versions, agreed };
 }
+// One entry on the public board: what any agent could see about someone, plus how many agents approached
+// them, which only the operator sees.
+export type BoardEntry = {
+	id: string;
+	// Missing for someone looking to join, whom the board shows by id only.
+	pitch?: string;
+	rolesNeeded: string[];
+	// "member" and "owner" have left the board; "owner-open" still has places to fill.
+	status: "exploring" | "member" | "owner" | "owner-open";
+	// For a member, whose team they joined. Only the operator sees this: on the board they just disappear.
+	joined?: string;
+	leftTeams: number;
+	approachedBy: number;
+};
+// The board as it stands after `events`: every listing as first posted (the engine keeps the original even
+// when the idea is reshaped), then everyone with no project. An owner is still looking if the engine ran
+// discovery for them after their team last changed, since it only does that for owners with places left.
+export function board(events: Event[]): BoardEntry[] {
+	const listings = new Map<
+		string,
+		{ pitch: string; rolesNeeded: string[] }
+	>();
+	const everyone = new Set<string>();
+	const approachers = new Map<string, Set<string>>();
+	const left = new Map<string, number>();
+	const teams = new Map<string, string[]>();
+	const changed = new Map<string, number>();
+	const looked = new Map<string, number>();
+	for (const [i, e] of events.entries()) {
+		if (e.type === "round") e.agents.forEach((id) => everyone.add(id));
+		if (e.type === "listing") {
+			everyone.add(e.agent);
+			listings.set(e.agent, {
+				pitch: e.pitch,
+				rolesNeeded: e.rolesNeeded,
+			});
+		}
+		if (e.type === "discovery") {
+			looked.set(e.agent, i);
+			for (const id of e.approach) {
+				if (!approachers.has(id)) approachers.set(id, new Set());
+				approachers.get(id)!.add(e.agent);
+			}
+		}
+		if (e.type === "team") {
+			teams.set(e.team.id, e.team.members);
+			changed.set(e.team.id, i);
+		}
+		// A team left with only its owner dissolves without a team event, so drop the leaver here.
+		if (e.type === "recheck" && e.decision === "leave") {
+			left.set(e.agent, (left.get(e.agent) ?? 0) + 1);
+			const members = (teams.get(e.team) ?? []).filter(
+				(id) => id !== e.agent,
+			);
+			if (members.length >= 2) teams.set(e.team, members);
+			else teams.delete(e.team);
+			changed.set(e.team, i);
+		}
+	}
+	const status = (
+		id: string,
+		team: [string, string[]] | undefined,
+	): BoardEntry["status"] => {
+		if (!team) return "exploring";
+		if (team[1][0] !== id) return "member";
+		return (looked.get(id) ?? -1) > changed.get(team[0])!
+			? "owner-open"
+			: "owner";
+	};
+	const entry = (id: string): BoardEntry => {
+		const team = [...teams].find(([, members]) => members.includes(id));
+		const owner = team?.[1][0];
+		return {
+			id,
+			...listings.get(id),
+			rolesNeeded: listings.get(id)?.rolesNeeded ?? [],
+			status: status(id, team),
+			...(owner !== undefined && owner !== id && { joined: owner }),
+			leftTeams: left.get(id) ?? 0,
+			approachedBy: approachers.get(id)?.size ?? 0,
+		};
+	};
+	return [
+		...[...listings.keys()].map(entry),
+		...[...everyone].filter((id) => !listings.has(id)).map(entry),
+	];
+}
 export function project(events: Event[]) {
 	const people = new Map<string, Person>();
 	const links = new Map<string, { a: string; b: string; level: number }>();
