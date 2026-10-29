@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	createAgent,
+	learn,
 	raiseLevel,
 	recordMessage,
 } from "../../src/engine/agent.js";
@@ -227,7 +228,7 @@ describe("level 2 and the roles a team needs", () => {
 
 describe("level 2 in a brainstorm", () => {
 	// Ada at level 2 with p9: p9 proposed brainstorming, Ada accepted, and Ada adopted p9's idea at level 1,
-	// plus `extra` revisions after it.
+	// plus `extra` revisions after it. p9 has shared expert backend and beginner design.
 	const brainstormedAt2 = (extra = 0) => {
 		const messages = [
 			{
@@ -258,21 +259,53 @@ describe("level 2 in a brainstorm", () => {
 				adopt: true,
 			},
 		];
-		return messages.reduce(
-			(agent, m) => recordMessage(agent, "p9", m),
-			at(2),
+		return learn(
+			messages.reduce((agent, m) => recordMessage(agent, "p9", m), at(2)),
+			"p9",
+			{
+				skills: [
+					{ name: "backend", level: "expert" },
+					{ name: "design", level: "beginner" },
+				],
+			},
 		);
 	};
 
-	test("asks to reshape the idea around both skill sets instead of withdrawing", () => {
+	test("allows reshaping the idea around what the other is strong in, but not forcing a fit", () => {
 		const [system, user] = interestMessages(brainstormedAt2(), "p9", 2);
-		expect(system!.content).toContain("a fair fit beats no team");
+		expect(system!.content).toContain(
+			"a team that doesn't really fit is worse than none",
+		);
 		expect(system!.content).not.toContain("Be selective");
 		expect(user!.content).toContain("the idea you agreed on needs mobile");
 		expect(user!.content).toContain(
-			"don't withdraw: continue with a revision",
+			"it must need a role agent p9 is strong in (backend)",
 		);
 		expect(user!.content).not.toContain("Continue only if one of you does");
+	});
+
+	test("a reshaped idea that doesn't need anything the other is strong in is sent back", async () => {
+		const client = fakeModel(
+			{
+				rationale: "Design-led.",
+				interest: "continue",
+				revision: { pitch: "A poster maker.", rolesNeeded: ["design"] },
+			},
+			{
+				rationale: "Backend-led.",
+				interest: "continue",
+				revision: {
+					pitch: "An API for posters.",
+					rolesNeeded: ["backend"],
+				},
+			},
+		);
+		const result = await checkInterest(client, brainstormedAt2(), "p9", 2);
+		expect(client.sent).toHaveLength(2);
+		expect(client.sent[1]).toContain(
+			"must need a role agent p9 is strong in",
+		);
+		expect(result.revision?.rolesNeeded).toEqual(["backend"]);
 	});
 
 	test("with no revisions left, falls back to the usual role check", () => {

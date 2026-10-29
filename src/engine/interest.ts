@@ -65,6 +65,30 @@ export function mayRevise(
 	);
 }
 
+// Whether `agent` is at level 2 of a brainstorm with `otherId`, with an idea agreed and a revision left: then,
+// with skills now known, an idea that fits neither of them may be reshaped around both instead of dropped.
+function reshaping(
+	agent: AgentState,
+	otherId: string,
+	level: DisclosureLevel,
+): boolean {
+	const agreed = agreedTerms(agent, otherId);
+	return (
+		level === 2 &&
+		mayRevise(agent, otherId, level) &&
+		brainstormedWith(agent, otherId) &&
+		agreed !== undefined &&
+		agreed.pitch !== BRAINSTORM_PITCH
+	);
+}
+
+// The roles `otherId` has shared a skill in at intermediate level or above.
+function strongRoles(agent: AgentState, otherId: string): string[] {
+	return (contactOf(agent, otherId).learned.skills ?? [])
+		.filter((skill) => skill.level !== "beginner")
+		.map((skill) => skill.name);
+}
+
 // The prompt asking `agent` whether to keep going with `otherId` at `level` (the level of the share it just
 // learned; its own contact may not show it open yet), built from its own profile and only what the other
 // side has shared with it so far. While revisions are allowed, it may also propose a reshaped version of the
@@ -80,14 +104,8 @@ export function interestMessages(
 	const revise = mayRevise(agent, otherId, level);
 	const steer = steerText(hunch, "interest");
 	const agreed = agreedTerms(agent, otherId);
-	// A brainstorm is the last chance at a team for both humans, so at level 2, with skills now known, an idea
-	// that doesn't fit them gets reshaped around them rather than dropped.
-	const reshape =
-		level === 2 &&
-		revise &&
-		brainstormedWith(agent, otherId) &&
-		agreed !== undefined &&
-		agreed.pitch !== BRAINSTORM_PITCH;
+	const reshape = reshaping(agent, otherId, level);
+	const strong = strongRoles(agent, otherId);
 	return [
 		{
 			role: "system",
@@ -99,7 +117,7 @@ export function interestMessages(
 					WEIGHING[level] ?? "",
 					"Decide whether to keep going toward a team (continue) or stop here (withdraw).",
 					reshape
-						? "Neither human has a team, and this is the last chance at one: a fair fit beats no team."
+						? "Neither human has a team yet, so reshaping the idea to fit you both is worth trying, but a team that doesn't really fit is worse than none."
 						: "Be selective: your human has limited time, and a weak match blocks a better one.",
 					revise
 						? "Only continue or withdraw is sent, plus a revision if you add one; your rationale is private, so explain yourself fully there."
@@ -129,7 +147,7 @@ export function interestMessages(
 					: []),
 				...(reshape
 					? [
-							`You've been brainstorming, and the idea you agreed on needs ${agreed.rolesNeeded.join(", ")} from whoever didn't propose it. A team only forms if someone fills one of those roles. Now that you know each other's skills, if neither of you does, don't withdraw: continue with a revision that reshapes the idea around what you can both do, needing roles the other person can fill. Withdraw only if no project could use both of you.`,
+							`You've been brainstorming, and the idea you agreed on needs ${agreed!.rolesNeeded.join(", ")} from whoever didn't propose it. A team only forms if someone fills one of those roles. If one of you does, judge it as usual. If neither does, you may continue with a revision that reshapes the idea around what you can both do: it must need a role agent ${otherId} is strong in (${strong.length > 0 ? strong.join(", ") : "they have none"}), and give your human work in their strongest skill too. If no such project exists, or your hours, time zones, or team sizes don't fit, withdraw.`,
 						]
 					: level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
 						? [
@@ -182,6 +200,17 @@ export async function checkInterest(
 					if (!mayRevise(agent, otherId, level)) {
 						return [
 							"no revisions are allowed now; leave the revision out",
+						];
+					}
+					// A reshaped brainstorm idea has to use what the other person is actually good at.
+					if (
+						reshaping(agent, otherId, level) &&
+						!revision.rolesNeeded.some((r) =>
+							strongRoles(agent, otherId).includes(r),
+						)
+					) {
+						return [
+							`a reshaped idea must need a role agent ${otherId} is strong in (${strongRoles(agent, otherId).join(", ") || "none"}); if there's no such project, withdraw instead`,
 						];
 					}
 					const violations = checkDisclosure(
