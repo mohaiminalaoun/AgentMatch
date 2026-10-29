@@ -10,6 +10,7 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"eval": "tsx src/evaluation/run.ts",
+		"eval:agents": "tsx src/eval-agents.ts",
 		"ask": "tsx src/ask.ts",
 		"decide": "tsx src/decide.ts",
 		"reliability": "tsx src/reliability.ts",

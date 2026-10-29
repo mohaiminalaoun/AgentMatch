@@ -130,27 +130,39 @@ export function evaluate(
 				settings.teamSize,
 			),
 		);
-		const summaries = groupings.map((teams) => summarize(teams));
-		const values = (key: keyof GroupingSummary) =>
-			summaries.map((s) => s[key]);
-		return {
+		// A central matcher shows the participants nothing of each other; a broadcast shows them everything.
+		return resultFrom(
 			method,
-			score: mean(values("score")),
-			scoreStdDev: stdDev(values("score")),
-			worst: mean(values("worst")),
-			coverage: mean(values("coverage")),
-			interest: mean(values("interest")),
-			overlap: mean(values("overlap")),
-			placed: mean(values("placed")),
-			overall: mean(values("overall")),
-			// A central matcher shows the participants nothing of each other; a broadcast shows them everything.
-			leakage:
-				privacy === "broadcast"
-					? mean(groupings.map(broadcastLeakage))
-					: 0,
-			central: privacy === "central",
-		};
+			groupings.map((teams) => summarize(teams)),
+			groupings.map((teams) =>
+				privacy === "broadcast" ? broadcastLeakage(teams) : 0,
+			),
+			privacy === "central",
+		);
 	});
+}
+
+// One result row from a method's per-seed summaries and leakages, averaged over the seeds.
+export function resultFrom(
+	method: string,
+	summaries: readonly GroupingSummary[],
+	leakages: readonly number[],
+	central: boolean,
+): MethodResult {
+	const values = (key: keyof GroupingSummary) => summaries.map((s) => s[key]);
+	return {
+		method,
+		score: mean(values("score")),
+		scoreStdDev: stdDev(values("score")),
+		worst: mean(values("worst")),
+		coverage: mean(values("coverage")),
+		interest: mean(values("interest")),
+		overlap: mean(values("overlap")),
+		placed: mean(values("placed")),
+		overall: mean(values("overall")),
+		leakage: mean(leakages),
+		central,
+	};
 }
 
 const COLUMNS: [header: string, cell: (row: MethodResult) => string][] = [
