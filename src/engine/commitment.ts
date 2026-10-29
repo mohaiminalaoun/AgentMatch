@@ -3,6 +3,7 @@ import { aboutHuman } from "./notes.js";
 import {
 	agreedTerms,
 	agreedVersion,
+	brainstormedWith,
 	contactOf,
 	learn,
 	raiseLevel,
@@ -293,10 +294,7 @@ export function projectOwner(
 	const agreed = agreedVersion(world.agents[a]!, b);
 	// Two people who brainstormed own whatever one of them came up with, idea of their own or not; until they
 	// agree on a real idea, nobody owns anything.
-	const brainstormed = contactOf(world.agents[a]!, b).history.some(
-		(m) => "pitch" in m && !("kind" in m) && m.pitch === BRAINSTORM_PITCH,
-	);
-	if (brainstormed) {
+	if (brainstormedWith(world.agents[a]!, b)) {
 		return agreed && agreed.terms.pitch !== BRAINSTORM_PITCH
 			? agreed.author
 			: undefined;

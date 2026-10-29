@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { aboutHuman } from "./notes.js";
-import { contactOf, type AgentState } from "./agent.js";
+import { brainstormedWith, contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
 import { isOpen, teamOf } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
@@ -283,13 +283,9 @@ export function leftovers(world: World): string[] {
 // or a proposal was declined), and they haven't brainstormed before. A pair that reached level 1 can't start
 // over: its levels are already open, so the shares that drive a conversation would never be sent.
 export function canBrainstorm(agent: AgentState, otherId: string): boolean {
-	const contact = contactOf(agent, otherId);
 	return (
-		contact.level === 0 &&
-		!contact.history.some(
-			(m) =>
-				"pitch" in m && !("kind" in m) && m.pitch === BRAINSTORM_PITCH,
-		)
+		contactOf(agent, otherId).level === 0 &&
+		!brainstormedWith(agent, otherId)
 	);
 }
 

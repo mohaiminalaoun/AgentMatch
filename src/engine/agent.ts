@@ -13,7 +13,7 @@ import type {
 	Share,
 	Terms,
 } from "./proposal.js";
-import { JOIN_PREFIX } from "./proposal.js";
+import { BRAINSTORM_PITCH, JOIN_PREFIX } from "./proposal.js";
 
 export type AgentMessage =
 	| Proposal
@@ -212,4 +212,12 @@ export function revisionsWith(agent: AgentState, otherId: string): number {
 	return contactOf(agent, otherId).history.filter(
 		(m) => "kind" in m && m.kind === "revision",
 	).length;
+}
+
+// Whether `agent`'s conversation with `otherId` is a brainstorm: one of them proposed coming up with a project
+// together.
+export function brainstormedWith(agent: AgentState, otherId: string): boolean {
+	return contactOf(agent, otherId).history.some(
+		(m) => "pitch" in m && !("kind" in m) && m.pitch === BRAINSTORM_PITCH,
+	);
 }
