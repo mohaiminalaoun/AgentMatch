@@ -6,6 +6,7 @@ import {
 	ChevronDown,
 	ChevronRight,
 	CircleHelp,
+	ClipboardList,
 	Eye,
 	Fingerprint,
 	FlaskConical,
@@ -29,12 +30,14 @@ import {
 	X,
 } from "lucide-react";
 import {
+	board,
 	demoEvents,
 	describe,
 	ideaVersions,
 	pairEvents,
 	parseLog,
 	project,
+	type BoardEntry,
 	type Event,
 } from "./replay.js";
 import "./style.css";
@@ -43,6 +46,25 @@ import { AgentCharacter, type Mood } from "./AgentCharacter.js";
 import { IdeaCard } from "./IdeaCard.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
 const short = (id: string) => id.replace(/^a0?/, "").replace(/^p/, "");
+// What each board status says on a card, and the hover text that explains it.
+const statusText: Record<BoardEntry["status"], [string, string]> = {
+	exploring: [
+		"Looking for a team",
+		"Not on a team yet. Still on the board, so agents can approach them.",
+	],
+	member: [
+		"Joined a team",
+		"Joined someone else’s team and left the board, so no one approaches them now.",
+	],
+	owner: [
+		"Owns a team",
+		"The team is built on their idea, and they aren’t looking for more people right now, so they left the board.",
+	],
+	"owner-open": [
+		"Owns a team · still recruiting",
+		"The team is built on their idea and still has places, so they stay on the board to fill them.",
+	],
+};
 function App() {
 	const [events, setEvents] = useState<Event[]>(demoEvents),
 		[cursor, setCursor] = useState(68),
@@ -102,6 +124,10 @@ function App() {
 		[events, cursor],
 	);
 	const people = state.people;
+	const listings = useMemo(
+		() => board(events.slice(0, cursor)),
+		[events, cursor],
+	);
 	const current = people.find((p) => p.id === selected) ?? people[0];
 	const visibleEvents = events
 		.slice(0, cursor)
@@ -240,6 +266,15 @@ function App() {
 				>
 					<Users size={21} />
 					{state.teams.length > 0 && <i />}
+				</button>
+				<button
+					className={
+						view === "board" ? "rail-button active" : "rail-button"
+					}
+					title="Board"
+					onClick={() => setView("board")}
+				>
+					<ClipboardList size={21} />
 				</button>
 				<button
 					className="rail-button"
@@ -467,6 +502,15 @@ function App() {
 									>
 										<Users size={15} /> Teams{" "}
 										<span>{state.teams.length}</span>
+									</button>
+									<button
+										className={
+											view === "board" ? "selected" : ""
+										}
+										onClick={() => setView("board")}
+									>
+										<ClipboardList size={15} /> Board{" "}
+										<span>{listings.length}</span>
 									</button>
 								</div>
 								<div className="toolbar-right">
@@ -778,6 +822,126 @@ function App() {
 											</span>
 										</div>
 									</>
+								) : view === "board" ? (
+									<div className="teams-view board-view">
+										<div className="eyebrow">
+											WHAT ANY AGENT CAN SEE
+										</div>
+										<h2>The public board.</h2>
+										<p>
+											Every listing as first posted, and
+											everyone looking to join. This is
+											all a stranger can learn about
+											anyone. Approach counts are for the
+											operator; agents don’t see them.
+										</p>
+										{!listings.length && (
+											<div className="empty-state">
+												<ClipboardList size={28} />
+												<h3>Nothing posted yet.</h3>
+												<p>
+													Play the replay to see the
+													first listings.
+												</p>
+											</div>
+										)}
+										<div className="board-grid">
+											{listings.map((b) => (
+												<button
+													key={b.id}
+													className={`board-card ${b.status === "member" || b.status === "owner" ? "off-board" : ""} ${b.id === current?.id ? "is-selected" : ""}`}
+													aria-pressed={
+														b.id === current?.id
+													}
+													onClick={() => {
+														setSelected(b.id);
+														setTab("Overview");
+													}}
+												>
+													<div className="board-card-top">
+														<strong>
+															Agent{" "}
+															{short(
+																b.id,
+															).padStart(2, "0")}
+														</strong>
+														<span
+															className={`board-status ${b.status}`}
+															title={
+																statusText[
+																	b.status
+																][1]
+															}
+														>
+															{
+																statusText[
+																	b.status
+																][0]
+															}
+														</span>
+													</div>
+													{b.pitch !== undefined ? (
+														<p>“{b.pitch}”</p>
+													) : (
+														<p className="board-seeker">
+															Looking to join.
+															Only their id is
+															public.
+														</p>
+													)}
+													{b.joined && (
+														<p
+															className="board-operator"
+															title="Only the operator sees this. Other agents don’t know whose team they joined."
+														>
+															<Eye size={11} />
+															{b.pitch !==
+															undefined
+																? "Set this aside to join"
+																: "Joined"}{" "}
+															Agent{" "}
+															{short(
+																b.joined,
+															).padStart(2, "0")}
+															’s project
+														</p>
+													)}
+													{b.rolesNeeded.length >
+														0 && (
+														<div className="role-tags">
+															{b.rolesNeeded.map(
+																(r) => (
+																	<span
+																		key={r}
+																	>
+																		{r}
+																	</span>
+																),
+															)}
+														</div>
+													)}
+													<div className="board-card-foot">
+														<span>
+															<Search size={11} />{" "}
+															{b.approachedBy}{" "}
+															approached
+														</span>
+														{b.leftTeams > 0 && (
+															<span className="board-left">
+																Left{" "}
+																{b.leftTeams}{" "}
+																team
+																{b.leftTeams ===
+																1
+																	? ""
+																	: "s"}
+															</span>
+														)}
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
 								) : (
 									<div className="teams-view">
 										<div className="eyebrow">

@@ -1266,6 +1266,103 @@ h1 > span {
 .empty-state p {
 	font-size: 11px;
 }
+.board-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+.board-card {
+	display: flex;
+	flex-direction: column;
+	text-align: left;
+	background: white;
+	border: 1px solid #eae3f0;
+	border-radius: 12px;
+	padding: 16px;
+}
+.board-card:hover {
+	border-color: #d6c9e6;
+}
+.board-card.is-selected {
+	border-color: #9c89ce;
+	box-shadow: 0 0 0 3px #f0ebfa;
+}
+.board-card.off-board {
+	background: #faf9fb;
+}
+.board-card.off-board p {
+	color: #7d7484;
+}
+.board-card-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.board-card-top > strong {
+	font-family: Manrope, sans-serif;
+	font-size: 13px;
+	font-weight: 650;
+	color: #65556f;
+}
+.board-status {
+	font-size: 8px;
+	border-radius: 4px;
+	padding: 3px 6px;
+	white-space: nowrap;
+	color: #6a5d84;
+	background: #f2eefa;
+}
+.board-status.member,
+.board-status.owner {
+	color: #637065;
+	background: #f0f6f1;
+}
+.board-status.owner-open {
+	color: #6b5a2f;
+	background: #fbf3e2;
+}
+.board-card p {
+	font-size: 10px;
+	line-height: 1.7;
+	color: #72677a;
+	margin: 10px 0 0;
+}
+.board-card p.board-seeker {
+	font-style: italic;
+}
+.board-card p.board-operator {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin-top: 8px;
+	padding: 5px 8px;
+	border-radius: 6px;
+	border: 1px dashed #ddd2ec;
+	background: #f8f5fc;
+	color: #67597a;
+	font-size: 9px;
+}
+.board-card .role-tags {
+	margin: 10px 0 0;
+}
+.board-card-foot {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-top: auto;
+	padding-top: 12px;
+	font-size: 9px;
+	color: #716a78;
+}
+.board-card-foot > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+.board-left {
+	color: #8a4f5c;
+}
 .private-toggle {
 	display: flex;
 	align-items: center;
@@ -1744,6 +1841,9 @@ h1 > span {
 	}
 	.teams-view {
 		padding: 22px;
+	}
+	.board-grid {
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.profile-header {
 		gap: 10px;
