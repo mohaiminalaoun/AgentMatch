@@ -11,6 +11,7 @@ import {
 	considerRevision,
 	interestMessages,
 } from "../../src/engine/interest.js";
+import { BRAINSTORM_PITCH } from "../../src/engine/proposal.js";
 import { sampleProfile } from "../fixtures.js";
 
 const config: Config = {
@@ -221,5 +222,62 @@ describe("level 2 and the roles a team needs", () => {
 	test("at level 1, skills aren't known yet, so it isn't said", () => {
 		const [, user] = interestMessages(agreedAt(1), "p9", 1);
 		expect(user!.content).not.toContain("A team only forms");
+	});
+});
+
+describe("level 2 in a brainstorm", () => {
+	// Ada at level 2 with p9: p9 proposed brainstorming, Ada accepted, and Ada adopted p9's idea at level 1,
+	// plus `extra` revisions after it.
+	const brainstormedAt2 = (extra = 0) => {
+		const messages = [
+			{
+				id: "b1",
+				from: "p9",
+				to: sampleProfile.id,
+				pitch: BRAINSTORM_PITCH,
+				rolesNeeded: ["design"],
+			},
+			{
+				decision: "accept" as const,
+				proposalId: "b1",
+				from: sampleProfile.id,
+				to: "p9",
+			},
+			...Array.from({ length: 1 + extra }, () => ({
+				kind: "revision" as const,
+				from: "p9",
+				to: sampleProfile.id,
+				level: 1 as const,
+				pitch: "A study planner.",
+				rolesNeeded: ["mobile"],
+			})),
+			{
+				kind: "revisionAnswer" as const,
+				from: sampleProfile.id,
+				to: "p9",
+				adopt: true,
+			},
+		];
+		return messages.reduce(
+			(agent, m) => recordMessage(agent, "p9", m),
+			at(2),
+		);
+	};
+
+	test("asks to reshape the idea around both skill sets instead of withdrawing", () => {
+		const [system, user] = interestMessages(brainstormedAt2(), "p9", 2);
+		expect(system!.content).toContain("a fair fit beats no team");
+		expect(system!.content).not.toContain("Be selective");
+		expect(user!.content).toContain("the idea you agreed on needs mobile");
+		expect(user!.content).toContain(
+			"don't withdraw: continue with a revision",
+		);
+		expect(user!.content).not.toContain("Continue only if one of you does");
+	});
+
+	test("with no revisions left, falls back to the usual role check", () => {
+		const [system, user] = interestMessages(brainstormedAt2(1), "p9", 2);
+		expect(system!.content).toContain("Be selective");
+		expect(user!.content).toContain("Continue only if one of you does");
 	});
 });

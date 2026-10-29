@@ -2,6 +2,7 @@ import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import {
 	agreedTerms,
+	brainstormedWith,
 	contactOf,
 	MAX_REVISIONS,
 	revisionsWith,
@@ -79,6 +80,14 @@ export function interestMessages(
 	const revise = mayRevise(agent, otherId, level);
 	const steer = steerText(hunch, "interest");
 	const agreed = agreedTerms(agent, otherId);
+	// A brainstorm is the last chance at a team for both humans, so at level 2, with skills now known, an idea
+	// that doesn't fit them gets reshaped around them rather than dropped.
+	const reshape =
+		level === 2 &&
+		revise &&
+		brainstormedWith(agent, otherId) &&
+		agreed !== undefined &&
+		agreed.pitch !== BRAINSTORM_PITCH;
 	return [
 		{
 			role: "system",
@@ -89,7 +98,9 @@ export function interestMessages(
 					`You and agent ${otherId} both agreed to keep talking and are now at level ${level}.`,
 					WEIGHING[level] ?? "",
 					"Decide whether to keep going toward a team (continue) or stop here (withdraw).",
-					"Be selective: your human has limited time, and a weak match blocks a better one.",
+					reshape
+						? "Neither human has a team, and this is the last chance at one: a fair fit beats no team."
+						: "Be selective: your human has limited time, and a weak match blocks a better one.",
 					revise
 						? "Only continue or withdraw is sent, plus a revision if you add one; your rationale is private, so explain yourself fully there."
 						: "Only the single word continue or withdraw is sent; your rationale is private, so explain yourself fully there.",
@@ -116,11 +127,15 @@ export function interestMessages(
 							"You're brainstorming: no idea is agreed yet. Once you know enough about each other, propose a revision: one idea that fits both humans. No team can form until you agree on one.",
 						]
 					: []),
-				...(level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
+				...(reshape
 					? [
-							`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). Continue only if one of you does, or add a revision whose roles fit you both; otherwise no offer can follow, however well you get along.`,
+							`You've been brainstorming, and the idea you agreed on needs ${agreed.rolesNeeded.join(", ")} from whoever didn't propose it. A team only forms if someone fills one of those roles. Now that you know each other's skills, if neither of you does, don't withdraw: continue with a revision that reshapes the idea around what you can both do, needing roles the other person can fill. Withdraw only if no project could use both of you.`,
 						]
-					: []),
+					: level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
+						? [
+								`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). Continue only if one of you does, or add a revision whose roles fit you both; otherwise no offer can follow, however well you get along.`,
+							]
+						: []),
 				...(steer ? [steer] : []),
 				"Keep going, or withdraw?",
 			].join("\n"),
