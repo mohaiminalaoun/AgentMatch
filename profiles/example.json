@@ -1,0 +1,32 @@
+{
+	"profile": {
+		"id": "p-7f3a",
+		"name": "Sam Rivera",
+		"skills": [
+			{ "name": "frontend", "level": "expert" },
+			{ "name": "design", "level": "intermediate" }
+		],
+		"interests": ["education", "accessibility"],
+		"projectIdeas": [
+			{
+				"title": "Study buddy",
+				"description": "Pairs students who are revising the same topic at the same time."
+			}
+		],
+		"availability": { "hoursPerWeek": 12, "utcOffset": -5 },
+		"preferences": {
+			"minTeamSize": 2,
+			"maxTeamSize": 4,
+			"preferredRoles": ["frontend"]
+		}
+	},
+	"notes": [
+		{ "text": "Likes shipping small, polished demos fast.", "level": 1 },
+		{ "text": "Has led two hackathon teams before.", "level": 2 },
+		{
+			"text": "Burned out on a crypto project last year; steer away from crypto and trading.",
+			"level": "never"
+		}
+	],
+	"contact": "sam@example.com"
+}

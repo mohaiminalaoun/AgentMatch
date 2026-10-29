@@ -6,3 +6,7 @@ runs/
 .DS_Store
 demo-notes.md
 dist/
+
+# Real people taking part in a pilot; only the example is tracked.
+profiles/*
+!profiles/example.json
