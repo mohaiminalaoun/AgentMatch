@@ -18,7 +18,7 @@ import {
 	type Message,
 	type TokenUsage,
 } from "./llm.js";
-import { Terms, type Revision } from "./proposal.js";
+import { BRAINSTORM_PITCH, Terms, type Revision } from "./proposal.js";
 
 // What the model returns after learning a share: private reasoning, then a yes or no, and optionally, with a
 // yes, a reshaped version of the project to propose.
@@ -111,7 +111,12 @@ export function interestMessages(
 				`The version of the project you've agreed on: ${JSON.stringify(agreed ?? "none yet")}`,
 				`What agent ${otherId} has shared with you so far: ${JSON.stringify(contact.learned)}`,
 				`Messages between you so far: ${JSON.stringify(contact.history)}`,
-				...(level === 2 && agreed
+				...(agreed?.pitch === BRAINSTORM_PITCH
+					? [
+							"You're brainstorming: no idea is agreed yet. Once you know enough about each other, propose a revision: one idea that fits both humans. No team can form until you agree on one.",
+						]
+					: []),
+				...(level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
 					? [
 							`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). Continue only if one of you does, or add a revision whose roles fit you both; otherwise no offer can follow, however well you get along.`,
 						]

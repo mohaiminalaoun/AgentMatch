@@ -2,7 +2,7 @@ import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import { contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
-import { isOpen } from "./commitment.js";
+import { isOpen, teamOf } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import {
 	StructuredOutputError,
@@ -10,8 +10,8 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import { JOIN_PREFIX, type Proposal } from "./proposal.js";
-import { publicPitch, type World } from "./round.js";
+import { BRAINSTORM_PITCH, JOIN_PREFIX, type Proposal } from "./proposal.js";
+import { missingCoreRoles, publicPitch, type World } from "./round.js";
 
 // One agent's listing on the public board: only what it shows at level 0, plus how many committed teams
 // its human has left, if any.
@@ -258,6 +258,168 @@ export async function discover(
 							...record,
 						},
 			);
+		}
+	}
+	return { proposals, picks };
+}
+
+// Someone left without a team, as the others see them in the brainstorm phase: their id, their public pitch if
+// they have one, and the core roles they lack (what a brainstorm proposal from them asks for anyway).
+export type BrainstormEntry = {
+	id: string;
+	idea?: string;
+	rolesNeeded: string[];
+	leftTeams?: number;
+};
+
+// Everyone on no team, by id.
+export function leftovers(world: World): string[] {
+	return Object.keys(world.agents)
+		.filter((id) => !teamOf(world, id))
+		.sort();
+}
+
+// Whether `agent` may brainstorm with `otherId`: their conversation never got past level 0 (they never talked,
+// or a proposal was declined), and they haven't brainstormed before. A pair that reached level 1 can't start
+// over: its levels are already open, so the shares that drive a conversation would never be sent.
+export function canBrainstorm(agent: AgentState, otherId: string): boolean {
+	const contact = contactOf(agent, otherId);
+	return (
+		contact.level === 0 &&
+		!contact.history.some(
+			(m) =>
+				"pitch" in m && !("kind" in m) && m.pitch === BRAINSTORM_PITCH,
+		)
+	);
+}
+
+// What everyone left over sees of each other: nothing beyond what's public at level 0.
+export function brainstormBoard(world: World): BrainstormEntry[] {
+	return leftovers(world).map((id) => {
+		const agent = world.agents[id]!;
+		const pitch = publicPitch(agent);
+		return {
+			id,
+			...(agent.profile.projectIdeas.length > 0 &&
+				pitch && { idea: pitch.pitch }),
+			rolesNeeded: missingCoreRoles(agent.profile),
+			...(agent.leftTeams > 0 && { leftTeams: agent.leftTeams }),
+		};
+	});
+}
+
+// The prompt asking `agent`, left without a team, whom to brainstorm a new project with: its own profile and
+// level-0 notes, plus the others left over, as `entries` shows them.
+export function brainstormMessages(
+	agent: AgentState,
+	entries: readonly BrainstormEntry[],
+	perAgent: number,
+): Message[] {
+	const others = entries.filter(
+		(entry) => entry.id !== agent.id && canBrainstorm(agent, entry.id),
+	);
+	return [
+		{
+			role: "system",
+			content: [
+				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
+				aboutHuman(agent, 0),
+				[
+					"Everyone below is still without a team, and so is your human. Instead of joining an existing project, you can come up with a new one together.",
+					`Pick up to ${perAgent} people to brainstorm with, best first, by their id: people whose roles would complement your human's (rolesNeeded is what each lacks), and who might share an idea worth building. An idea, where shown, is their own project idea.`,
+					"An empty list is fine, but brainstorming is your human's last chance at a team. Your rationale is private.",
+				].join("\n"),
+			].join("\n\n"),
+		},
+		{
+			role: "user",
+			content: `Still without a team: ${JSON.stringify(others)}`,
+		},
+	];
+}
+
+// The brainstorm phase's discovery: everyone left without a team picks others left over to come up with a
+// project with, all at once. People with no idea may pick each other. Picks become proposals carrying
+// BRAINSTORM_PITCH and the proposer's missing roles, both built by code; a mutual pick is one proposal.
+export async function brainstorm(
+	client: LlmClient,
+	world: World,
+	{
+		perAgent = DEFAULT_PER_AGENT,
+		round = 1,
+		onExchange,
+		onEvent,
+	}: DiscoveryOptions = {},
+): Promise<{ proposals: Proposal[]; picks: Pick[] }> {
+	const entries = brainstormBoard(world);
+	const left = new Set(entries.map((entry) => entry.id));
+	const llmOptions = {
+		onExchange: (exchange: Exchange) => {
+			onExchange?.(exchange);
+			onEvent?.(exchangeEvent(exchange));
+		},
+	};
+
+	const picks = await Promise.all(
+		[...left].map(async (id): Promise<Pick> => {
+			const agent = world.agents[id]!;
+			try {
+				const { data } = await client.chatJson(
+					brainstormMessages(agent, entries, perAgent),
+					AgentPicks,
+					{
+						...llmOptions,
+						check: ({ approach }) =>
+							approach.flatMap((other) =>
+								other !== id &&
+								left.has(other) &&
+								canBrainstorm(agent, other)
+									? []
+									: [
+											`approach: "${other}" isn't one of the people listed; use their ids only`,
+										],
+							),
+					},
+				);
+				return {
+					agent: id,
+					approach: [...new Set(data.approach)].slice(0, perAgent),
+					rationale: data.rationale,
+					fellBack: false,
+				};
+			} catch (error) {
+				if (!(error instanceof StructuredOutputError)) {
+					throw error;
+				}
+				return {
+					agent: id,
+					approach: [],
+					rationale: undefined,
+					fellBack: true,
+				};
+			}
+		}),
+	);
+
+	const proposals: Proposal[] = [];
+	const paired = new Set<string>();
+	for (const pick of picks) {
+		onEvent?.({ type: "discovery", ...pick });
+		const agent = world.agents[pick.agent]!;
+		for (const to of pick.approach) {
+			const pair = [pick.agent, to].sort().join("|");
+			if (paired.has(pair)) {
+				continue;
+			}
+			paired.add(pair);
+			proposals.push({
+				id: `b${round}-${pick.agent}-${to}`,
+				from: pick.agent,
+				to,
+				pitch: BRAINSTORM_PITCH,
+				rolesNeeded: missingCoreRoles(agent.profile),
+				...(agent.leftTeams > 0 && { leftTeams: agent.leftTeams }),
+			});
 		}
 	}
 	return { proposals, picks };

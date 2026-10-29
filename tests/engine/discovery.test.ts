@@ -1,13 +1,18 @@
 import { describe, expect, test } from "vitest";
-import { recordMessage } from "../../src/engine/agent.js";
+import { raiseLevel, recordMessage } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
 import {
+	brainstorm,
+	brainstormBoard,
 	buildBoard,
 	buildSeekers,
+	canBrainstorm,
 	discover,
 	discoveryMessages,
+	leftovers,
 } from "../../src/engine/discovery.js";
+import { BRAINSTORM_PITCH } from "../../src/engine/proposal.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
 import { createWorld } from "../../src/engine/round.js";
@@ -282,5 +287,115 @@ describe("people looking to join", () => {
 		);
 		expect(system!.content).toContain("a strong role fit counts");
 		expect(system!.content).not.toContain("Approach only");
+	});
+});
+
+describe("brainstorm", () => {
+	// A second person with no project idea, so two of them can find each other.
+	const lea = withIdea(
+		person("lea", [{ name: "backend", level: "expert" }], ["music"], 0),
+	);
+	const everyone = () => createWorld([ben, kemi, lea, nia, omar]);
+
+	test("only people on no team are left over", () => {
+		const w = everyone();
+		w.teams = [
+			{
+				id: "team-ben",
+				members: ["ben", "kemi"],
+				project: ben.projectIdeas[0]!,
+				rolesNeeded: ["design"],
+				status: "committed",
+			},
+		];
+		expect(leftovers(w)).toEqual(["lea", "nia", "omar"]);
+	});
+
+	test("a pair may brainstorm if it never got past level 0, and only once", () => {
+		const w = everyone();
+		expect(canBrainstorm(w.agents.omar!, "lea")).toBe(true);
+		// A declined proposal stays at level 0: one retry is allowed.
+		const declined = recordMessage(w.agents.omar!, "kemi", {
+			decision: "decline",
+			proposalId: "p1",
+			from: "omar",
+			to: "kemi",
+			reason: "Not a fit right now.",
+		});
+		expect(canBrainstorm(declined, "kemi")).toBe(true);
+		// A pair that reached level 1 can't start over.
+		expect(canBrainstorm(raiseLevel(w.agents.omar!, "nia", 1), "nia")).toBe(
+			false,
+		);
+		// After one brainstorm proposal, no second.
+		const tried = recordMessage(w.agents.omar!, "lea", {
+			id: "b1-omar-lea",
+			from: "omar",
+			to: "lea",
+			pitch: BRAINSTORM_PITCH,
+			rolesNeeded: ["frontend"],
+		});
+		expect(canBrainstorm(tried, "lea")).toBe(false);
+	});
+
+	test("the board shows each person's public idea, if any, and the core roles they lack, nothing more", () => {
+		const board = brainstormBoard(everyone());
+		expect(board.find((e) => e.id === "omar")).toEqual({
+			id: "omar",
+			rolesNeeded: ["frontend", "backend", "product"],
+		});
+		expect(board.find((e) => e.id === "ben")).toEqual({
+			id: "ben",
+			idea: "City emissions tracker: City emissions tracker, as a hackathon project.",
+			rolesNeeded: ["frontend", "design", "product"],
+		});
+	});
+
+	test("people with no idea can pick each other, and picks become brainstorm proposals built by code", async () => {
+		const { client } = fakeClient({ omar: ["lea"] });
+		const { proposals } = await brainstorm(client, everyone(), {
+			round: 4,
+		});
+		expect(proposals).toEqual([
+			{
+				id: "b4-omar-lea",
+				from: "omar",
+				to: "lea",
+				pitch: BRAINSTORM_PITCH,
+				rolesNeeded: ["frontend", "backend", "product"],
+			},
+		]);
+	});
+
+	test("a pick that can't brainstorm is retried, then dropped", async () => {
+		const w = everyone();
+		w.agents.omar = raiseLevel(w.agents.omar!, "nia", 1);
+		const { client } = fakeClient({ omar: ["nia"] });
+		const { picks, proposals } = await brainstorm(client, w);
+		expect(picks.find((p) => p.agent === "omar")).toMatchObject({
+			approach: [],
+			fellBack: true,
+		});
+		expect(proposals).toEqual([]);
+	});
+
+	test("brainstorm prompts never contain another person's private fields", async () => {
+		const marked: Profile = {
+			...lea,
+			skills: [{ name: "zz-secret-skill", level: "expert" }],
+			interests: ["zz-secret-interest"],
+			name: "ZzLeaName",
+		};
+		const { client, prompts } = fakeClient({});
+		await brainstorm(client, createWorld([ben, kemi, marked, nia, omar]));
+		for (const agent of ["ben", "kemi", "nia", "omar"]) {
+			for (const secret of [
+				"zz-secret-skill",
+				"zz-secret-interest",
+				"ZzLeaName",
+			]) {
+				expect(prompts[agent]).not.toContain(secret);
+			}
+		}
 	});
 });

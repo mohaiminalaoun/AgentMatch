@@ -23,6 +23,7 @@ import {
 } from "./llm.js";
 import type { Profile } from "./profile.js";
 import {
+	BRAINSTORM_PITCH,
 	JOIN_PREFIX,
 	type Leave,
 	type Offer,
@@ -278,7 +279,8 @@ export function offerVersion(
 		: versionFor(world, owner, to[0]!);
 }
 
-// Whose project the conversation between `a` and `b` is about: the author of the version they agreed on,
+// Whose project the conversation between `a` and `b` is about. For two people who brainstormed, whoever wrote
+// the idea they agreed on, idea of their own or not. Otherwise, the author of the version they agreed on,
 // since its roles list names what's needed from people other than the author. Before they agree on one, it's
 // the owner of the last terms on the table: a "join your project" request is about its recipient's project,
 // any other proposal or counter is about its sender's. Someone with no project idea can't own one, so then
@@ -289,6 +291,16 @@ export function projectOwner(
 	b: string,
 ): string | undefined {
 	const agreed = agreedVersion(world.agents[a]!, b);
+	// Two people who brainstormed own whatever one of them came up with, idea of their own or not; until they
+	// agree on a real idea, nobody owns anything.
+	const brainstormed = contactOf(world.agents[a]!, b).history.some(
+		(m) => "pitch" in m && !("kind" in m) && m.pitch === BRAINSTORM_PITCH,
+	);
+	if (brainstormed) {
+		return agreed && agreed.terms.pitch !== BRAINSTORM_PITCH
+			? agreed.author
+			: undefined;
+	}
 	const terms = contactOf(world.agents[a]!, b)
 		.history.filter((m) => "pitch" in m && !("kind" in m))
 		.at(-1);
@@ -362,7 +374,7 @@ export function offerMessages(
 				INTRO,
 				aboutHuman(owner, 2),
 				[
-					`Your human's project idea is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
+					`Your human's project idea is ${JSON.stringify(owner.profile.projectIdeas[0] ?? "the one you came up with while brainstorming")}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
@@ -839,7 +851,10 @@ export async function runCommitment(
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
 			project: team?.project ?? {
-				title: agents[owner]!.profile.projectIdeas[0]!.title,
+				// Someone who came up with the idea while brainstorming may have had no idea of their own.
+				title:
+					agents[owner]!.profile.projectIdeas[0]?.title ??
+					"New project",
 				description: version.pitch,
 			},
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,

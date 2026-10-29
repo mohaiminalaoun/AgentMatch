@@ -25,6 +25,10 @@ export type Proposal = z.infer<typeof Proposal>;
 // How a proposal from someone with no project idea starts: they're asking to join the recipient's project.
 export const JOIN_PREFIX = "Join your project: ";
 
+// The pitch of a brainstorm proposal, made between people left without a team: an invitation to come up with
+// a project together. Agreeing to it agrees to brainstorm, not to an idea.
+export const BRAINSTORM_PITCH = "Let's come up with a project together.";
+
 const Accept = z.object({ decision: z.literal("accept") });
 const Counter = Terms.extend({ decision: z.literal("counter") });
 // A decline has no reason the model can fill in: there's nowhere to put an explanation, so none can leak.

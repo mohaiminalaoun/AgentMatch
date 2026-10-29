@@ -1,7 +1,13 @@
 import { contactOf, type AgentMessage } from "./agent.js";
 import type { LlmClient } from "./client.js";
 import { runCommitment } from "./commitment.js";
-import { buildBoard, buildSeekers, discover } from "./discovery.js";
+import {
+	brainstorm,
+	buildBoard,
+	buildSeekers,
+	discover,
+	leftovers,
+} from "./discovery.js";
 import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import { writeListings } from "./listing.js";
@@ -18,6 +24,8 @@ import type { Team } from "./team.js";
 export type SimulationOptions = {
 	// The most rounds to run; the run stops sooner once a round changes nothing.
 	maxRounds?: number;
+	// Whether people left without a team get a brainstorm phase at the end (default true).
+	brainstorm?: boolean;
 	// The most agents one agent may approach per round.
 	perAgent?: number;
 	maxTicks?: number;
@@ -68,6 +76,9 @@ export type SimulationSummary = {
 	departures: number;
 	// How the run ended, if it did.
 	stopped: { rounds: number; reason: "stable" | "limit" } | undefined;
+	// The brainstorm phase, if there was one: how many people were still without a team when it began, and how
+	// many new teams formed during it.
+	brainstorm: { people: number; teams: number } | undefined;
 	// Agents on no team at the end.
 	unplaced: string[];
 	// Agents nobody sent a proposal to.
@@ -84,7 +95,8 @@ export type SimulationSummary = {
 // The whole system: every agent writes its board listing once, then each round everyone still open picks whom
 // to approach, all the resulting conversations play out at once, and ready pairs become committed teams.
 // Rounds repeat until one changes nothing (no proposals, commits, or departures, and no mail left) or
-// `maxRounds` is reached. It always ends: a pair that has talked is never approached again, so the untried
+// `maxRounds` is reached. Then, if at least two people are still without a team, up to BRAINSTORM_ROUNDS
+// brainstorm rounds let them meet each other and come up with new projects together. It always ends: a pair that has talked is never approached again, so the untried
 // pairs run out. An agent that picked nobody isn't asked again until the board changes.
 // Everything shares one client and one bus.
 export async function runSimulation(
@@ -92,6 +104,7 @@ export async function runSimulation(
 	profiles: readonly Profile[],
 	{
 		maxRounds = DEFAULT_MAX_ROUNDS,
+		brainstorm: brainstormAtEnd = true,
 		perAgent,
 		maxTicks,
 		onEvent,
@@ -107,15 +120,28 @@ export async function runSimulation(
 	// What the board showed when each agent last picked nobody, so they aren't asked again until it changes.
 	let lastBoard: string | undefined;
 	let pickedNobody = new Set<string>();
+	// Why the normal rounds stopped, once they have; after that, rounds are brainstorm rounds.
+	let stopped: "stable" | "limit" | undefined;
+	let brainstormRounds = 0;
 	for (let round = 1; ; round++) {
+		const label = stopped
+			? `brainstorm round ${brainstormRounds + 1}`
+			: `round ${round}`;
 		const board = JSON.stringify([buildBoard(world), buildSeekers(world)]);
-		const skip = board === lastBoard ? pickedNobody : new Set<string>();
-		const { proposals, picks } = await discover(client, world, {
-			round,
-			skip,
-			...(perAgent && { perAgent }),
-			...(onEvent && { onEvent }),
-		});
+		const skip =
+			!stopped && board === lastBoard ? pickedNobody : new Set<string>();
+		const { proposals, picks } = stopped
+			? await brainstorm(client, world, {
+					round,
+					...(perAgent && { perAgent }),
+					...(onEvent && { onEvent }),
+				})
+			: await discover(client, world, {
+					round,
+					skip,
+					...(perAgent && { perAgent }),
+					...(onEvent && { onEvent }),
+				});
 		lastBoard = board;
 		// A fallback is a failed call, not a choice, so that agent is asked again.
 		pickedNobody = new Set([
@@ -126,7 +152,7 @@ export async function runSimulation(
 		]);
 		const picked = picks.reduce((sum, p) => sum + p.approach.length, 0);
 		onPhase?.(
-			`round ${round}: ${picked} picks → ${proposals.length} proposals${skip.size > 0 ? ` · ${skip.size} not asked (board unchanged)` : ""}`,
+			`${label}: ${picked} picks → ${proposals.length} proposals${skip.size > 0 ? ` · ${skip.size} not asked (board unchanged)` : ""}`,
 		);
 		const result = await runRound(world, client, proposals, {
 			...(maxTicks && { maxTicks }),
@@ -134,7 +160,7 @@ export async function runSimulation(
 		});
 		world = result.world;
 		onPhase?.(
-			`round ${round}: conversations finished in ${result.ticks} ticks${result.quiet ? "" : " (stopped at the tick limit)"}`,
+			`${label}: conversations finished in ${result.ticks} ticks${result.quiet ? "" : " (stopped at the tick limit)"}`,
 		);
 		const commitment = await runCommitment(client, world, {
 			...(onEvent && { onEvent }),
@@ -142,8 +168,8 @@ export async function runSimulation(
 		world = commitment.world;
 		onPhase?.(
 			commitment.skipped
-				? `round ${round}: no offers (mail still waiting at the tick limit)`
-				: `round ${round}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"}${commitment.departures > 0 ? ` · ${commitment.departures} left` : ""} · teams: ${world.teams.length}`,
+				? `${label}: no offers (mail still waiting at the tick limit)`
+				: `${label}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"}${commitment.departures > 0 ? ` · ${commitment.departures} left` : ""} · teams: ${world.teams.length}`,
 		);
 
 		const stable =
@@ -152,17 +178,38 @@ export async function runSimulation(
 			!commitment.skipped &&
 			commitment.commits === 0 &&
 			commitment.departures === 0;
-		if (stable || round >= maxRounds) {
-			const stop: RunEvent = {
-				type: "stopped",
-				rounds: round,
-				reason: stable ? "stable" : "limit",
-			};
-			onEvent?.(stop);
+		let done = false;
+		if (!stopped) {
+			// The normal rounds are over: brainstorm if at least two people are still without a team.
+			if (stable || round >= maxRounds) {
+				stopped = stable ? "stable" : "limit";
+				const left = leftovers(world);
+				if (brainstormAtEnd && left.length >= 2) {
+					onEvent?.({ type: "brainstorm", agents: left });
+					onPhase?.(
+						`brainstorm: ${left.length} people left without a team try coming up with projects together`,
+					);
+				} else {
+					done = true;
+				}
+			}
+		} else {
+			// A brainstorm round: stop once one changes nothing, at the limit, or when too few are left.
+			brainstormRounds++;
+			done =
+				stable ||
+				brainstormRounds >= BRAINSTORM_ROUNDS ||
+				leftovers(world).length < 2;
+		}
+		if (done) {
+			onEvent?.({ type: "stopped", rounds: round, reason: stopped! });
 			return world;
 		}
 	}
 }
+
+// The most brainstorm rounds at the end of a run; they stop sooner once one changes nothing.
+const BRAINSTORM_ROUNDS = 2;
 
 const DEFAULT_MAX_ROUNDS = 6;
 
@@ -209,7 +256,7 @@ export function summarize(
 			!("decision" in event.event.message) &&
 			!("kind" in event.event.message)
 		) {
-			const match = /^r(\d+)-/.exec(event.event.message.id);
+			const match = /^[rb](\d+)-/.exec(event.event.message.id);
 			entry(match ? Number(match[1]) : round - 1).proposals++;
 		}
 	}
@@ -318,6 +365,7 @@ export function summarize(
 		pairs,
 		teams: world.teams,
 		stopped: stopOf(events),
+		brainstorm: brainstormOf(events),
 		teamChecks: world.teams.map((team) => {
 			const [owner, ...joined] = team.members.map(
 				(id) => world.agents[id]!,
@@ -368,4 +416,22 @@ function stopOf(events: readonly RunEvent[]): SimulationSummary["stopped"] {
 	return stop?.type === "stopped"
 		? { rounds: stop.rounds, reason: stop.reason }
 		: undefined;
+}
+
+// The brainstorm phase, from its event and the teams that first appeared after it.
+function brainstormOf(
+	events: readonly RunEvent[],
+): SimulationSummary["brainstorm"] {
+	const start = events.findIndex((e) => e.type === "brainstorm");
+	const begin = events[start];
+	if (!begin || begin.type !== "brainstorm") {
+		return undefined;
+	}
+	const teamIds = (list: readonly RunEvent[]) =>
+		new Set(list.flatMap((e) => (e.type === "team" ? [e.team.id] : [])));
+	const before = teamIds(events.slice(0, start));
+	const after = [...teamIds(events.slice(start))].filter(
+		(id) => !before.has(id),
+	);
+	return { people: begin.agents.length, teams: after.length };
 }

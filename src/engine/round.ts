@@ -114,13 +114,19 @@ export function publicPitch(agent: AgentState): Terms | undefined {
 	if (!idea) {
 		return undefined;
 	}
-	const skills = new Set(agent.profile.skills.map((s) => s.name));
-	const missing = CORE_ROLES.filter((role) => !skills.has(role));
 	return {
 		pitch: `${idea.title}: ${idea.description}`.slice(0, 280),
-		// Someone who already covers every core role still needs teammates, just not a particular one.
-		rolesNeeded: missing.length > 0 ? missing : ["any"],
+		rolesNeeded: missingCoreRoles(agent.profile),
 	};
+}
+
+// The core roles `profile` has no skill in: what its human needs from others. Someone who already covers every
+// core role still needs teammates, just not a particular one, so that's ["any"]. Listing roles you lack never
+// names a skill you have, so it's safe at level 0.
+export function missingCoreRoles(profile: Profile): string[] {
+	const skills = new Set(profile.skills.map((s) => s.name));
+	const missing = CORE_ROLES.filter((role) => !skills.has(role));
+	return missing.length > 0 ? missing : ["any"];
 }
 
 // A proposal from `proposer` to `to` carrying only its public pitch; undefined if it has none.

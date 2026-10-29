@@ -22,7 +22,7 @@ import { decisionMessages } from "../../src/engine/decision.js";
 import { buildBoard, discover } from "../../src/engine/discovery.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
-import { JOIN_PREFIX } from "../../src/engine/proposal.js";
+import { BRAINSTORM_PITCH, JOIN_PREFIX } from "../../src/engine/proposal.js";
 import { createWorld, type World } from "../../src/engine/round.js";
 import { person } from "../fixtures.js";
 
@@ -852,5 +852,95 @@ describe("leaving a team", () => {
 		expect(user!.content).toContain(
 			"their human has left 1 committed team before",
 		);
+	});
+});
+
+describe("brainstormed teams", () => {
+	// j (frontend) and k (backend), neither with a project idea, brainstorm and both continue through level 2.
+	// With `idea`, j then proposes one at level 2 and k adopts it.
+	function brainstormed(idea: boolean) {
+		const world = createWorld([
+			human("j", false, 4, "frontend"),
+			human("k", false, 4, "backend"),
+		]);
+		const messages: AgentMessage[] = [
+			{
+				id: "b5-j-k",
+				from: "j",
+				to: "k",
+				pitch: BRAINSTORM_PITCH,
+				rolesNeeded: ["backend", "design", "product"],
+			},
+			{ decision: "accept", proposalId: "b5-j-k", from: "k", to: "j" },
+			...(["j", "k"] as const).map((from): AgentMessage => ({
+				kind: "interest",
+				from,
+				to: from === "j" ? "k" : "j",
+				level: 2,
+				interest: "continue",
+			})),
+			...(idea
+				? ([
+						{
+							kind: "revision",
+							from: "j",
+							to: "k",
+							level: 2,
+							pitch: "A study-group finder for night owls.",
+							rolesNeeded: ["backend"],
+						},
+						{
+							kind: "revisionAnswer",
+							from: "k",
+							to: "j",
+							adopt: true,
+						},
+					] as AgentMessage[])
+				: []),
+		];
+		for (const m of messages) {
+			world.agents.j = recordMessage(world.agents.j!, "k", m);
+			world.agents.k = recordMessage(world.agents.k!, "j", m);
+		}
+		for (const [self, other] of [
+			["j", "k"],
+			["k", "j"],
+		] as const) {
+			const { skills, preferences } = world.agents[other]!.profile;
+			world.agents[self] = learn(world.agents[self]!, other, {
+				skills,
+				preferences,
+			});
+		}
+		return world;
+	}
+
+	test("agreeing to brainstorm isn't an idea: nobody owns it and nobody can be offered a place", () => {
+		const world = brainstormed(false);
+		expect(projectOwner(world, "j", "k")).toBeUndefined();
+		expect(candidatesOf(world, "j")).toEqual([]);
+		expect(candidatesOf(world, "k")).toEqual([]);
+	});
+
+	test("whoever came up with the adopted idea owns it, even with no idea of their own, and the team forms", async () => {
+		const world = brainstormed(true);
+		expect(projectOwner(world, "k", "j")).toBe("j");
+		expect(candidatesOf(world, "j")).toEqual(["k"]);
+		const { world: after } = await commit(
+			world,
+			fakeClient({}, { k: "j" }).client,
+		);
+		expect(after.teams).toEqual([
+			{
+				id: "team-j",
+				members: ["j", "k"],
+				project: {
+					title: "New project",
+					description: "A study-group finder for night owls.",
+				},
+				rolesNeeded: ["backend"],
+				status: "committed",
+			},
+		]);
 	});
 });

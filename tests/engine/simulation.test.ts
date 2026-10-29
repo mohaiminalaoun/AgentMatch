@@ -78,13 +78,42 @@ function fakeClient(script: typeof picks = picks) {
 				rationale: "Picks.",
 				approach: script[round]?.[who] ?? [],
 			};
+		} else if (last.startsWith("Still without a team:")) {
+			// Brainstorming: c asks d, whom it proposed to (and was declined by) in round 1.
+			reply = {
+				rationale: "Let's try.",
+				approach: who === "c" ? ["d"] : [],
+			};
+		} else if (last.includes("Adopt the revision")) {
+			reply = { rationale: "Good idea.", adopt: true };
+		} else if (
+			last.startsWith("Agent ") &&
+			last.includes("Let's come up with a project together.")
+		) {
+			reply = {
+				rationale: "Worth a try.",
+				decision: { decision: "accept" },
+			};
 		} else if (last.startsWith("Your teammates")) {
 			reply = { rationale: "Still a fit.", decision: "stay" };
 		} else if (last.startsWith("Offers:")) {
 			const [first] = JSON.parse(last.slice("Offers:".length));
 			reply = { rationale: "Joining.", commit: first.owner };
 		} else if (last.includes("Keep going, or withdraw?")) {
-			reply = { rationale: "Fits.", interest: "continue" };
+			// While brainstorming at level 2, c comes up with an idea that needs d's backend skills.
+			reply =
+				who === "c" &&
+				last.includes("You're brainstorming") &&
+				messages[1].content.includes("now at level 2")
+					? {
+							rationale: "Here's an idea.",
+							interest: "continue",
+							revision: {
+								pitch: "A poster maker that prints on demand.",
+								rolesNeeded: ["backend"],
+							},
+						}
+					: { rationale: "Fits.", interest: "continue" };
 		} else {
 			reply = { rationale: "Decided.", decision: decisions[who] };
 		}
@@ -103,11 +132,13 @@ function fakeClient(script: typeof picks = picks) {
 }
 
 // Runs the scripted two-round simulation, recording every event and progress line.
-async function simulate(maxRounds = 2, script = picks) {
+// The normal rounds only, unless `brainstorm` is set.
+async function simulate(maxRounds = 2, script = picks, brainstorm = false) {
 	const events: RunEvent[] = [];
 	const phases: string[] = [];
 	const world = await runSimulation(fakeClient(script), profiles, {
 		maxRounds,
+		brainstorm,
 		onEvent: (e) => events.push(e),
 		onPhase: (line) => phases.push(line),
 	});
@@ -185,6 +216,36 @@ describe("stopping", () => {
 			"round 2: 0 picks → 0 proposals · 4 not asked (board unchanged)",
 		);
 		expect(summary.stopped).toEqual({ rounds: 2, reason: "stable" });
+	});
+});
+
+describe("brainstorm phase", () => {
+	test("people left without a team brainstorm a new idea together and form a team", async () => {
+		const { events, phases, summary, world } = await simulate(
+			6,
+			picks,
+			true,
+		);
+		expect(events.find((e) => e.type === "brainstorm")).toEqual({
+			type: "brainstorm",
+			agents: ["c", "d"],
+		});
+		expect(phases.some((p) => p.startsWith("brainstorm round 1:"))).toBe(
+			true,
+		);
+		expect(world.teams.find((t) => t.members.includes("d"))).toMatchObject({
+			members: ["c", "d"],
+			project: { description: "A poster maker that prints on demand." },
+		});
+		expect(summary.brainstorm).toEqual({ people: 2, teams: 1 });
+		expect(summary.unplaced).toEqual([]);
+	});
+
+	test("without brainstorming, the same people stay unplaced", async () => {
+		const { events, summary } = await simulate(6, picks, false);
+		expect(events.some((e) => e.type === "brainstorm")).toBe(false);
+		expect(summary.brainstorm).toBeUndefined();
+		expect(summary.unplaced).toEqual(["c", "d"]);
 	});
 });
 

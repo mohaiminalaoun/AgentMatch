@@ -15,7 +15,7 @@ import {
 	type TokenUsage,
 } from "./llm.js";
 import { steerText, type Hunch } from "./hunch.js";
-import { Decision, type Proposal } from "./proposal.js";
+import { BRAINSTORM_PITCH, Decision, type Proposal } from "./proposal.js";
 
 // What the model returns: its private reasoning, then the decision that gets sent.
 // The rationale comes first so the model reasons before it decides.
@@ -126,6 +126,11 @@ export function decisionMessages(
 					: [
 							`You have already exchanged ${MAX_COUNTERS} counters, the most allowed: this time, accept or decline. A counter won't be sent.`,
 						]),
+				...(proposal.pitch === BRAINSTORM_PITCH
+					? [
+							"This is an invitation to come up with a project together; nothing is decided yet. Accept if your humans could plausibly complement each other. A counter can put a first idea on the table.",
+						]
+					: []),
 				...(steer ? [steer] : []),
 			].join("\n"),
 		},

@@ -82,6 +82,8 @@ export function formatEvent(
 			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : event.busy ? "busy with its own offers" : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "recheck":
 			return `  ${event.agent} rechecks ${event.team} after it grew → ${event.decision}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "brainstorm":
+			return `\nbrainstorm · ${event.agents.length} people still without a team: ${event.agents.join(", ")}`;
 		case "stopped":
 			return event.reason === "stable"
 				? `stopped after ${event.rounds} round${event.rounds === 1 ? "" : "s"}: stable (nothing new to try, and no team changed)`
@@ -147,6 +149,11 @@ export function formatSummary(
 			(t) =>
 				`  ${t.team}${t.reshaped ? " (reshaped)" : ""}: "${t.project}" · covers ${t.covered.join(", ") || "nothing"} · missing ${t.missing.join(", ") || "nothing"}${t.belowMinimum ? " · below a member's minimum size" : ""}`,
 		),
+		...(summary.brainstorm
+			? [
+					`Brainstorm: ${summary.brainstorm.people} people without a team → ${summary.brainstorm.teams} new team${summary.brainstorm.teams === 1 ? "" : "s"}`,
+				]
+			: []),
 		`On no team:         ${list(summary.unplaced)}`,
 		`Never approached:   ${list(summary.neverApproached)}`,
 		`In no conversation: ${list(summary.noConversation)}`,
