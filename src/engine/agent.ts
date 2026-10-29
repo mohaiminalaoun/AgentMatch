@@ -162,13 +162,15 @@ export type Version = { terms: Terms; author: string };
 
 // The version of the project `agent` and `otherId` last agreed on: the last proposal or counter that was
 // accepted, or the last revision that was adopted, whichever came later. A "join your project" request
-// agrees to the recipient's pitch, so the prefix is dropped. Undefined if nothing has been agreed.
+// agrees to the recipient's pitch, so the prefix is dropped. Undefined if nothing has been agreed. Both
+// sides may send a revision in the same tick, so an answer adopts the latest revision from the side it
+// replies to, not the latest revision overall.
 export function agreedVersion(
 	agent: AgentState,
 	otherId: string,
 ): Version | undefined {
 	let onTable: Version | undefined;
-	let revised: Version | undefined;
+	const revised = new Map<string, Version>();
 	let agreed: Version | undefined;
 	for (const m of contactOf(agent, otherId).history) {
 		if ("pitch" in m && !("kind" in m)) {
@@ -183,12 +185,12 @@ export function agreedVersion(
 		} else if ("decision" in m && m.decision === "accept") {
 			agreed = onTable;
 		} else if ("kind" in m && m.kind === "revision") {
-			revised = {
+			revised.set(m.from, {
 				terms: { pitch: m.pitch, rolesNeeded: m.rolesNeeded },
 				author: m.from,
-			};
+			});
 		} else if ("kind" in m && m.kind === "revisionAnswer" && m.adopt) {
-			agreed = revised;
+			agreed = revised.get(m.to);
 		}
 	}
 	return agreed;

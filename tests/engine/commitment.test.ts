@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	agreedTerms,
+	agreedVersion,
 	contactOf,
 	learn,
 	recordMessage,
@@ -566,6 +567,46 @@ describe("the agreed project", () => {
 		expect(agreedTerms(world.agents.j!, "a")).toEqual({
 			pitch: "A tutor for injury recovery.",
 			rolesNeeded: ["frontend"],
+		});
+	});
+
+	test("when revisions cross, each answer settles the revision it replies to", () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		counterAccepted(world, "a", "j", "A tutor for injury recovery.", [
+			"frontend",
+		]);
+		const revision = (from: string, to: string, roles: string[]) =>
+			({
+				kind: "revision",
+				from,
+				to,
+				level: 2,
+				pitch: `${from}'s reshaped tutor.`,
+				rolesNeeded: roles,
+			}) as const;
+		// Both reshape at once; j adopts a's version, and a keeps the current one over j's.
+		const messages: AgentMessage[] = [
+			revision("a", "j", ["backend"]),
+			revision("j", "a", ["product"]),
+			{ kind: "revisionAnswer", from: "j", to: "a", adopt: true },
+			{ kind: "revisionAnswer", from: "a", to: "j", adopt: false },
+		];
+		for (const message of messages) {
+			world.agents.a = recordMessage(world.agents.a!, "j", message);
+			world.agents.j = recordMessage(world.agents.j!, "a", message);
+		}
+		const adopted = {
+			pitch: "a's reshaped tutor.",
+			rolesNeeded: ["backend"],
+		};
+		expect(agreedVersion(world.agents.a!, "j")).toEqual({
+			terms: adopted,
+			author: "a",
+		});
+		expect(agreedVersion(world.agents.j!, "a")).toEqual({
+			terms: adopted,
+			author: "a",
 		});
 	});
 
