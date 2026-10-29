@@ -621,12 +621,14 @@ describe("revisions", () => {
 	// Omar accepts Ada's proposal. At level 1 Ada continues with a revision; at level 2 nobody revises.
 	// Ada is the proposer, so her level-1 check runs in the same tick as the accept that opens level 1: her
 	// prompt must still say level 1 (it used to say 0), or she could never revise.
-	// Omar adopts the revision if `adopt`, else keeps the current version.
-	function revisingClient(adopt: boolean) {
+	// Omar adopts the revision if `adopt`, else keeps the current version. Each prompt's last message goes in
+	// `calls`, by who was asked.
+	function revisingClient(adopt: boolean, calls: [string, string][] = []) {
 		const fetch = (async (_url: unknown, init?: RequestInit) => {
 			const { messages } = JSON.parse(init!.body as string);
 			const who = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
 			const last: string = messages.at(-1).content;
+			calls.push([who, last]);
 			const reply = last.includes("Keep going, or withdraw?")
 				? {
 						rationale: "Fits.",
@@ -651,7 +653,7 @@ describe("revisions", () => {
 		});
 	}
 
-	async function negotiate(adopt: boolean) {
+	async function negotiate(adopt: boolean, calls: [string, string][] = []) {
 		const world = createWorld([ada, omar]);
 		const sent: string[] = [];
 		world.bus.subscribe((e) => {
@@ -664,7 +666,7 @@ describe("revisions", () => {
 		const events: RunEvent[] = [];
 		const result = await runRound(
 			world,
-			revisingClient(adopt),
+			revisingClient(adopt, calls),
 			[proposalFrom(world.agents[ada.id]!, "omar", "p1")!],
 			{ onEvent: (e) => events.push(e) },
 		);
@@ -693,4 +695,28 @@ describe("revisions", () => {
 		expect(original?.pitch).not.toBe(revised.pitch);
 		expect(contactOf(world.agents[ada.id]!, "omar").level).toBe(2);
 	});
+
+	// Ada's share, continue, and revision reach Omar in the same tick, so his interest check would otherwise
+	// judge the version the revision may replace.
+	test.each([true, false])(
+		"a revision that comes with the share is answered before the interest check (adopt: %s)",
+		async (adopt) => {
+			const calls: [string, string][] = [];
+			await negotiate(adopt, calls);
+			const omars = calls
+				.filter(([who]) => who === "omar")
+				.map(([, last]) => last);
+			const answer = omars.findIndex((m) =>
+				m.includes("Adopt the revision"),
+			);
+			const check = omars.findIndex((m) =>
+				m.includes("Keep going, or withdraw?"),
+			);
+			expect(answer).toBeGreaterThan(-1);
+			expect(answer).toBeLessThan(check);
+			expect(omars[check]!.split("\n")[0]!.includes(revised.pitch)).toBe(
+				adopt,
+			);
+		},
+	);
 });

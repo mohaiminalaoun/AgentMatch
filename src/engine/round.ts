@@ -329,6 +329,32 @@ export async function runRound(
 			const toConsider = incoming.flatMap(({ receiver, message }) =>
 				isRevision(message) ? [{ receiver, revision: message }] : [],
 			);
+			const adopting = toConsider.map(({ receiver, revision }) =>
+				considerRevision(
+					client,
+					agentOf(agents, receiver),
+					revision,
+					llmOptions,
+				),
+			);
+			// A revision that came with the share is answered first, so the check judges the version agreed after
+			// that answer rather than the one it may replace.
+			const answeredFirst = async (receiver: string, from: string) => {
+				const i = toConsider.findLastIndex(
+					(c) => c.receiver === receiver && c.revision.from === from,
+				);
+				const agent = agentOf(agents, receiver);
+				if (i === -1) {
+					return agent;
+				}
+				const { adopt } = await adopting[i]!;
+				return recordMessage(agent, from, {
+					kind: "revisionAnswer",
+					from: receiver,
+					to: from,
+					adopt,
+				});
+			};
 			const [results, checks, adoptions] = await Promise.all([
 				// An agent with "never" notes gets a private hunch first, which steers the call after it.
 				Promise.all(
@@ -352,7 +378,7 @@ export async function runRound(
 				),
 				Promise.all(
 					toCheck.map(async ({ receiver, share }) => {
-						const agent = agentOf(agents, receiver);
+						const agent = await answeredFirst(receiver, share.from);
 						const hunch = await getHunch(
 							client,
 							agent,
@@ -370,16 +396,7 @@ export async function runRound(
 						);
 					}),
 				),
-				Promise.all(
-					toConsider.map(({ receiver, revision }) =>
-						considerRevision(
-							client,
-							agentOf(agents, receiver),
-							revision,
-							llmOptions,
-						),
-					),
-				),
+				Promise.all(adopting),
 			]);
 
 			// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
