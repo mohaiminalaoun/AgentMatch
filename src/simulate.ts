@@ -8,6 +8,7 @@ import { loadConfig, readEnvFile } from "./engine/config.js";
 import type { RunEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 import { runSimulation, summarize } from "./engine/simulation.js";
+import { measureLeakage } from "./evaluation/leakage.js";
 import { generateProfiles } from "./evaluation/profiles.js";
 
 // The value after `--name` on the command line, as a whole number, or `fallback`.
@@ -95,6 +96,14 @@ try {
 
 	const seconds = ((performance.now() - started) / 1000).toFixed(0);
 	console.log(`\n${formatSummary(summarize(world, events), config.prices)}`);
+	const leakage = measureLeakage(world);
+	console.log(
+		`Leakage:  ${(leakage.rate * 100).toFixed(1)}% of private fields reached someone outside the sender's team (${Object.entries(
+			leakage.byField,
+		)
+			.map(([field, n]) => `${field} ${n}`)
+			.join(", ")})`,
+	);
 	console.log(
 		`Time: ${seconds}s · run log: ${log.path} (npm run show-run for the full timeline)`,
 	);
