@@ -1,14 +1,19 @@
 import { describe, expect, test } from "vitest";
 import {
 	contactOf,
+	learn,
 	recordMessage,
 	type AgentMessage,
 } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import {
+	candidatesOf,
 	isOpen,
+	placesLeft,
 	projectOwner,
 	runCommitment,
+	selectOffers,
+	stillNeeded,
 } from "../../src/engine/commitment.js";
 import type { Config } from "../../src/engine/config.js";
 import { decisionMessages } from "../../src/engine/decision.js";
@@ -26,11 +31,17 @@ const config: Config = {
 	maxConcurrency: 4,
 };
 
-// A person named after their id, with a project idea unless `idea` is false, and teams of up to `maxTeamSize`.
-function human(id: string, idea = true, maxTeamSize = 4): Profile {
+// A person named after their id, with a project idea unless `idea` is false, teams of up to `maxTeamSize`,
+// and one skill.
+function human(
+	id: string,
+	idea = true,
+	maxTeamSize = 4,
+	skill = "frontend",
+): Profile {
 	const base = person(
 		id,
-		[{ name: "frontend", level: "expert" }],
+		[{ name: skill, level: "expert" }],
 		["education"],
 		0,
 	);
@@ -45,7 +56,8 @@ function human(id: string, idea = true, maxTeamSize = 4): Profile {
 }
 
 // Records, in both agents' histories, a conversation about `owner`'s project in which both continued through
-// level 2. A `joiner` with no idea asks to join; otherwise the owner pitches.
+// level 2, and what each learned from the other's level-2 share (skills and preferences). A `joiner` with no
+// idea asks to join; otherwise the owner pitches. The owner's listing asks for the joiner's skill.
 function ready(world: World, owner: string, joiner: string): void {
 	const joins = world.agents[joiner]!.profile.projectIdeas.length === 0;
 	const messages: AgentMessage[] = [
@@ -84,6 +96,30 @@ function ready(world: World, owner: string, joiner: string): void {
 			);
 		}
 	}
+	for (const [self, other] of [
+		[owner, joiner],
+		[joiner, owner],
+	] as const) {
+		const { skills, preferences } = world.agents[other]!.profile;
+		world.agents[self] = learn(world.agents[self]!, other, {
+			skills,
+			preferences,
+		});
+	}
+	const ownerAgent = world.agents[owner]!;
+	const roles = world.agents[joiner]!.profile.skills.map((s) => s.name);
+	world.agents[owner] = {
+		...ownerAgent,
+		listing: {
+			pitch: `${owner}'s project`,
+			rolesNeeded: [
+				...new Set([
+					...(ownerAgent.listing?.rolesNeeded ?? []),
+					...roles,
+				]),
+			],
+		},
+	};
 }
 
 // A client whose fake model answers offer prompts from `offers` (owner → ids), commitment prompts from
@@ -194,7 +230,7 @@ describe("runCommitment", () => {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
-			human("k", false),
+			human("k", false, 4, "design"),
 		]);
 		ready(world, "a", "j");
 		ready(world, "a", "k");
@@ -213,7 +249,7 @@ describe("runCommitment", () => {
 		const world = createWorld([
 			human("a", true, 2),
 			human("j", false),
-			human("k", false),
+			human("k", false, 4, "design"),
 		]);
 		ready(world, "a", "j");
 		ready(world, "a", "k");
@@ -300,7 +336,7 @@ describe("runCommitment", () => {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
-			human("k", false),
+			human("k", false, 4, "design"),
 			human("x"),
 		]);
 		ready(world, "a", "j");
@@ -326,7 +362,7 @@ describe("runCommitment", () => {
 			human("a", true, 2),
 			human("b", true, 3),
 			human("j", false),
-			human("k", false),
+			human("k", false, 4, "design"),
 			human("m", false),
 		]);
 		for (const joiner of ["j", "k", "m"]) {
@@ -384,7 +420,7 @@ describe("runCommitment", () => {
 });
 
 describe("after commitment", () => {
-	test("members leave the board and stop looking; an owner with places stays", async () => {
+	test("members leave the board and stop looking; an owner with places and roles still needed stays", async () => {
 		const world = createWorld([
 			human("a"),
 			human("b"),
@@ -393,6 +429,14 @@ describe("after commitment", () => {
 		]);
 		ready(world, "a", "b");
 		ready(world, "full", "j");
+		// a also needs design, which b doesn't fill.
+		world.agents.a = {
+			...world.agents.a!,
+			listing: {
+				pitch: "a's project",
+				rolesNeeded: ["frontend", "design"],
+			},
+		};
 		const { world: after } = await commit(
 			world,
 			fakeClient({}, { b: "a", j: "full" }).client,
@@ -404,13 +448,81 @@ describe("after commitment", () => {
 	});
 });
 
+describe("team size and skills", () => {
+	test("an owner whose needed roles are all filled goes off the board, places or not", async () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		const { world: after } = await commit(
+			world,
+			fakeClient({}, { j: "a" }).client,
+		);
+		expect(placesLeft(after, "a")).toBe(2);
+		expect(stillNeeded(after, "a")).toEqual([]);
+		expect(isOpen(after, "a")).toBe(false);
+	});
+
+	test("only people who fill a role the team still needs are offered a place", async () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("x", false, 4, "ml"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "x");
+		// a's listing asks only for frontend.
+		world.agents.a = {
+			...world.agents.a!,
+			listing: { pitch: "a's project", rolesNeeded: ["frontend"] },
+		};
+		expect(candidatesOf(world, "a")).toEqual(["j"]);
+	});
+
+	test("two people who fill only the same role don't both get offers", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		expect(candidatesOf(world, "a")).toEqual(["j", "k"]);
+		expect(selectOffers(world, "a", ["k", "j"])).toEqual(["k"]);
+	});
+
+	test("places are capped by the smallest maximum among the team, as learned", async () => {
+		const world = createWorld([human("a", true, 5), human("j", false, 2)]);
+		ready(world, "a", "j");
+		expect(placesLeft(world, "a")).toBe(4);
+		const { world: after } = await commit(
+			world,
+			fakeClient({}, { j: "a" }).client,
+		);
+		// j wants at most 2, and the team is 2 now.
+		expect(placesLeft(after, "a")).toBe(0);
+	});
+
+	test("someone who wants a smaller team than this would become isn't offered a place", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("small", false, 2, "design"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "small");
+		// Taking j first makes the team 2; small wants at most 2, so 3 would be too big.
+		expect(selectOffers(world, "a", ["j", "small"])).toEqual(["j"]);
+		// Taking small first caps the team at 2, so j no longer fits.
+		expect(selectOffers(world, "a", ["small", "j"])).toEqual(["small"]);
+	});
+});
+
 describe("leaving a team", () => {
 	// a's team with j already on it; k is ready to join, so the team grows and j re-checks.
 	function growing() {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
-			human("k", false),
+			human("k", false, 4, "design"),
 		]);
 		world.teams = [
 			{

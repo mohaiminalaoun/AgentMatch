@@ -6,7 +6,13 @@ import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import { writeListings } from "./listing.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
-import { continued, createWorld, runRound, type World } from "./round.js";
+import {
+	continued,
+	createWorld,
+	publicPitch,
+	runRound,
+	type World,
+} from "./round.js";
 import type { Team } from "./team.js";
 
 export type SimulationOptions = {
@@ -46,6 +52,14 @@ export type SimulationSummary = {
 	nonCoreRoles: Record<string, number>;
 	pairs: PairOutcome[];
 	teams: Team[];
+	// For each team, the roles its owner's listing asked for, split by whether a member fills them (from
+	// members' real skills), and whether it's smaller than some member's minimum team size.
+	teamChecks: {
+		team: string;
+		covered: string[];
+		missing: string[];
+		belowMinimum: boolean;
+	}[];
 	// Members who left a team after it grew.
 	departures: number;
 	// Agents on no team at the end.
@@ -259,6 +273,27 @@ export function summarize(
 		nonCoreRoles,
 		pairs,
 		teams: world.teams,
+		teamChecks: world.teams.map((team) => {
+			const [owner, ...joined] = team.members.map(
+				(id) => world.agents[id]!,
+			);
+			const skills = new Set(
+				joined.flatMap((a) => a.profile.skills.map((s) => s.name)),
+			);
+			const needed = publicPitch(owner!)?.rolesNeeded ?? [];
+			const filled = (role: string) =>
+				role === "any" ? joined.length > 0 : skills.has(role);
+			return {
+				team: team.id,
+				covered: needed.filter(filled),
+				missing: needed.filter((role) => !filled(role)),
+				belowMinimum: team.members.some(
+					(id) =>
+						team.members.length <
+						world.agents[id]!.profile.preferences.minTeamSize,
+				),
+			};
+		}),
 		departures: events.filter(
 			(e) => e.type === "recheck" && e.decision === "leave",
 		).length,

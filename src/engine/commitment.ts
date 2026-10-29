@@ -81,16 +81,98 @@ export function teamOf(world: World, id: string): Team | undefined {
 	return world.teams.find((team) => team.members.includes(id));
 }
 
-// Places `owner` still has: its human's largest preferred team size, minus everyone already on the team.
-export function placesLeft(world: World, owner: string): number {
-	const size = teamOf(world, owner)?.members.length ?? 1;
-	return world.agents[owner]!.profile.preferences.maxTeamSize - size;
+// Everyone on `owner`'s team so far, owner first; just the owner if no one has joined.
+function membersOf(world: World, owner: string): string[] {
+	return teamOf(world, owner)?.members ?? [owner];
 }
 
-// Whether `id` still takes part in discovery: on no team, or owning one with places left.
+// The largest team `id` wants, as `owner` knows it: from its own profile for the owner, from what `id`
+// shared at level 2 for anyone else, or no limit if they never said.
+function maxSizeFor(world: World, owner: string, id: string): number {
+	const preferences =
+		id === owner
+			? world.agents[owner]!.profile.preferences
+			: contactOf(world.agents[owner]!, id).learned.preferences;
+	return preferences?.maxTeamSize ?? Infinity;
+}
+
+// The roles `id` can fill, as `owner` knows them: skills from its own profile for the owner, from what `id`
+// shared at level 2 for anyone else.
+function rolesOf(world: World, owner: string, id: string): Set<string> {
+	const skills =
+		id === owner
+			? world.agents[owner]!.profile.skills
+			: contactOf(world.agents[owner]!, id).learned.skills;
+	return new Set((skills ?? []).map((skill) => skill.name));
+}
+
+// The roles `owner`'s listing asks for that no one on its team fills yet. "any" (asked for by someone who
+// already covers every core role) is filled by the first person to join.
+export function stillNeeded(world: World, owner: string): string[] {
+	const joined = membersOf(world, owner).slice(1);
+	const covered = new Set(
+		joined.flatMap((id) => [...rolesOf(world, owner, id)]),
+	);
+	return (publicPitch(world.agents[owner]!)?.rolesNeeded ?? []).filter(
+		(role) => (role === "any" ? joined.length === 0 : !covered.has(role)),
+	);
+}
+
+// The roles in `needed` that `id` would fill for `owner`.
+function fills(
+	world: World,
+	owner: string,
+	id: string,
+	needed: readonly string[],
+): string[] {
+	const roles = rolesOf(world, owner, id);
+	return needed.filter((role) => role === "any" || roles.has(role));
+}
+
+// Places `owner` still has: the smallest largest-team size among everyone on the team, minus its size, so the
+// team never grows past what any member wants.
+export function placesLeft(world: World, owner: string): number {
+	const members = membersOf(world, owner);
+	return (
+		Math.min(...members.map((id) => maxSizeFor(world, owner, id))) -
+		members.length
+	);
+}
+
+// Whether `id` still takes part in discovery: on no team, or owning one with places left and roles still needed.
 export function isOpen(world: World, id: string): boolean {
 	const team = teamOf(world, id);
-	return !team || (team.members[0] === id && placesLeft(world, id) > 0);
+	return (
+		!team ||
+		(team.members[0] === id &&
+			placesLeft(world, id) > 0 &&
+			stillNeeded(world, id).length > 0)
+	);
+}
+
+// Trims `ordered` (best first) to offers that can all be taken at once: each person must fill a role that
+// neither the team nor anyone kept before them fills, and the resulting team must fit every member's largest
+// size, theirs included.
+export function selectOffers(
+	world: World,
+	owner: string,
+	ordered: readonly string[],
+): string[] {
+	const size = membersOf(world, owner).length;
+	let needed = stillNeeded(world, owner);
+	let limit = size + placesLeft(world, owner);
+	const kept: string[] = [];
+	for (const id of ordered) {
+		const filled = fills(world, owner, id, needed);
+		const newLimit = Math.min(limit, maxSizeFor(world, owner, id));
+		if (filled.length === 0 || size + kept.length + 1 > newLimit) {
+			continue;
+		}
+		kept.push(id);
+		limit = newLimit;
+		needed = needed.filter((role) => !filled.includes(role));
+	}
+	return kept;
 }
 
 // Whose project the conversation between `a` and `b` is about: the owner of the last terms put on the table.
@@ -115,9 +197,12 @@ export function projectOwner(
 }
 
 // Everyone `owner` could offer a place now: both continued through level 2 in a conversation about
-// `owner`'s project, on no team yet, and hasn't declined an offer from `owner` or left its team before.
+// `owner`'s project, on no team yet, hasn't declined an offer from `owner` or left its team before, fills a
+// role the team still needs, and wants a team at least as big as this one would become.
 export function candidatesOf(world: World, owner: string): string[] {
 	const agent = world.agents[owner]!;
+	const needed = stillNeeded(world, owner);
+	const size = membersOf(world, owner).length;
 	return Object.keys(agent.contacts)
 		.sort()
 		.filter(
@@ -126,6 +211,8 @@ export function candidatesOf(world: World, owner: string): string[] {
 				continued(agent, id, owner, READY_LEVEL) &&
 				projectOwner(world, owner, id) === owner &&
 				!teamOf(world, id) &&
+				fills(world, owner, id, needed).length > 0 &&
+				maxSizeFor(world, owner, id) >= size + 1 &&
 				!contactOf(agent, id).history.some(
 					(m) =>
 						"kind" in m &&
@@ -147,6 +234,8 @@ export function offerMessages(
 	places: number,
 	// The public count of committed teams each candidate has left, for those who have.
 	leftTeams: Record<string, number> = {},
+	// The roles the team still needs.
+	needed: readonly string[] = [],
 ): Message[] {
 	return [
 		{
@@ -158,6 +247,7 @@ export function offerMessages(
 					`Your human's project is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
+					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
 					"Prefer people whose skills cover different roles the project needs. leftTeams, where shown, is how many committed teams that person has left before; weigh their reliability. Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
@@ -448,15 +538,17 @@ export async function runCommitment(
 		return { offers, commits, declines };
 	}
 
-	// Whom `owner` offers a place: everyone ready if they fit, otherwise its model's picks. If no valid pick
-	// comes back, the first ready people in id order get the places.
+	// Whom `owner` offers a place: everyone ready if they can all be taken together, otherwise its model's
+	// ranking, trimmed by selectOffers. If no valid ranking comes back, id order is used instead.
 	async function chooseMembers(owner: string) {
 		const candidates = candidatesOf(current(), owner);
 		const places = placesLeft(current(), owner);
-		if (candidates.length <= places) {
+		// If everyone ready can be taken together, no choice is needed.
+		const all = selectOffers(current(), owner, candidates);
+		if (all.length === candidates.length) {
 			return {
 				agent: owner,
-				to: candidates,
+				to: all,
 				places,
 				rationale: undefined,
 				fellBack: false,
@@ -473,6 +565,7 @@ export async function runCommitment(
 							.filter((id) => agents[id]!.leftTeams > 0)
 							.map((id) => [id, agents[id]!.leftTeams]),
 					),
+					stillNeeded(current(), owner),
 				),
 				AgentOffers,
 				{
@@ -489,7 +582,7 @@ export async function runCommitment(
 			);
 			return {
 				agent: owner,
-				to: [...new Set(data.offer)].slice(0, places),
+				to: selectOffers(current(), owner, [...new Set(data.offer)]),
 				places,
 				rationale: data.rationale,
 				fellBack: false,
@@ -500,7 +593,7 @@ export async function runCommitment(
 			}
 			return {
 				agent: owner,
-				to: candidates.slice(0, places),
+				to: all,
 				places,
 				rationale: undefined,
 				fellBack: true,

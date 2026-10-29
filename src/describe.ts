@@ -128,6 +128,10 @@ export function formatSummary(
 		),
 		`Pairs:    ${summary.pairs.length} talked · reached level 1: ${reachedAt(1)} · level 2: ${reachedAt(2)} · ready: ${summary.pairs.filter((p) => p.ready).length} · ended: ${summary.pairs.filter((p) => p.ended).length}`,
 		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")} · members who left: ${summary.departures}`,
+		...summary.teamChecks.map(
+			(t) =>
+				`  ${t.team}: covers ${t.covered.join(", ") || "nothing"} · missing ${t.missing.join(", ") || "nothing"}${t.belowMinimum ? " · below a member's minimum size" : ""}`,
+		),
 		`On no team:         ${list(summary.unplaced)}`,
 		`Never approached:   ${list(summary.neverApproached)}`,
 		`In no conversation: ${list(summary.noConversation)}`,

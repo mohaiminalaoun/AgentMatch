@@ -35,7 +35,8 @@ const profiles = [
 
 // Every person() prefers backend (copied from the sample profile), so no listing may ask for it.
 const listings: Record<string, string[]> = {
-	a: ["frontend", "data"],
+	// b fills frontend in round 1; e fills product in round 2.
+	a: ["frontend", "product", "data"],
 	b: ["design"],
 	c: ["frontend"],
 	d: ["frontend"],
@@ -189,6 +190,18 @@ describe("summarize", () => {
 		);
 		// Swapping names isn't a conversation, so b and e aren't a pair.
 		expect(summary.pairs.map((p) => p.pair.join("–"))).not.toContain("b–e");
+	});
+
+	test("checks each team's roles and size", async () => {
+		const { summary } = await simulate();
+		expect(summary.teamChecks).toEqual([
+			{
+				team: "team-a",
+				covered: ["frontend", "product"],
+				missing: ["data"],
+				belowMinimum: false,
+			},
+		]);
 	});
 
 	test("counts roles beyond the core four on the board", async () => {
