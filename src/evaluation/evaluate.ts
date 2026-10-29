@@ -20,11 +20,25 @@ export type Matcher = (
 	teamSize: number,
 ) => Profile[][];
 
-export const BASELINES: Record<string, Matcher> = {
-	random: randomMatching,
-	greedy: (profiles, _rng, teamSize) => greedyMatching(profiles, teamSize),
-	"local search": (profiles, _rng, teamSize) =>
-		localSearchMatching(profiles, teamSize),
+// Where a method's information goes. "central": one trusted party sees every full profile and the
+// participants see nothing of each other. "broadcast": everyone sees everyone's full profile.
+export type Privacy = "central" | "broadcast";
+
+export type Method = { match: Matcher; privacy: Privacy };
+
+const localSearch: Matcher = (profiles, _rng, teamSize) =>
+	localSearchMatching(profiles, teamSize);
+
+export const BASELINES: Record<string, Method> = {
+	random: { match: randomMatching, privacy: "central" },
+	greedy: {
+		match: (profiles, _rng, teamSize) => greedyMatching(profiles, teamSize),
+		privacy: "central",
+	},
+	"local search": { match: localSearch, privacy: "central" },
+	// Everyone posts their full profile and teams form with full information: the best people could do by
+	// sharing everything, so local search's teams, at the cost of a full broadcast.
+	broadcast: { match: localSearch, privacy: "broadcast" },
 };
 
 export type EvalSettings = {
@@ -33,39 +47,72 @@ export type EvalSettings = {
 	teamSize: number;
 };
 
-// Averages over one grouping's teams.
+// Averages over one grouping's teams, plus how many of the people were placed and the quality each person
+// got: their team's score, or 0 for anyone left without a team.
 export type GroupingSummary = {
 	score: number;
 	worst: number;
 	coverage: number;
 	interest: number;
 	overlap: number;
+	placed: number;
+	overall: number;
 };
 
-// A GroupingSummary averaged over seeds, plus how much the score varied between them.
+// A GroupingSummary averaged over seeds, plus how much the score varied between them, the share of private
+// fields that reached people outside their own team, and whether the method needs a trusted central party.
 export type MethodResult = GroupingSummary & {
 	method: string;
 	scoreStdDev: number;
+	leakage: number;
+	central: boolean;
 };
 
 // Matchers shuffle with a different seed than the one that made the people,
 // so the shuffle doesn't replay the generator's random stream.
 const MATCHING_SEED_OFFSET = 1_000_000;
 
-// Scores one grouping: the mean of each quality part across its teams, and its worst team.
-export function summarize(teams: readonly Profile[][]): GroupingSummary {
+// Scores one grouping of `people` people (everyone in the teams, by default): the mean of each quality part
+// across its teams, its worst team, the share of people placed, and the mean quality per person.
+export function summarize(
+	teams: readonly Profile[][],
+	people = teams.reduce((sum, team) => sum + team.length, 0),
+): GroupingSummary {
+	const placed = teams.reduce((sum, team) => sum + team.length, 0);
 	return {
-		score: mean(teams.map(scoreTeam)),
-		worst: Math.min(...teams.map(scoreTeam)),
-		coverage: mean(teams.map(skillCoverage)),
-		interest: mean(teams.map(sharedInterest)),
-		overlap: mean(teams.map(availabilityOverlap)),
+		score: teams.length > 0 ? mean(teams.map(scoreTeam)) : 0,
+		worst: teams.length > 0 ? Math.min(...teams.map(scoreTeam)) : 0,
+		coverage: teams.length > 0 ? mean(teams.map(skillCoverage)) : 0,
+		interest: teams.length > 0 ? mean(teams.map(sharedInterest)) : 0,
+		overlap: teams.length > 0 ? mean(teams.map(availabilityOverlap)) : 0,
+		placed: people > 0 ? placed / people : 0,
+		overall:
+			people > 0
+				? teams.reduce(
+						(sum, team) => sum + scoreTeam(team) * team.length,
+						0,
+					) / people
+				: 0,
 	};
+}
+
+// The leakage of a full broadcast with these teams, on the same scale as measureLeakage: everyone's private
+// fields reach every other person, so all but their teammates are outsiders.
+export function broadcastLeakage(teams: readonly Profile[][]): number {
+	const people = teams.reduce((sum, team) => sum + team.length, 0);
+	if (people < 2) {
+		return 0;
+	}
+	const outsiders = teams.reduce(
+		(sum, team) => sum + team.length * (people - team.length),
+		0,
+	);
+	return outsiders / (people * (people - 1));
 }
 
 // Runs every matcher on the same people for each seed; one result row per matcher.
 export function evaluate(
-	matchers: Record<string, Matcher>,
+	methods: Record<string, Method>,
 	settings: EvalSettings,
 ): MethodResult[] {
 	if (settings.seeds.length === 0) {
@@ -75,16 +122,15 @@ export function evaluate(
 		seed,
 		profiles: generateProfiles(settings.people, seed),
 	}));
-	return Object.entries(matchers).map(([method, match]) => {
-		const summaries = populations.map(({ seed, profiles }) =>
-			summarize(
-				match(
-					profiles,
-					createRng(seed + MATCHING_SEED_OFFSET),
-					settings.teamSize,
-				),
+	return Object.entries(methods).map(([method, { match, privacy }]) => {
+		const groupings = populations.map(({ seed, profiles }) =>
+			match(
+				profiles,
+				createRng(seed + MATCHING_SEED_OFFSET),
+				settings.teamSize,
 			),
 		);
+		const summaries = groupings.map((teams) => summarize(teams));
 		const values = (key: keyof GroupingSummary) =>
 			summaries.map((s) => s[key]);
 		return {
@@ -95,6 +141,14 @@ export function evaluate(
 			coverage: mean(values("coverage")),
 			interest: mean(values("interest")),
 			overlap: mean(values("overlap")),
+			placed: mean(values("placed")),
+			overall: mean(values("overall")),
+			// A central matcher shows the participants nothing of each other; a broadcast shows them everything.
+			leakage:
+				privacy === "broadcast"
+					? mean(groupings.map(broadcastLeakage))
+					: 0,
+			central: privacy === "central",
 		};
 	});
 }
@@ -106,6 +160,10 @@ const COLUMNS: [header: string, cell: (row: MethodResult) => string][] = [
 	["Coverage", (r) => r.coverage.toFixed(3)],
 	["Interest", (r) => r.interest.toFixed(3)],
 	["Overlap", (r) => r.overlap.toFixed(3)],
+	["Placed", (r) => `${Math.round(r.placed * 100)}%`],
+	["Overall", (r) => r.overall.toFixed(3)],
+	["Leakage", (r) => `${(r.leakage * 100).toFixed(1)}%`],
+	["Trusted party", (r) => (r.central ? "needed" : "none")],
 ];
 
 // Lays out result rows as an aligned text table for the terminal.

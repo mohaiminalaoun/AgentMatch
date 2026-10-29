@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	BASELINES,
+	broadcastLeakage,
 	evaluate,
 	formatTable,
 	summarize,
@@ -42,6 +43,7 @@ describe("evaluate", () => {
 			"random",
 			"greedy",
 			"local search",
+			"broadcast",
 		]);
 	});
 
@@ -70,10 +72,57 @@ describe("evaluate", () => {
 describe("formatTable", () => {
 	test("has a header and a line per method", () => {
 		const lines = formatTable(evaluate(BASELINES, settings)).split("\n");
-		expect(lines).toHaveLength(4);
+		expect(lines).toHaveLength(5);
 		expect(lines[0]).toContain("Avg score");
+		expect(lines[0]).toContain("Leakage");
 		expect(lines[1]).toMatch(/^random/);
 		expect(lines[2]).toMatch(/^greedy/);
 		expect(lines[3]).toMatch(/^local search/);
+		expect(lines[4]).toMatch(/^broadcast/);
+	});
+});
+
+describe("privacy", () => {
+	const fe = [{ name: "frontend", level: "expert" as const }];
+	const p = (id: string) => person(id, fe, ["climate"], 0);
+
+	test("a broadcast leaks everything to everyone outside each person's team", () => {
+		// Two teams of 2 among 4 people: each person's fields reach 2 of their 3 others.
+		expect(
+			broadcastLeakage([
+				[p("a"), p("b")],
+				[p("c"), p("d")],
+			]),
+		).toBeCloseTo(2 / 3);
+		// One team with everyone: there are no outsiders.
+		expect(broadcastLeakage([[p("a"), p("b"), p("c")]])).toBe(0);
+	});
+
+	test("central matchers leak nothing to participants but need a trusted party; broadcast is the reverse", () => {
+		const rows = evaluate(BASELINES, settings);
+		const row = (method: string) => rows.find((r) => r.method === method)!;
+		expect(row("local search")).toMatchObject({
+			leakage: 0,
+			central: true,
+		});
+		expect(row("broadcast").central).toBe(false);
+		// 40 people in teams of about 3: each person's fields reach about 37 of 39 others.
+		expect(row("broadcast").leakage).toBeGreaterThan(0.9);
+		// Same teams as local search, so the same quality.
+		expect(row("broadcast").score).toBe(row("local search").score);
+	});
+
+	test("baselines place everyone, so their per-person quality is their teams' quality", () => {
+		for (const row of evaluate(BASELINES, settings)) {
+			expect(row.placed).toBe(1);
+		}
+	});
+
+	test("people left without a team count as 0 in the per-person quality", () => {
+		const team = [p("a"), p("b")];
+		const placedOnly = summarize([team]);
+		const withTwoLeft = summarize([team], 4);
+		expect(withTwoLeft.placed).toBe(0.5);
+		expect(withTwoLeft.overall).toBeCloseTo(placedOnly.overall / 2);
 	});
 });

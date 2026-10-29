@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test:watch`: run tests in watch mode
 - `npm run typecheck`: type-check with `tsc --noEmit` (nothing is emitted; code runs through `tsx`)
 - `npm start`: run `src/index.ts` with `tsx`
-- `npm run eval`: compare all matching methods across seeds and print a results table (`src/evaluation/run.ts`)
+- `npm run eval`: compare all matching methods across seeds and print a results table: team quality, share of people placed, per-person quality, leakage (share of private fields reaching people outside their team), and whether a trusted central party is needed (`src/evaluation/run.ts`)
 - `npm run ask "<prompt>"`: send one prompt to the model configured in `.env` and print the reply, token usage, and latency (`src/ask.ts`; costs real credits)
 - `npm run decide [1-5]`: one agent decides on one sample proposal from `src/scenarios.ts`, printing the messages, its private rationale, gate blocks, and what would be sent (`src/decide.ts`; costs real credits)
 - `npm run reliability`: run 20 live agent decisions concurrently over `src/scenarios.ts` and report the decision mix, gate blocks, a re-check that nothing sent breaks the disclosure rules, tokens, and time (`src/reliability.ts`; costs real credits)
