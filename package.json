@@ -24,6 +24,7 @@
 		"discover": "tsx src/discover.ts",
 		"simulate": "tsx src/simulate.ts",
 		"pilot:run": "tsx src/pilot-run.ts",
+		"pilot:view": "tsx src/pilot-view.ts",
 		"dev:ui": "vite --host 127.0.0.1",
 		"build:ui": "tsc -p tsconfig.ui.json && vite build",
 		"preview:ui": "vite preview --host 127.0.0.1"
