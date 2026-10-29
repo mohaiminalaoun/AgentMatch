@@ -4,17 +4,16 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"types": ["node"],
-
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"exactOptionalPropertyTypes": true,
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
-
 		"verbatimModuleSyntax": true,
 		"isolatedModules": true,
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["src", "tests"]
+	"include": ["src", "tests"],
+	"exclude": ["src/ui/web"]
 }

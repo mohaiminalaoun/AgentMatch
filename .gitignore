@@ -5,3 +5,4 @@ node_modules/
 runs/
 .DS_Store
 demo-notes.md
+dist/
