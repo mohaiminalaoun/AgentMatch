@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aboutHuman } from "./notes.js";
 import { contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
 import { isOpen } from "./commitment.js";
@@ -110,7 +111,7 @@ export function discoveryMessages(
 			role: "system",
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, 0),
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
 					"Approach where your human could fill a role a project needs, or the other person could fill one your human's project needs, and the project is something your human would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",

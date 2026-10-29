@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aboutHuman } from "./notes.js";
 import {
 	agreedTerms,
 	agreedVersion,
@@ -339,7 +340,7 @@ export function offerMessages(
 			role: "system",
 			content: [
 				INTRO,
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(owner.profile, null, 2)}`,
+				aboutHuman(owner, 2),
 				[
 					`Your human's project idea is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
@@ -372,7 +373,7 @@ export function commitmentMessages(
 			role: "system",
 			content: [
 				INTRO,
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, 2),
 				[
 					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",
 					"Committing is final: your human joins that team, can't join any other, and their name is shared with every teammate.",
@@ -398,7 +399,7 @@ export function recheckMessages(agent: AgentState, team: Team): Message[] {
 			role: "system",
 			content: [
 				INTRO,
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, 2),
 				[
 					`Your human is committed to ${team.members[0]}'s team, building ${JSON.stringify(team.project)}. Someone new has joined, and the team is now ${team.members.length} people.`,
 					"Decide whether your human stays or leaves.",

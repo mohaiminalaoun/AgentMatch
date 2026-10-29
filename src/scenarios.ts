@@ -1,5 +1,6 @@
 // Hand-picked test cases for the live scripts (`decide`, `reliability`): a receiving agent's human
 // and a proposal sent to them, chosen so accept, counter, and decline all come up.
+import type { Note } from "./engine/notes.js";
 import type { Profile } from "./engine/profile.js";
 import type { Proposal } from "./engine/proposal.js";
 
@@ -177,6 +178,35 @@ export const mara: Profile = {
 	],
 	availability: { hoursPerWeek: 15, utcOffset: -4 },
 	preferences: { minTeamSize: 2, maxTeamSize: 3, preferredRoles: ["ml"] },
+};
+
+// Theo's and Mara's private notes for `npm run coevolve`: what each told their own agent beyond the form.
+// The "never" notes stay out of every prompt (step 11.2 will let them steer through text-free messages).
+export const coevolveNotes: Record<string, Note[]> = {
+	theo: [
+		{
+			text: "My running app side project died because people stopped logging after two weeks; streaks alone didn't keep them.",
+			level: 1,
+		},
+		{
+			text: "Likes shipping a rough version on day one and polishing later.",
+			level: 2,
+		},
+		{
+			text: "Burned out on a fitness startup last year; wary of anything that needs a big launch.",
+			level: "never",
+		},
+	],
+	mara: [
+		{
+			text: "Worked two years as a physio assistant before switching to ML; patients skipped their home exercises because they weren't sure they were doing them right.",
+			level: 1,
+		},
+		{
+			text: "Has a half-finished pose-estimation prototype she'd love to reuse.",
+			level: 2,
+		},
+	],
 };
 
 export const SCENARIOS: Scenario[] = [

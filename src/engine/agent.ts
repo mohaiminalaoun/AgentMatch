@@ -1,4 +1,5 @@
 import type { DisclosureLevel, ProfileField } from "./disclosure.js";
+import type { Note } from "./notes.js";
 import type { Profile } from "./profile.js";
 import type {
 	Interest,
@@ -50,16 +51,23 @@ export type AgentState = {
 	// How many committed teams its human has left. Public: the board and every proposal it sends show it,
 	// so others can weigh reliability.
 	leftTeams: number;
+	// Its human's private notes, each with the level at which it may draw on them. Never sent as data: prompts
+	// include only the notes their level allows.
+	notes: Note[];
 };
 
-// A new agent for `profile`'s human, using the profile's id, with no contacts yet.
-export function createAgent(profile: Profile): AgentState {
+// A new agent for `profile`'s human, using the profile's id, with no contacts yet, and the human's notes.
+export function createAgent(
+	profile: Profile,
+	notes: readonly Note[] = [],
+): AgentState {
 	return {
 		id: profile.id,
 		profile,
 		listing: undefined,
 		contacts: {},
 		leftTeams: 0,
+		notes: [...notes],
 	};
 }
 

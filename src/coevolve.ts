@@ -1,5 +1,6 @@
 // Entry point for `npm run coevolve`: Theo (a workout tracker) proposes to Mara (a rehab coach), the two
-// negotiate up to level 2, where either may propose a reshaped version of the project, and then commit.
+// negotiate up to level 2, where either may propose a reshaped version of the project, and then commit. Each
+// has private notes (`coevolveNotes`) their agent draws on only once the level allows.
 // Prints every event as it happens, with private rationales, then the original idea next to the one the
 // team agreed to build.
 import { formatEvent } from "./describe.js";
@@ -10,7 +11,7 @@ import { loadConfig, readEnvFile } from "./engine/config.js";
 import type { RunEvent } from "./engine/events.js";
 import { createWorld, proposalFrom, runRound } from "./engine/round.js";
 import { createRunLog } from "./engine/runlog.js";
-import { mara, theo } from "./scenarios.js";
+import { coevolveNotes, mara, theo } from "./scenarios.js";
 
 try {
 	readEnvFile();
@@ -25,7 +26,7 @@ try {
 		}
 	};
 
-	const world = createWorld([theo, mara]);
+	const world = createWorld([theo, mara], coevolveNotes);
 	const proposal = proposalFrom(world.agents.theo!, "mara", "p1");
 	if (!proposal) {
 		throw new Error("Theo has no project idea to pitch");

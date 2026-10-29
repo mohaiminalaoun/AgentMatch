@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aboutHuman } from "./notes.js";
 import { contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
 import {
@@ -89,7 +90,7 @@ export function decisionMessages(
 			role: "system",
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, contact.level),
 				disclosureRules(contact.level),
 				[
 					"How to decide:",

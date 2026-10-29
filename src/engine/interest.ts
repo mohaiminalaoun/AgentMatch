@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aboutHuman } from "./notes.js";
 import {
 	agreedTerms,
 	contactOf,
@@ -76,7 +77,7 @@ export function interestMessages(
 			role: "system",
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, level),
 				[
 					`You and agent ${otherId} both agreed to keep talking and are now at level ${level}.`,
 					WEIGHING[level] ?? "",
@@ -200,7 +201,7 @@ export function revisionMessages(
 			role: "system",
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
-				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
+				aboutHuman(agent, contact.level),
 				[
 					`Agent ${revision.from} proposes a reshaped version of the project you've been discussing.`,
 					"Adopt it if it's a better project for your human to build with them; otherwise keep the current version. Keeping doesn't end the conversation.",

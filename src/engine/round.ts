@@ -35,6 +35,7 @@ import {
 	type Share,
 	type Terms,
 } from "./proposal.js";
+import type { Note } from "./notes.js";
 import type { Team } from "./team.js";
 
 // Everything a run needs: every agent's state, the one bus they all talk through, and the teams formed so far.
@@ -87,10 +88,15 @@ export type RoundResult = {
 const DEFAULT_MAX_TICKS = 12;
 const DEFAULT_MAX_LEVEL = 2;
 
-// A world with one agent per profile, all on a fresh bus.
-export function createWorld(profiles: readonly Profile[]): World {
+// A world with one agent per profile, all on a fresh bus. `notes` gives some humans private notes, by id.
+export function createWorld(
+	profiles: readonly Profile[],
+	notes: Record<string, readonly Note[]> = {},
+): World {
 	return {
-		agents: Object.fromEntries(profiles.map((p) => [p.id, createAgent(p)])),
+		agents: Object.fromEntries(
+			profiles.map((p) => [p.id, createAgent(p, notes[p.id])]),
+		),
 		bus: createBus(profiles.map((p) => p.id)),
 		teams: [],
 	};
