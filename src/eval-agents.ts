@@ -8,6 +8,7 @@ import { loadConfig, readEnvFile } from "./engine/config.js";
 import { createRunLog } from "./engine/runlog.js";
 import { evaluateAgents } from "./evaluation/agents.js";
 import { BASELINES, evaluate, formatTable } from "./evaluation/evaluate.js";
+import { createStatus } from "./status.js";
 
 // The value after `--name` on the command line, or `fallback`.
 function flag(name: string, fallback: string): string {
@@ -40,6 +41,18 @@ try {
 	const client = createLlmClient(config);
 	const started = performance.now();
 	let calls = 0;
+	// Where each seed is: its round count, then "brainstorm" once that phase begins, then "done".
+	const progress = new Map<number, { rounds: number; stage: string }>(
+		seeds.map((seed) => [seed, { rounds: 0, stage: "" }]),
+	);
+	const status = createStatus(started, () =>
+		[...progress]
+			.map(
+				([seed, p]) =>
+					`seed ${seed} ${p.stage === "done" ? "done" : `${p.stage}r${p.rounds}`}`,
+			)
+			.join(" · "),
+	);
 	console.log(
 		`${people} people · seeds ${seeds.join(", ")} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}\n`,
 	);
@@ -52,17 +65,28 @@ try {
 				const log = createRunLog(`eval-seed${seed}`);
 				return (event) => {
 					log.write(event);
+					const p = progress.get(seed)!;
 					if (event.type === "exchange") {
 						calls++;
+						status.call(event.usage?.total ?? 0);
+					}
+					if (event.type === "round") {
+						p.rounds++;
+					}
+					if (event.type === "brainstorm") {
+						p.stage = "brainstorm ";
 					}
 				};
 			},
-			onSeed: ({ seed, summary, leakage, teams }) =>
-				console.log(
+			onSeed: ({ seed, summary, leakage, teams }) => {
+				progress.get(seed)!.stage = "done";
+				status.print(
 					`  seed ${seed}: ${teams.length} teams · ${Math.round(summary.placed * 100)}% placed · quality ${summary.score.toFixed(3)} · leakage ${(leakage * 100).toFixed(1)}%`,
-				),
+				);
+			},
 		},
 	);
+	status.stop();
 
 	const rows = [
 		...evaluate(BASELINES, { seeds, people, teamSize: TEAM_SIZE }),
