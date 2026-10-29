@@ -441,15 +441,32 @@ h1 > span {
 	background-size: 18px 18px;
 	overflow: hidden;
 }
-.network-canvas:fullscreen {
-	background-color: #fcfcfe;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+/* Full screen: the network panel and inspector fill the screen, the canvas takes the spare height. */
+.studio-grid:fullscreen {
+	background: #f7f8fa;
+	padding: 20px;
+	box-sizing: border-box;
+	grid-template-rows: minmax(0, 1fr);
 }
-.network-canvas:fullscreen svg {
-	max-height: 95vh;
-	max-width: 1200px;
+.studio-grid:fullscreen .network-panel {
+	display: flex;
+	flex-direction: column;
+}
+.studio-grid:fullscreen .network-canvas {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+.studio-grid:fullscreen .network-canvas > svg {
+	height: 100%;
+	min-height: 0;
+	max-height: none;
+}
+.studio-grid:fullscreen .inspector {
+	min-height: 0;
+}
+.studio-grid:fullscreen .inspector-body {
+	max-height: none;
 }
 .network-canvas > svg {
 	width: 100%;

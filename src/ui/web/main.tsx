@@ -15,6 +15,7 @@ import {
 	Layers3,
 	LockKeyhole,
 	Maximize2,
+	Minimize2,
 	Network,
 	Pause,
 	Play,
@@ -84,7 +85,14 @@ function App() {
 		// Another agent whose conversation with the selected one fills the Activity tab.
 		[partner, setPartner] = useState("");
 	const file = useRef<HTMLInputElement>(null);
-	const canvas = useRef<HTMLDivElement>(null);
+	// The network panel and inspector go full screen together, so an open conversation stays visible.
+	const studio = useRef<HTMLDivElement>(null);
+	const [fullscreen, setFullscreen] = useState(false);
+	useEffect(() => {
+		const onChange = () => setFullscreen(!!document.fullscreenElement);
+		document.addEventListener("fullscreenchange", onChange);
+		return () => document.removeEventListener("fullscreenchange", onChange);
+	}, []);
 	useEffect(() => {
 		if (!playing) return;
 		const t = setInterval(
@@ -520,7 +528,7 @@ function App() {
 							</div>
 						</div>
 					</section>
-					<div className="studio-grid">
+					<div ref={studio} className="studio-grid">
 						<section className="network-panel">
 							<div className="panel-toolbar">
 								<div className="view-tabs">
@@ -558,19 +566,27 @@ function App() {
 									</span>
 									<button
 										className="icon-button"
-										title="Expand canvas"
+										title={
+											fullscreen
+												? "Exit full screen"
+												: "Full screen"
+										}
 										onClick={() => {
 											if (document.fullscreenElement)
 												void document.exitFullscreen();
 											else
-												void canvas.current?.requestFullscreen();
+												void studio.current?.requestFullscreen();
 										}}
 									>
-										<Maximize2 size={15} />
+										{fullscreen ? (
+											<Minimize2 size={15} />
+										) : (
+											<Maximize2 size={15} />
+										)}
 									</button>
 								</div>
 							</div>
-							<div ref={canvas} className="network-canvas">
+							<div className="network-canvas">
 								{view === "network" ? (
 									<>
 										<div className="canvas-caption">
@@ -1607,7 +1623,8 @@ function App() {
 															Open agent
 														</button>
 														<button
-															aria-label="Show all activity"
+															aria-label="Close conversation and show all activity"
+															title="Close conversation"
 															onClick={() =>
 																setPartner("")
 															}
