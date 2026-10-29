@@ -231,6 +231,26 @@ describe("runCommitment", () => {
 		expect(result).toMatchObject({ offers: 1, commits: 1, skipped: false });
 	});
 
+	test("with names held back for approval, the team forms but nobody swaps names", async () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		const events: RunEvent[] = [];
+		const result = await runCommitment(
+			fakeClient({}, { j: "a" }).client,
+			world,
+			{ revealNames: false, onEvent: (e) => events.push(e) },
+		);
+		expect(result.world.teams.map((t) => t.members)).toEqual([["a", "j"]]);
+		expect(messagesOf(events)).toEqual(["a→j offer", "j→a commit"]);
+		expect(contactOf(result.world.agents.a!, "j").level).toBeLessThan(3);
+		expect(contactOf(result.world.agents.a!, "j").revealed).not.toContain(
+			"name",
+		);
+		expect(
+			contactOf(result.world.agents.j!, "a").learned.name,
+		).toBeUndefined();
+	});
+
 	test("an owner with places for everyone ready offers to all without a model call", async () => {
 		const world = createWorld([
 			human("a"),

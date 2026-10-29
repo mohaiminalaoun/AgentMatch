@@ -66,6 +66,9 @@ export const AgentStay = z.object({
 export type AgentStay = z.infer<typeof AgentStay>;
 
 export type CommitmentOptions = {
+	// Whether teammates swap names (level 3) as soon as they commit (default true). With real people, names wait
+	// until every member's human has approved the team, outside the engine.
+	revealNames?: boolean;
 	onExchange?: ChatOptions["onExchange"];
 	onEvent?: (event: RunEvent) => void;
 };
@@ -461,7 +464,7 @@ export function recheckMessages(agent: AgentState, team: Team): Message[] {
 export async function runCommitment(
 	client: LlmClient,
 	world: World,
-	{ onExchange, onEvent }: CommitmentOptions = {},
+	{ revealNames = true, onExchange, onEvent }: CommitmentOptions = {},
 ): Promise<CommitmentResult> {
 	const { bus } = world;
 	if (bus.waiting() > 0) {
@@ -841,7 +844,7 @@ export async function runCommitment(
 	// and has them swap names with every teammate. An existing team keeps its version.
 	function addMember(owner: string, member: string, version: Terms) {
 		const team = teams.find((t) => t.members[0] === owner);
-		for (const teammate of team?.members ?? [owner]) {
+		for (const teammate of revealNames ? (team?.members ?? [owner]) : []) {
 			shareName(teammate, member);
 			shareName(member, teammate);
 		}

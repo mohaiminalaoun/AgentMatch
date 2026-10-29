@@ -10,6 +10,7 @@ import {
 } from "./discovery.js";
 import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
+import type { Note } from "./notes.js";
 import { writeListings } from "./listing.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
@@ -28,6 +29,10 @@ export type SimulationOptions = {
 	brainstorm?: boolean;
 	// The most agents one agent may approach per round.
 	perAgent?: number;
+	// Some humans' private notes, by id.
+	notes?: Record<string, readonly Note[]>;
+	// Whether teammates swap names as soon as they commit (default true); see runCommitment.
+	revealNames?: boolean;
 	maxTicks?: number;
 	onEvent?: (event: RunEvent) => void;
 	// Called with a short progress line as each phase finishes, for live output.
@@ -106,12 +111,14 @@ export async function runSimulation(
 		maxRounds = DEFAULT_MAX_ROUNDS,
 		brainstorm: brainstormAtEnd = true,
 		perAgent,
+		notes = {},
+		revealNames = true,
 		maxTicks,
 		onEvent,
 		onPhase,
 	}: SimulationOptions = {},
 ): Promise<World> {
-	let world = await writeListings(client, createWorld(profiles), {
+	let world = await writeListings(client, createWorld(profiles, notes), {
 		...(onEvent && { onEvent }),
 	});
 	const listed = Object.values(world.agents).filter((a) => a.listing).length;
@@ -163,6 +170,7 @@ export async function runSimulation(
 			`${label}: conversations finished in ${result.ticks} ticks${result.quiet ? "" : " (stopped at the tick limit)"}`,
 		);
 		const commitment = await runCommitment(client, world, {
+			revealNames,
 			...(onEvent && { onEvent }),
 		});
 		world = commitment.world;
