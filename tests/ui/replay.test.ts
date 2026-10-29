@@ -34,6 +34,36 @@ describe("browser replay", () => {
 		expect(updated.teams).toHaveLength(3);
 		expect(updated.teams[0]?.members).toHaveLength(2);
 	});
+	it("drops a team whose member leaves it with only its owner", () => {
+		const team = (id: string, members: string[]): Event => ({
+			type: "team",
+			team: {
+				id,
+				members,
+				project: { title: "T", description: "D" },
+				rolesNeeded: [],
+				status: "committed",
+			},
+		});
+		const leave = (agent: string, team: string): Event => ({
+			type: "recheck",
+			agent,
+			team,
+			decision: "leave",
+			fellBack: false,
+		});
+		const events = [
+			team("t-ana", ["ana", "ben", "cy"]),
+			team("t-dee", ["dee", "eli"]),
+			// The engine sends the smaller team when two or more remain, but nothing when one does.
+			leave("cy", "t-ana"),
+			team("t-ana", ["ana", "ben"]),
+			leave("eli", "t-dee"),
+		];
+		expect(project(events).teams.map((t) => t.members)).toEqual([
+			["ana", "ben"],
+		]);
+	});
 	it("accepts additional fields and future event types", () => {
 		expect(parseLog('{"type":"future-event","extra":true}')).toHaveLength(
 			1,

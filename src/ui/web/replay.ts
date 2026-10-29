@@ -753,6 +753,14 @@ export function project(events: Event[]) {
 		if (e.type === "bus" && e.event.type === "rejected") gates++;
 		if (e.type === "tick") tick = e.n;
 		if (e.type === "team") teams.set(e.team.id, e.team);
+		// A team left with only its owner dissolves without a team event, so drop it here.
+		if (e.type === "recheck" && e.decision === "leave") {
+			const team = teams.get(e.team);
+			const members = team?.members.filter((id) => id !== e.agent) ?? [];
+			if (team && members.length >= 2)
+				teams.set(e.team, { ...team, members });
+			else teams.delete(e.team);
+		}
 	}
 	return {
 		people: [...people.values()],
