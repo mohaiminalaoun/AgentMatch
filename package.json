@@ -23,6 +23,7 @@
 		"hunch": "tsx src/hunch.ts",
 		"discover": "tsx src/discover.ts",
 		"simulate": "tsx src/simulate.ts",
+		"pilot:run": "tsx src/pilot-run.ts",
 		"dev:ui": "vite --host 127.0.0.1",
 		"build:ui": "tsc -p tsconfig.ui.json && vite build",
 		"preview:ui": "vite preview --host 127.0.0.1"
