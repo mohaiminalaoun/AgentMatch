@@ -234,6 +234,8 @@ describe("summarize", () => {
 		expect(summary.teamChecks).toEqual([
 			{
 				team: "team-a",
+				project: "AI tutor",
+				reshaped: false,
 				covered: ["frontend", "product"],
 				missing: ["data"],
 				belowMinimum: false,

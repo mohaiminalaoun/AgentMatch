@@ -112,8 +112,9 @@ export const Interest = z.object({
 export type Interest = z.infer<typeof Interest>;
 
 // A binding place on a team, sent by the project's owner to someone both sides are ready with (both
-// continued through level 2). No text. Once sent, the owner can't take it back: a commit puts them on the team.
-export const Offer = z.object({
+// continued through level 2). It carries the version of the project the team will build, which the
+// recipient commits to. Once sent, the owner can't take it back: a commit puts them on the team.
+export const Offer = Terms.extend({
 	kind: z.literal("offer"),
 	from: z.string().min(1),
 	to: z.string().min(1),
@@ -144,3 +145,26 @@ export const Leave = z.object({
 });
 
 export type Leave = z.infer<typeof Leave>;
+
+// A reshaped version of the project, proposed alongside a continue once level 1 or 2 is open, when what each
+// side has learned suggests a better idea for both. Free text, so gate-checked like a counter at the
+// sender's level. It doesn't change whose project it is.
+export const Revision = Terms.extend({
+	kind: z.literal("revision"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	level: z.literal([1, 2, 3]),
+});
+
+export type Revision = z.infer<typeof Revision>;
+
+// The answer to a revision: adopt it as the agreed version, or keep the current one. No text, and keeping
+// doesn't end the conversation.
+export const RevisionAnswer = z.object({
+	kind: z.literal("revisionAnswer"),
+	from: z.string().min(1),
+	to: z.string().min(1),
+	adopt: z.boolean(),
+});
+
+export type RevisionAnswer = z.infer<typeof RevisionAnswer>;

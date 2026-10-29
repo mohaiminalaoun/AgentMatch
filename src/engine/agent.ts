@@ -7,9 +7,12 @@ import type {
 	OfferAnswer,
 	Proposal,
 	ProposalResponse,
+	Revision,
+	RevisionAnswer,
 	Share,
 	Terms,
 } from "./proposal.js";
+import { JOIN_PREFIX } from "./proposal.js";
 
 export type AgentMessage =
 	| Proposal
@@ -18,7 +21,9 @@ export type AgentMessage =
 	| Interest
 	| Offer
 	| OfferAnswer
-	| Leave;
+	| Leave
+	| Revision
+	| RevisionAnswer;
 
 // What one agent knows about its relationship with another.
 export type Contact = {
@@ -141,4 +146,60 @@ function updateContact(
 			[otherId]: change(contactOf(state, otherId)),
 		},
 	};
+}
+
+// A version of the project, and whose it is: whoever wrote its roles list, which names roles needed from
+// people other than them. A "join your project" request is the recipient's pitch, so it's theirs.
+export type Version = { terms: Terms; author: string };
+
+// The version of the project `agent` and `otherId` last agreed on: the last proposal or counter that was
+// accepted, or the last revision that was adopted, whichever came later. A "join your project" request
+// agrees to the recipient's pitch, so the prefix is dropped. Undefined if nothing has been agreed.
+export function agreedVersion(
+	agent: AgentState,
+	otherId: string,
+): Version | undefined {
+	let onTable: Version | undefined;
+	let revised: Version | undefined;
+	let agreed: Version | undefined;
+	for (const m of contactOf(agent, otherId).history) {
+		if ("pitch" in m && !("kind" in m)) {
+			const joins = m.pitch.startsWith(JOIN_PREFIX);
+			onTable = {
+				terms: {
+					pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
+					rolesNeeded: m.rolesNeeded,
+				},
+				author: joins ? m.to : m.from,
+			};
+		} else if ("decision" in m && m.decision === "accept") {
+			agreed = onTable;
+		} else if ("kind" in m && m.kind === "revision") {
+			revised = {
+				terms: { pitch: m.pitch, rolesNeeded: m.rolesNeeded },
+				author: m.from,
+			};
+		} else if ("kind" in m && m.kind === "revisionAnswer" && m.adopt) {
+			agreed = revised;
+		}
+	}
+	return agreed;
+}
+
+// Just the terms of the agreed version.
+export function agreedTerms(
+	agent: AgentState,
+	otherId: string,
+): Terms | undefined {
+	return agreedVersion(agent, otherId)?.terms;
+}
+
+// The most revisions one conversation may have, from both sides together.
+export const MAX_REVISIONS = 2;
+
+// How many revisions have gone back and forth with `otherId`.
+export function revisionsWith(agent: AgentState, otherId: string): number {
+	return contactOf(agent, otherId).history.filter(
+		(m) => "kind" in m && m.kind === "revision",
+	).length;
 }

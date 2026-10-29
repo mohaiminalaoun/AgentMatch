@@ -122,6 +122,52 @@ function checkTexts(
 	return violations;
 }
 
+// Checks a draft for what the sender learned from other people: their name, skills, interests, or preferred
+// roles, each from what they shared. A term doesn't count if it's in `known`, text the recipient may already
+// see (the sender's own profile, what the recipient shared, their messages). Only the named text parts are
+// searched, so a list of roles a project needs can be left out: needing a role says nothing about who has it.
+export function checkThirdParty(
+	texts: Record<string, string | undefined>,
+	others: readonly Partial<Profile>[],
+	known: string,
+): Violation[] {
+	const violations: Violation[] = [];
+	for (const other of others) {
+		const terms: [ProfileField, string][] = [
+			...(other.name
+				? [["name", other.name] as [ProfileField, string]]
+				: []),
+			...(other.skills ?? []).flatMap((s) =>
+				withSynonyms(s.name).map((t): [ProfileField, string] => [
+					"skills",
+					t,
+				]),
+			),
+			...(other.interests ?? []).map((t): [ProfileField, string] => [
+				"interests",
+				t,
+			]),
+			...(other.preferences?.preferredRoles ?? []).flatMap((r) =>
+				withSynonyms(r).map((t): [ProfileField, string] => [
+					"preferences",
+					t,
+				]),
+			),
+		];
+		for (const [where, text] of Object.entries(texts)) {
+			if (!text) {
+				continue;
+			}
+			for (const [field, term] of terms) {
+				if (mentions(text, term) && !mentions(known, term)) {
+					violations.push({ field, where, match: term });
+				}
+			}
+		}
+	}
+	return violations;
+}
+
 // Every profile field that `text` mentions, allowed or not, for recording what a message revealed.
 // Uses the same matching as the gate. A term only counts toward a field if it isn't already public
 // through a lower-level one: "climate" in a pitch built from a project idea about climate reveals

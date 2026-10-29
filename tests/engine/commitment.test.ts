@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+	agreedTerms,
 	contactOf,
 	learn,
 	recordMessage,
@@ -12,6 +13,7 @@ import {
 	placesLeft,
 	projectOwner,
 	runCommitment,
+	safeToOffer,
 	selectOffers,
 	stillNeeded,
 } from "../../src/engine/commitment.js";
@@ -208,7 +210,9 @@ describe("runCommitment", () => {
 			{
 				id: "team-a",
 				members: ["a", "j"],
-				project: { title: "a's project", description: "A project." },
+				// The version they agreed on: here, a's listing.
+				project: { title: "a's project", description: "a's project" },
+				rolesNeeded: ["frontend"],
 				status: "committed",
 			},
 		]);
@@ -516,6 +520,177 @@ describe("team size and skills", () => {
 	});
 });
 
+describe("the agreed project", () => {
+	// Records, in both histories, `from` countering with `pitch` and the other side accepting it.
+	function counterAccepted(
+		world: World,
+		from: string,
+		to: string,
+		pitch: string,
+		rolesNeeded: string[],
+	) {
+		const messages: AgentMessage[] = [
+			{
+				decision: "counter",
+				proposalId: `${to}-${from}`,
+				from,
+				to,
+				pitch,
+				rolesNeeded,
+			},
+			{
+				decision: "accept",
+				proposalId: `${to}-${from}.c`,
+				from: to,
+				to: from,
+			},
+		];
+		for (const message of messages) {
+			world.agents[from] = recordMessage(
+				world.agents[from]!,
+				to,
+				message,
+			);
+			world.agents[to] = recordMessage(world.agents[to]!, from, message);
+		}
+	}
+
+	test("agreedTerms is the last proposal or counter that was accepted", () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		// The join request was never accepted in this history, so nothing is agreed yet.
+		expect(agreedTerms(world.agents.a!, "j")).toBeUndefined();
+		counterAccepted(world, "a", "j", "A tutor for injury recovery.", [
+			"frontend",
+		]);
+		expect(agreedTerms(world.agents.j!, "a")).toEqual({
+			pitch: "A tutor for injury recovery.",
+			rolesNeeded: ["frontend"],
+		});
+	});
+
+	test("an accepted join request agrees to the recipient's pitch, without the prefix", () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		const accept: AgentMessage = {
+			decision: "accept",
+			proposalId: "j-a",
+			from: "a",
+			to: "j",
+		};
+		world.agents.a = recordMessage(world.agents.a!, "j", accept);
+		expect(agreedTerms(world.agents.a!, "j")).toEqual({
+			pitch: "a's project",
+			rolesNeeded: ["design"],
+		});
+	});
+
+	test("the team builds the reshaped version, with its roles, and the commit prompt showed it", async () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		counterAccepted(world, "a", "j", "A tutor for injury recovery.", [
+			"frontend",
+		]);
+		const { client, prompts } = fakeClient({}, { j: "a" });
+		const { world: after, events } = await commit(world, client);
+		expect(after.teams[0]).toMatchObject({
+			project: {
+				title: "a's project",
+				description: "A tutor for injury recovery.",
+			},
+			rolesNeeded: ["frontend"],
+		});
+		expect(prompts.j).toContain("A tutor for injury recovery.");
+		const offer = events.find(
+			(e) =>
+				e.type === "bus" &&
+				e.event.type === "sent" &&
+				"kind" in e.event.message &&
+				e.event.message.kind === "offer",
+		);
+		expect(offer).toMatchObject({
+			event: { message: { pitch: "A tutor for injury recovery." } },
+		});
+		// The public board still shows the original listing.
+		expect(after.agents.a!.listing!.pitch).toBe("a's project");
+	});
+
+	test("every offer in a pass carries one version: the one agreed with the first person kept", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("k", false, 4, "design"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		counterAccepted(world, "a", "k", "A design-led tutor.", ["design"]);
+		// k first: the team would build k's version, which j (frontend) doesn't fill.
+		expect(selectOffers(world, "a", ["k", "j"])).toEqual(["k"]);
+	});
+
+	test("a version that reveals what was learned about someone else isn't offered to anyone new", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false, 4, "zzphysio"),
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		const version = {
+			pitch: "A tutor for zzphysio clinics.",
+			rolesNeeded: ["frontend"],
+		};
+		// Safe for j, whose own skill it is; not for k, who never learned it.
+		expect(safeToOffer(world, "a", "j", version)).toBe(true);
+		expect(safeToOffer(world, "a", "k", version)).toBe(false);
+		counterAccepted(world, "a", "j", version.pitch, [
+			"zzphysio",
+			"frontend",
+		]);
+		expect(selectOffers(world, "a", ["j", "k"])).toEqual(["j"]);
+	});
+
+	test("the project belongs to whoever wrote the agreed version, so an adopted revision can move it", () => {
+		// a pitches; j counters with its own version (j's project now); then a revises, and j adopts it.
+		const world = createWorld([human("a"), human("j", true, 4, "ml")]);
+		ready(world, "a", "j");
+		counterAccepted(world, "j", "a", "j's take on it.", ["frontend"]);
+		expect(projectOwner(world, "a", "j")).toBe("j");
+		const messages: AgentMessage[] = [
+			{
+				kind: "revision",
+				from: "a",
+				to: "j",
+				level: 2,
+				pitch: "a's take, with ML form feedback.",
+				rolesNeeded: ["ml"],
+			},
+			{ kind: "revisionAnswer", from: "j", to: "a", adopt: true },
+		];
+		for (const m of messages) {
+			world.agents.a = recordMessage(world.agents.a!, "j", m);
+			world.agents.j = recordMessage(world.agents.j!, "a", m);
+		}
+		expect(projectOwner(world, "a", "j")).toBe("a");
+		// a needs ml, which j has: j can be offered a place on a's team.
+		expect(candidatesOf(world, "a")).toEqual(["j"]);
+	});
+
+	test("once a team exists, its version decides which roles are still needed", () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		world.teams = [
+			{
+				id: "team-a",
+				members: ["a", "j"],
+				project: { title: "a's project", description: "Reshaped." },
+				rolesNeeded: ["mobile", "data"],
+				status: "committed",
+			},
+		];
+		expect(stillNeeded(world, "a")).toEqual(["mobile", "data"]);
+	});
+});
+
 describe("leaving a team", () => {
 	// a's team with j already on it; k is ready to join, so the team grows and j re-checks.
 	function growing() {
@@ -529,6 +704,7 @@ describe("leaving a team", () => {
 				id: "team-a",
 				members: ["a", "j"],
 				project: { title: "a's project", description: "A project." },
+				rolesNeeded: ["frontend", "design"],
 				status: "committed",
 			},
 		];

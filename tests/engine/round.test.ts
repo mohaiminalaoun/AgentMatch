@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { contactOf } from "../../src/engine/agent.js";
+import { agreedTerms, contactOf } from "../../src/engine/agent.js";
 import type { BusEvent } from "../../src/engine/bus.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
@@ -608,5 +608,89 @@ describe("staged disclosure to level 1", () => {
 				"═══ model call 1",
 			);
 		});
+	});
+});
+
+describe("revisions", () => {
+	const revised = {
+		pitch: "Carbon tracker for schools, with receipts scanned in class.",
+		// Not "design": Ada has that skill, so listing it would reveal it at level 1.
+		rolesNeeded: ["mobile"],
+	};
+
+	// Omar accepts Ada's proposal. At level 1 Ada continues with a revision; at level 2 nobody revises.
+	// Ada is the proposer, so her level-1 check runs in the same tick as the accept that opens level 1: her
+	// prompt must still say level 1 (it used to say 0), or she could never revise.
+	// Omar adopts the revision if `adopt`, else keeps the current version.
+	function revisingClient(adopt: boolean) {
+		const fetch = (async (_url: unknown, init?: RequestInit) => {
+			const { messages } = JSON.parse(init!.body as string);
+			const who = /"id": "(\w+)"/.exec(messages[1].content)![1]!;
+			const last: string = messages.at(-1).content;
+			const reply = last.includes("Keep going, or withdraw?")
+				? {
+						rationale: "Fits.",
+						interest: "continue",
+						...(who === ada.id &&
+							messages[1].content.includes("now at level 1") && {
+								revision: revised,
+							}),
+					}
+				: last.includes("Adopt the revision")
+					? { rationale: "Better for us.", adopt }
+					: { rationale: "Fits.", decision: { decision: "accept" } };
+			return new Response(
+				JSON.stringify({
+					choices: [{ message: { content: JSON.stringify(reply) } }],
+				}),
+			);
+		}) as typeof globalThis.fetch;
+		return createLlmClient(config, {
+			fetch,
+			retry: { sleep: async () => {} },
+		});
+	}
+
+	async function negotiate(adopt: boolean) {
+		const world = createWorld([ada, omar]);
+		const sent: string[] = [];
+		world.bus.subscribe((e) => {
+			if (e.type === "sent" && "kind" in e.message) {
+				sent.push(
+					`${e.message.from}→${e.message.to} ${e.message.kind}`,
+				);
+			}
+		});
+		const events: RunEvent[] = [];
+		const result = await runRound(
+			world,
+			revisingClient(adopt),
+			[proposalFrom(world.agents[ada.id]!, "omar", "p1")!],
+			{ onEvent: (e) => events.push(e) },
+		);
+		return { ...result, sent, events };
+	}
+
+	test("a revision goes right after the continue, and an adopted one becomes the agreed version", async () => {
+		const { world, sent, events } = await negotiate(true);
+		const adaFirst = sent.filter((m) => m.startsWith(`${ada.id}→`));
+		expect(adaFirst.slice(1, 3)).toEqual([
+			`${ada.id}→omar interest`,
+			`${ada.id}→omar revision`,
+		]);
+		expect(sent).toContain(`omar→${ada.id} revisionAnswer`);
+		expect(agreedTerms(world.agents[ada.id]!, "omar")).toEqual(revised);
+		expect(agreedTerms(world.agents.omar!, ada.id)).toEqual(revised);
+		expect(events.find((e) => e.type === "revisionAnswer")).toMatchObject({
+			agent: "omar",
+			adopt: true,
+		});
+	});
+
+	test("a revision that's kept leaves the agreed version as it was, and the conversation goes on", async () => {
+		const { world } = await negotiate(false);
+		const original = agreedTerms(world.agents[ada.id]!, "omar");
+		expect(original?.pitch).not.toBe(revised.pitch);
+		expect(contactOf(world.agents[ada.id]!, "omar").level).toBe(2);
 	});
 });

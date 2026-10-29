@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+	agreedTerms,
+	agreedVersion,
 	contactOf,
 	learn,
 	raiseLevel,
@@ -11,7 +13,7 @@ import {
 import type { LlmClient } from "./client.js";
 import type { ProfileField } from "./disclosure.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
-import { checkDisclosure } from "./gate.js";
+import { checkDisclosure, checkThirdParty } from "./gate.js";
 import {
 	StructuredOutputError,
 	type ChatOptions,
@@ -25,6 +27,7 @@ import {
 	type Offer,
 	type OfferAnswer,
 	type Share,
+	type Terms,
 } from "./proposal.js";
 import { continued, publicPitch, type World } from "./round.js";
 import type { Team } from "./team.js";
@@ -86,6 +89,49 @@ function membersOf(world: World, owner: string): string[] {
 	return teamOf(world, owner)?.members ?? [owner];
 }
 
+// The team's version of its project, once there's a team.
+function teamTerms(team: Team): Terms {
+	return { pitch: team.project.description, rolesNeeded: team.rolesNeeded };
+}
+
+// The version of `owner`'s project that `id` would join: the team's if it has formed, otherwise the one
+// `owner` and `id` agreed on, or the owner's public pitch if they agreed on none.
+export function versionFor(
+	world: World,
+	owner: string,
+	id: string,
+): Terms | undefined {
+	const team = teamOf(world, owner);
+	return team
+		? teamTerms(team)
+		: (agreedTerms(world.agents[owner]!, id) ??
+				publicPitch(world.agents[owner]!));
+}
+
+// Whether `owner` may send `version` to `id`: nothing in its pitch may reveal what `owner` learned from anyone
+// other than `id`, unless `id` could already see it. A version agreed with someone else can carry what was
+// learned about them, so it's checked before it reaches anyone new.
+export function safeToOffer(
+	world: World,
+	owner: string,
+	id: string,
+	version: Terms,
+): boolean {
+	const agent = world.agents[owner]!;
+	const others = Object.entries(agent.contacts)
+		.filter(([other]) => other !== id)
+		.map(([, contact]) => contact.learned);
+	const contact = contactOf(agent, id);
+	const known = JSON.stringify([
+		agent.profile,
+		contact.learned,
+		contact.history,
+	]);
+	return (
+		checkThirdParty({ pitch: version.pitch }, others, known).length === 0
+	);
+}
+
 // The largest team `id` wants, as `owner` knows it: from its own profile for the owner, from what `id`
 // shared at level 2 for anyone else, or no limit if they never said.
 function maxSizeFor(world: World, owner: string, id: string): number {
@@ -106,15 +152,26 @@ function rolesOf(world: World, owner: string, id: string): Set<string> {
 	return new Set((skills ?? []).map((skill) => skill.name));
 }
 
-// The roles `owner`'s listing asks for that no one on its team fills yet. "any" (asked for by someone who
-// already covers every core role) is filled by the first person to join.
-export function stillNeeded(world: World, owner: string): string[] {
+// The roles a version of `owner`'s project asks for that no one on its team fills yet: the team's version once
+// it has formed, otherwise `version` if given, otherwise the owner's public listing. "any" (asked for by someone
+// who already covers every core role) is filled by the first person to join.
+export function stillNeeded(
+	world: World,
+	owner: string,
+	version?: Terms,
+): string[] {
+	const team = teamOf(world, owner);
 	const joined = membersOf(world, owner).slice(1);
 	const covered = new Set(
 		joined.flatMap((id) => [...rolesOf(world, owner, id)]),
 	);
-	return (publicPitch(world.agents[owner]!)?.rolesNeeded ?? []).filter(
-		(role) => (role === "any" ? joined.length === 0 : !covered.has(role)),
+	const roles =
+		(team
+			? teamTerms(team)
+			: (version ?? publicPitch(world.agents[owner]!))
+		)?.rolesNeeded ?? [];
+	return roles.filter((role) =>
+		role === "any" ? joined.length === 0 : !covered.has(role),
 	);
 }
 
@@ -150,46 +207,82 @@ export function isOpen(world: World, id: string): boolean {
 	);
 }
 
-// Trims `ordered` (best first) to offers that can all be taken at once: each person must fill a role that
-// neither the team nor anyone kept before them fills, and the resulting team must fit every member's largest
-// size, theirs included.
+// Trims `ordered` (best first) to offers that can all be taken at once, for one version of the project: the
+// team's, or, before there's a team, the one agreed with the first person kept. Each person must fill a role
+// of that version that neither the team nor anyone kept before them fills, the version must be safe to send
+// them, and the resulting team must fit every member's largest size, theirs included.
 export function selectOffers(
 	world: World,
 	owner: string,
 	ordered: readonly string[],
 ): string[] {
 	const size = membersOf(world, owner).length;
-	let needed = stillNeeded(world, owner);
+	let version = teamOf(world, owner)
+		? versionFor(world, owner, owner)
+		: undefined;
+	let needed = version ? stillNeeded(world, owner, version) : undefined;
 	let limit = size + placesLeft(world, owner);
 	const kept: string[] = [];
 	for (const id of ordered) {
-		const filled = fills(world, owner, id, needed);
+		const theirs = version ?? versionFor(world, owner, id);
+		if (!theirs || !safeToOffer(world, owner, id, theirs)) {
+			continue;
+		}
+		const filled = fills(
+			world,
+			owner,
+			id,
+			needed ?? stillNeeded(world, owner, theirs),
+		);
 		const newLimit = Math.min(limit, maxSizeFor(world, owner, id));
 		if (filled.length === 0 || size + kept.length + 1 > newLimit) {
 			continue;
 		}
 		kept.push(id);
 		limit = newLimit;
-		needed = needed.filter((role) => !filled.includes(role));
+		version = theirs;
+		needed = (needed ?? stillNeeded(world, owner, theirs)).filter(
+			(role) => !filled.includes(role),
+		);
 	}
 	return kept;
 }
 
-// Whose project the conversation between `a` and `b` is about: the owner of the last terms put on the table.
-// A "join your project" proposal is about its recipient's project; any other proposal or counter is about its
-// sender's. Someone with no project idea can't own one, so then it's the other side's.
+// The version every offer in a pass carries: the team's, or the one agreed with the first person offered.
+export function offerVersion(
+	world: World,
+	owner: string,
+	to: readonly string[],
+): Terms | undefined {
+	return teamOf(world, owner) || to.length === 0
+		? versionFor(world, owner, owner)
+		: versionFor(world, owner, to[0]!);
+}
+
+// Whose project the conversation between `a` and `b` is about: the author of the version they agreed on,
+// since its roles list names what's needed from people other than the author. Before they agree on one, it's
+// the owner of the last terms on the table: a "join your project" request is about its recipient's project,
+// any other proposal or counter is about its sender's. Someone with no project idea can't own one, so then
+// it's the other side's.
 export function projectOwner(
 	world: World,
 	a: string,
 	b: string,
 ): string | undefined {
+	const agreed = agreedVersion(world.agents[a]!, b);
 	const terms = contactOf(world.agents[a]!, b)
-		.history.filter((m) => "pitch" in m)
+		.history.filter((m) => "pitch" in m && !("kind" in m))
 		.at(-1);
-	if (!terms || !("pitch" in terms)) {
+	const owner =
+		agreed?.author ??
+		(terms && "pitch" in terms
+			? terms.pitch.startsWith(JOIN_PREFIX)
+				? terms.to
+				: terms.from
+			: undefined);
+	if (!owner) {
 		return undefined;
 	}
-	const owner = terms.pitch.startsWith(JOIN_PREFIX) ? terms.to : terms.from;
 	const other = owner === a ? b : a;
 	const hasIdea = (id: string) =>
 		world.agents[id]!.profile.projectIdeas.length > 0;
@@ -198,10 +291,9 @@ export function projectOwner(
 
 // Everyone `owner` could offer a place now: both continued through level 2 in a conversation about
 // `owner`'s project, on no team yet, hasn't declined an offer from `owner` or left its team before, fills a
-// role the team still needs, and wants a team at least as big as this one would become.
+// role still needed by the version they'd join, and wants a team at least as big as this one would become.
 export function candidatesOf(world: World, owner: string): string[] {
 	const agent = world.agents[owner]!;
-	const needed = stillNeeded(world, owner);
 	const size = membersOf(world, owner).length;
 	return Object.keys(agent.contacts)
 		.sort()
@@ -211,7 +303,12 @@ export function candidatesOf(world: World, owner: string): string[] {
 				continued(agent, id, owner, READY_LEVEL) &&
 				projectOwner(world, owner, id) === owner &&
 				!teamOf(world, id) &&
-				fills(world, owner, id, needed).length > 0 &&
+				fills(
+					world,
+					owner,
+					id,
+					stillNeeded(world, owner, versionFor(world, owner, id)),
+				).length > 0 &&
 				maxSizeFor(world, owner, id) >= size + 1 &&
 				!contactOf(agent, id).history.some(
 					(m) =>
@@ -244,7 +341,7 @@ export function offerMessages(
 				INTRO,
 				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(owner.profile, null, 2)}`,
 				[
-					`Your human's project is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
+					`Your human's project idea is ${JSON.stringify(owner.profile.projectIdeas[0])}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
@@ -259,17 +356,16 @@ export function offerMessages(
 	];
 }
 
-// The prompt asking `agent` which offer to commit to: its own profile, plus each owner's public pitch and
-// what that owner has shared with it.
+// The prompt asking `agent` which offer to commit to: its own profile, plus the version of the project each
+// offer carries (what the team will build) and what that owner has shared with it.
 export function commitmentMessages(
-	world: World,
 	agent: AgentState,
-	owners: readonly string[],
+	held: readonly Offer[],
 ): Message[] {
-	const offers = owners.map((id) => ({
-		owner: id,
-		project: publicPitch(world.agents[id]!),
-		shared: contactOf(agent, id).learned,
+	const offers = held.map((offer) => ({
+		owner: offer.from,
+		project: { pitch: offer.pitch, rolesNeeded: offer.rolesNeeded },
+		shared: contactOf(agent, offer.from).learned,
 	}));
 	return [
 		{
@@ -278,7 +374,7 @@ export function commitmentMessages(
 				INTRO,
 				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
 				[
-					"The project owners below have offered your human a place on their team.",
+					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",
 					"Committing is final: your human joins that team, can't join any other, and their name is shared with every teammate.",
 					"Commit to at most one, by its owner's id, or use null to decline them all. Choose where your human's skills are most needed and the project fits them best. Your rationale is private.",
 				].join("\n"),
@@ -464,12 +560,14 @@ export async function runCommitment(
 		let offers = 0;
 		for (const choice of choices) {
 			emit({ type: "offers", ...choice });
-			for (const to of choice.to) {
+			const version = offerVersion(current(), choice.agent, choice.to);
+			for (const to of version ? choice.to : []) {
 				const offer: Offer = {
 					kind: "offer",
 					from: choice.agent,
 					to,
 					team: teamId(choice.agent),
+					...version!,
 				};
 				send(offer, []);
 				offers++;
@@ -481,22 +579,24 @@ export async function runCommitment(
 
 		// 2. Everyone holding offers picks one at once. An owner with offers out is busy: it answers "busy",
 		// which, unlike a decline, leaves it open to the same offer in a later pass.
-		const held = new Map<string, string[]>();
+		const held = new Map<string, Offer[]>();
 		for (const { receiver, message } of deliver()) {
-			held.set(receiver, [...(held.get(receiver) ?? []), message.from]);
+			if ("kind" in message && message.kind === "offer") {
+				held.set(receiver, [...(held.get(receiver) ?? []), message]);
+			}
 		}
 		const picks = await Promise.all(
-			[...held].map(([agent, from]) =>
+			[...held].map(([agent, offers]) =>
 				bound.has(agent)
 					? {
 							agent,
-							offers: from,
+							offers: offers.map((o) => o.from),
 							chose: null,
 							busy: true,
 							rationale: undefined,
 							fellBack: false,
 						}
-					: choosePlace(agent, from),
+					: choosePlace(agent, offers),
 			),
 		);
 		let declines = 0;
@@ -530,7 +630,16 @@ export async function runCommitment(
 				message.kind === "answer" &&
 				message.answer === "commit"
 			) {
-				addMember(receiver, message.from);
+				// The version this owner offered, which is what the member committed to.
+				const offer = contactOf(agents[receiver]!, message.from)
+					.history.filter(
+						(m): m is Offer => "kind" in m && m.kind === "offer",
+					)
+					.at(-1)!;
+				addMember(receiver, message.from, {
+					pitch: offer.pitch,
+					rolesNeeded: offer.rolesNeeded,
+				});
 				commits++;
 			}
 		}
@@ -603,10 +712,11 @@ export async function runCommitment(
 
 	// Which offer `agent` commits to. If no valid answer comes back, it declines them all: a commitment
 	// can't be undone, so not making one is the safe default.
-	async function choosePlace(agent: string, owners: string[]) {
+	async function choosePlace(agent: string, held: Offer[]) {
+		const owners = held.map((offer) => offer.from);
 		try {
 			const { data } = await client.chatJson(
-				commitmentMessages(current(), agents[agent]!, owners),
+				commitmentMessages(agents[agent]!, held),
 				AgentCommitment,
 				{
 					...llmOptions,
@@ -696,8 +806,9 @@ export async function runCommitment(
 		}
 	}
 
-	// Puts `member` on `owner`'s team, creating it if needed, and has them swap names with every teammate.
-	function addMember(owner: string, member: string) {
+	// Puts `member` on `owner`'s team, creating it from `version` (the version they committed to) if needed,
+	// and has them swap names with every teammate. An existing team keeps its version.
+	function addMember(owner: string, member: string, version: Terms) {
 		const team = teams.find((t) => t.members[0] === owner);
 		for (const teammate of team?.members ?? [owner]) {
 			shareName(teammate, member);
@@ -706,7 +817,11 @@ export async function runCommitment(
 		const updated: Team = {
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
-			project: agents[owner]!.profile.projectIdeas[0]!,
+			project: team?.project ?? {
+				title: agents[owner]!.profile.projectIdeas[0]!.title,
+				description: version.pitch,
+			},
+			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
 			status: "committed",
 		};
 		teams = [...teams.filter((t) => t !== team), updated];

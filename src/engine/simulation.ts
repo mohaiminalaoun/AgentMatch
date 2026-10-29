@@ -53,10 +53,13 @@ export type SimulationSummary = {
 	nonCoreRoles: Record<string, number>;
 	pairs: PairOutcome[];
 	teams: Team[];
-	// For each team, the roles its owner's listing asked for, split by whether a member fills them (from
-	// members' real skills), and whether it's smaller than some member's minimum team size.
+	// For each team, the version of the project it builds and whether that differs from the owner's public
+	// listing, the roles that version asks for split by whether a member fills them (from members' real
+	// skills), and whether it's smaller than some member's minimum team size.
 	teamChecks: {
 		team: string;
+		project: string;
+		reshaped: boolean;
 		covered: string[];
 		missing: string[];
 		belowMinimum: boolean;
@@ -277,6 +280,8 @@ export function summarize(
 	for (const event of events) {
 		if (event.type === "decision" || event.type === "listing") {
 			gateBlocks += event.gateBlocks;
+		} else if (event.type === "interest") {
+			gateBlocks += event.gateBlocks ?? 0;
 		}
 		if (
 			(event.type === "decision" ||
@@ -285,7 +290,8 @@ export function summarize(
 				event.type === "discovery" ||
 				event.type === "offers" ||
 				event.type === "commitment" ||
-				event.type === "recheck") &&
+				event.type === "recheck" ||
+				event.type === "revisionAnswer") &&
 			event.fellBack
 		) {
 			fallbacks++;
@@ -318,11 +324,14 @@ export function summarize(
 			const skills = new Set(
 				joined.flatMap((a) => a.profile.skills.map((s) => s.name)),
 			);
-			const needed = publicPitch(owner!)?.rolesNeeded ?? [];
+			const needed = team.rolesNeeded;
 			const filled = (role: string) =>
 				role === "any" ? joined.length > 0 : skills.has(role);
 			return {
 				team: team.id,
+				project: team.project.description,
+				reshaped:
+					team.project.description !== publicPitch(owner!)?.pitch,
 				covered: needed.filter(filled),
 				missing: needed.filter((role) => !filled(role)),
 				belowMinimum: team.members.some(

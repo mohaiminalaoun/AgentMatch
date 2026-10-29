@@ -136,6 +136,49 @@ export const ivan: Profile = {
 	},
 };
 
+// The pair for `npm run coevolve`: a fitness-app builder, and someone into rehab and health data with an idea
+// of their own nearby. Their ideas overlap enough to talk, and differ enough that a combined one is better.
+export const theo: Profile = {
+	id: "theo",
+	name: "Theo",
+	skills: [
+		{ name: "frontend", level: "expert" },
+		{ name: "design", level: "intermediate" },
+	],
+	interests: ["fitness", "running", "habits"],
+	projectIdeas: [
+		{
+			title: "Workout tracker",
+			description: "A fitness app that tracks workouts and streaks.",
+		},
+	],
+	availability: { hoursPerWeek: 20, utcOffset: -5 },
+	preferences: {
+		minTeamSize: 2,
+		maxTeamSize: 4,
+		preferredRoles: ["frontend"],
+	},
+};
+
+export const mara: Profile = {
+	id: "mara",
+	name: "Mara",
+	skills: [
+		{ name: "ml", level: "expert" },
+		{ name: "backend", level: "intermediate" },
+	],
+	interests: ["injury recovery", "physical therapy", "health data"],
+	projectIdeas: [
+		{
+			title: "Rehab coach",
+			description:
+				"An app that guides people through physical therapy exercises at home.",
+		},
+	],
+	availability: { hoursPerWeek: 15, utcOffset: -4 },
+	preferences: { minTeamSize: 2, maxTeamSize: 3, preferredRoles: ["ml"] },
+};
+
 export const SCENARIOS: Scenario[] = [
 	{
 		name: "invoicing vs climate",

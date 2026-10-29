@@ -209,6 +209,7 @@ describe("people looking to join", () => {
 				id: "team-ben",
 				members: ["ben", "omar"],
 				project: ben.projectIdeas[0]!,
+				rolesNeeded: ["design"],
 				status: "committed",
 			},
 		];

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { validateMessage } from "./bus.js";
 import { DisclosureLevel } from "./disclosure.js";
 import type { Exchange } from "./llm.js";
-import { Decision } from "./proposal.js";
+import { Decision, Terms } from "./proposal.js";
 import { Team } from "./team.js";
 
 // A bus message, checked with the same rules the bus uses when it's sent.
@@ -81,6 +81,19 @@ export const RunEvent = z.discriminatedUnion("type", [
 		other: z.string(),
 		level: z.literal([1, 2, 3]),
 		interest: z.enum(["continue", "withdraw"]),
+		// A reshaped version of the project sent with the continue, if any.
+		revision: Terms.optional(),
+		// How many times the gate stopped a revision; missing in older logs.
+		gateBlocks: z.number().int().optional(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
+	// An agent decided whether to adopt a revision it received.
+	z.object({
+		type: z.literal("revisionAnswer"),
+		agent: z.string(),
+		other: z.string(),
+		adopt: z.boolean(),
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),

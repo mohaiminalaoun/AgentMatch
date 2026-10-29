@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	checkDisclosure,
+	checkThirdParty,
 	draftOf,
 	fieldsMentioned,
 } from "../../src/engine/gate.js";
@@ -306,5 +307,42 @@ describe("roles as a side channel", () => {
 			],
 		};
 		expect(checkDisclosure(withIdea, 0, roles(["ml"]))).toEqual([]);
+	});
+});
+
+describe("checkThirdParty", () => {
+	const other = {
+		name: "Zed Quill",
+		skills: [{ name: "ml", level: "expert" as const }],
+		interests: ["falconry"],
+	};
+
+	test("flags another person's name, skill (with synonyms), or interest", () => {
+		const violations = checkThirdParty(
+			{ pitch: "Zed Quill's machine learning tool for falconry." },
+			[other],
+			"",
+		);
+		expect(violations.map((v) => v.match).sort()).toEqual([
+			"Zed Quill",
+			"falconry",
+			"machine learning",
+		]);
+	});
+
+	test("a term the recipient could already see isn't a leak", () => {
+		expect(
+			checkThirdParty(
+				{ pitch: "A falconry app." },
+				[other],
+				JSON.stringify({ interests: ["falconry"] }),
+			),
+		).toEqual([]);
+	});
+
+	test("only the named text parts are searched", () => {
+		expect(checkThirdParty({ pitch: "A bird app." }, [other], "")).toEqual(
+			[],
+		);
 	});
 });

@@ -13,7 +13,11 @@ export const Team = z.object({
 		.refine((ids) => new Set(ids).size === ids.length, {
 			message: "members must be unique",
 		}),
+	// The version of the project the members committed to: the owner's idea title, with the agreed pitch
+	// as its description.
 	project: ProjectIdea,
+	// The roles that version needs from people other than the owner.
+	rolesNeeded: z.array(z.string().min(1)),
 	status: TeamStatus,
 });
 

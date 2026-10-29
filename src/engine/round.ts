@@ -17,7 +17,11 @@ import {
 	type ProfileField,
 } from "./disclosure.js";
 import { checkDisclosure, fieldsMentioned } from "./gate.js";
-import { checkInterest, type InterestResult } from "./interest.js";
+import {
+	checkInterest,
+	considerRevision,
+	type InterestResult,
+} from "./interest.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import type { ChatOptions, Exchange } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
@@ -26,6 +30,8 @@ import {
 	type Interest,
 	type Proposal,
 	type ProposalResponse,
+	type Revision,
+	type RevisionAnswer,
 	type Share,
 	type Terms,
 } from "./proposal.js";
@@ -124,7 +130,8 @@ export function proposalFrom(
 // handles its whole inbox, with all model calls at once:
 // - a proposal or counter is decided on (accept, counter, or decline);
 // - an accept means mutual interest: level 1 opens and both sides share that level's fields;
-// - a share is learned, then the agent checks whether to keep going and sends continue or withdraw;
+// - a share is learned, then the agent checks whether to keep going and sends continue or withdraw, and with
+//   a continue may propose a reshaped version of the project (a revision), which the other side adopts or keeps;
 // - once both sides have continued at a level, the next one opens, up to maxLevel.
 // Replies go out in inbox order, which doesn't depend on which model call finished first.
 // Returns a new world; the one passed in is unchanged.
@@ -294,7 +301,10 @@ export async function runRound(
 			const toCheck = incoming.flatMap(({ receiver, message }) =>
 				isShare(message) ? [{ receiver, share: message }] : [],
 			);
-			const [results, checks] = await Promise.all([
+			const toConsider = incoming.flatMap(({ receiver, message }) =>
+				isRevision(message) ? [{ receiver, revision: message }] : [],
+			);
+			const [results, checks, adoptions] = await Promise.all([
 				Promise.all(
 					toDecide.map(({ receiver, proposal }) =>
 						decideOnProposal(
@@ -311,6 +321,17 @@ export async function runRound(
 							client,
 							agentOf(agents, receiver),
 							share.from,
+							share.level,
+							llmOptions,
+						),
+					),
+				),
+				Promise.all(
+					toConsider.map(({ receiver, revision }) =>
+						considerRevision(
+							client,
+							agentOf(agents, receiver),
+							revision,
 							llmOptions,
 						),
 					),
@@ -320,6 +341,7 @@ export async function runRound(
 			// Act in inbox order, which is fixed; Promise.all kept the results in that same order.
 			let decided = 0;
 			let checked = 0;
+			let considered = 0;
 			for (const { receiver, message } of incoming) {
 				const proposal = asProposal(message);
 				if (proposal) {
@@ -377,15 +399,52 @@ export async function runRound(
 						other: message.from,
 						level: message.level,
 						interest: result.interest,
+						...(result.revision && { revision: result.revision }),
+						gateBlocks: result.gateBlocks,
 						rationale: result.rationale,
 						fellBack: result.fellBack,
 					});
+					// A reshaped version of the project goes right after the continue, already gate-checked.
+					if (result.interest === "continue" && result.revision) {
+						const revision: Revision = {
+							kind: "revision",
+							from: receiver,
+							to: message.from,
+							level: message.level,
+							...result.revision,
+						};
+						send(
+							receiver,
+							revision,
+							fieldsMentioned(
+								agentOf(agents, receiver).profile,
+								`${revision.pitch} ${revision.rolesNeeded.join(", ")}`,
+							),
+						);
+					}
 					openNextIfMutual(receiver, message.from, message.level);
 				} else if (
 					isInterest(message) &&
 					message.interest === "continue"
 				) {
 					openNextIfMutual(receiver, message.from, message.level);
+				} else if (isRevision(message)) {
+					const result = adoptions[considered++]!;
+					const answer: RevisionAnswer = {
+						kind: "revisionAnswer",
+						from: receiver,
+						to: message.from,
+						adopt: result.adopt,
+					};
+					send(receiver, answer, []);
+					emit({
+						type: "revisionAnswer",
+						agent: receiver,
+						other: message.from,
+						adopt: result.adopt,
+						rationale: result.rationale,
+						fellBack: result.fellBack,
+					});
 				}
 			}
 
@@ -443,6 +502,11 @@ export function continued(
 // Whether `message` is a share.
 function isShare(message: AgentMessage): message is Share {
 	return "kind" in message && message.kind === "share";
+}
+
+// Whether `message` is a revision.
+function isRevision(message: AgentMessage): message is Revision {
+	return "kind" in message && message.kind === "revision";
 }
 
 // Whether `message` is an interest.

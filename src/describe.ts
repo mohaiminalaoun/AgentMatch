@@ -20,6 +20,12 @@ export function describeMessage(message: AgentMessage): string {
 				return `${message.answer} (${message.team})`;
 			case "leave":
 				return `leave (${message.team})`;
+			case "revision":
+				return `revision (level ${message.level}): "${message.pitch}"  roles needed: ${message.rolesNeeded.join(", ")}`;
+			case "revisionAnswer":
+				return message.adopt
+					? "adopts the revision"
+					: "keeps the current version";
 		}
 	}
 	if ("decision" in message) {
@@ -63,7 +69,9 @@ export function formatEvent(
 			return `     ${event.agent} decides ${event.decision.decision}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}${reasoning(event.rationale)}`;
 		}
 		case "interest":
-			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.revision ? ` · proposes: "${event.revision.pitch}" (needs ${event.revision.rolesNeeded.join(", ")})` : ""}${event.gateBlocks ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "revisionAnswer":
+			return `     ${event.agent} on ${event.other}'s revision: ${event.adopt ? "adopts it" : "keeps the current version"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "level":
 			return `     level: ${event.agent} with ${event.other}  ${event.from} → ${event.to}`;
 		case "offers":
@@ -135,7 +143,7 @@ export function formatSummary(
 		`Teams:    ${summary.teams.length} committed${summary.teams.map((t) => ` · ${t.members.join(" + ")}`).join("")} · members who left: ${summary.departures}`,
 		...summary.teamChecks.map(
 			(t) =>
-				`  ${t.team}: covers ${t.covered.join(", ") || "nothing"} · missing ${t.missing.join(", ") || "nothing"}${t.belowMinimum ? " · below a member's minimum size" : ""}`,
+				`  ${t.team}${t.reshaped ? " (reshaped)" : ""}: "${t.project}" · covers ${t.covered.join(", ") || "nothing"} · missing ${t.missing.join(", ") || "nothing"}${t.belowMinimum ? " · below a member's minimum size" : ""}`,
 		),
 		`On no team:         ${list(summary.unplaced)}`,
 		`Never approached:   ${list(summary.neverApproached)}`,

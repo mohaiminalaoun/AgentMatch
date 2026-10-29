@@ -17,6 +17,7 @@
 		"load-test": "tsx src/load-test.ts",
 		"round": "tsx src/round.ts",
 		"negotiate": "tsx src/negotiate.ts",
+		"coevolve": "tsx src/coevolve.ts",
 		"discover": "tsx src/discover.ts",
 		"simulate": "tsx src/simulate.ts"
 	},

@@ -8,6 +8,7 @@ const team = {
 		title: "Carbon tracker",
 		description: "Estimate a household's footprint from receipts.",
 	},
+	rolesNeeded: ["design"],
 	status: "tentative",
 };
 

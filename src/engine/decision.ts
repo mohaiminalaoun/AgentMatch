@@ -58,6 +58,23 @@ const FIELD_NAMES: Record<ProfileField, string> = {
 	name: "your human's name",
 };
 
+// The disclosure rules for anything sent at `level`, from FIELD_LEVELS, the same table the gate enforces.
+export function disclosureRules(level: DisclosureLevel): string {
+	const fields = (Object.keys(FIELD_LEVELS) as ProfileField[]).filter(
+		(field) => field !== "id",
+	);
+	const may = fields.filter((f) => FIELD_LEVELS[f] <= level);
+	const mayNot = fields.filter((f) => FIELD_LEVELS[f] > level);
+	const list = (items: ProfileField[]) =>
+		items.map((f) => FIELD_NAMES[f]).join("; ") || "nothing";
+	return [
+		`Disclosure rules: you are at level ${level} with this agent.`,
+		`In anything you send, you may mention: ${list(may)}.`,
+		`Never mention: ${list(mayNot)}.`,
+		"Your rationale is private and never sent, so explain yourself fully there.",
+	].join("\n");
+}
+
 // The prompt asking `agent` to accept, counter, or decline `proposal`, built from its real profile and
 // what it knows about the sender. The disclosure rules come from FIELD_LEVELS, the same table the gate enforces.
 export function decisionMessages(
@@ -65,13 +82,6 @@ export function decisionMessages(
 	proposal: Proposal,
 ): Message[] {
 	const contact = contactOf(agent, proposal.from);
-	const fields = (Object.keys(FIELD_LEVELS) as ProfileField[]).filter(
-		(field) => field !== "id",
-	);
-	const may = fields.filter((f) => FIELD_LEVELS[f] <= contact.level);
-	const mayNot = fields.filter((f) => FIELD_LEVELS[f] > contact.level);
-	const list = (items: ProfileField[]) =>
-		items.map((f) => FIELD_NAMES[f]).join("; ") || "nothing";
 	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
 
 	return [
@@ -80,12 +90,7 @@ export function decisionMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				`Your human's full profile (private; for your judgment only):\n${JSON.stringify(agent.profile, null, 2)}`,
-				[
-					`Disclosure rules: you are at level ${contact.level} with this agent.`,
-					`In anything you send, you may mention: ${list(may)}.`,
-					`Never mention: ${list(mayNot)}.`,
-					"Your rationale is private and never sent, so explain yourself fully there.",
-				].join("\n"),
+				disclosureRules(contact.level),
 				[
 					"How to decide:",
 					"- accept if your human could fill a role it needs and the project is something they would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",
@@ -153,7 +158,7 @@ export async function decideOnProposal(
 					if (violations.length > 0) {
 						gateBlocks++;
 					}
-					return violations.map((v) => describe(v, level));
+					return violations.map((v) => describeViolation(v, level));
 				},
 			},
 		);
@@ -180,7 +185,10 @@ export async function decideOnProposal(
 
 // Feedback for the agent's own model about what it may not say yet. It quotes the human's own data back
 // to their own agent, which is fine: feedback never reaches the other side.
-function describe(violation: Violation, level: DisclosureLevel): string {
+export function describeViolation(
+	violation: Violation,
+	level: DisclosureLevel,
+): string {
 	const where =
 		violation.where === "roles" ? "roles needed list" : violation.where;
 	return `your ${where} mentions ${FIELD_NAMES[violation.field as ProfileField] ?? violation.field} ("${violation.match}"), which you may not share at level ${level}; rewrite it without that`;
