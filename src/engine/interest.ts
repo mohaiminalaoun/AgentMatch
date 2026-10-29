@@ -27,7 +27,7 @@ export type InterestResult = {
 
 // What to weigh at each level, given what has just been shared.
 const WEIGHING: Record<number, string> = {
-	1: "Their interests and availability are now known. Do their interests line up with your human's? Can they actually work together: are the time zones close enough to overlap, and does each have enough hours?",
+	1: "Their interests and availability are now known. Can they actually work together: are the time zones close enough to overlap, and does each have enough hours? Shared interests help, but don't withdraw over interests alone: their skills, shared next, may still fit what's needed.",
 	2: "Their skills and preferences are now known. Do their skills complement your human's, covering roles your human can't? Do their preferred roles and team size fit?",
 	3: "Their name is now known. Is there any reason not to form a team?",
 };
