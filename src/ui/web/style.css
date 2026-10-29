@@ -920,6 +920,94 @@ h1 > span {
 	margin-left: auto;
 	color: #b8acc2;
 }
+.pair-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 10px;
+	color: #8a709e;
+	background: #f6f2fa;
+	border-radius: 8px;
+	padding: 7px 10px;
+	margin-bottom: 12px;
+}
+.pair-bar > span {
+	flex: 1;
+}
+.idea-card {
+	border: 1px solid #ece6f1;
+	border-radius: 10px;
+	padding: 12px 14px;
+	margin-bottom: 16px;
+	background: #fdfbff;
+}
+.idea-pitch {
+	font-size: 11px;
+	line-height: 1.6;
+	color: #6f5f80;
+	margin: 6px 0 0;
+}
+.idea-same {
+	font-size: 10px;
+	font-style: italic;
+	color: #a69ab2;
+	margin: 6px 0 0;
+}
+.idea-roles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 6px 0 0;
+}
+.idea-roles > span {
+	font-size: 9px;
+	border: 1px solid #ece6f1;
+	border-radius: 4px;
+	padding: 2px 6px;
+	color: #9d8dac;
+	background: #fff;
+}
+.idea-roles > span.added {
+	color: #3f7d6c;
+	border-color: #cde6de;
+	background: #f0f8f5;
+}
+.idea-roles > span.dropped {
+	color: #b9a5ab;
+	text-decoration: line-through;
+	border-style: dashed;
+}
+.idea-meta {
+	font-size: 9px;
+	color: #a69ab2;
+	margin: 6px 0 0;
+}
+.idea-meta .good {
+	color: #3f7d6c;
+}
+.idea-history {
+	list-style: none;
+	padding: 0;
+	margin: 12px 0 0 4px;
+}
+.idea-history > li {
+	border-left: 2px solid #ece6f1;
+	padding: 0 0 12px 12px;
+}
+.idea-step {
+	font-size: 10px;
+	color: #8a709e;
+}
+.idea-end {
+	border-top: 1px solid #ece6f1;
+	margin-top: 12px;
+	padding-top: 12px;
+}
+.pair-bar > button {
+	display: flex;
+	font-size: 9px;
+	color: #a18cb8;
+}
 .inspector-footer {
 	font-size: 8px;
 	color: #b5a6c1;

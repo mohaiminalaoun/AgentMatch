@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	demoEvents,
 	describe as describeEvent,
+	ideaVersions,
+	pairEvents,
 	parseLog,
 	project,
 } from "../../src/ui/web/replay.js";
@@ -143,5 +145,158 @@ describe("browser replay", () => {
 			"p3 posted: “A developer tools app.” · needs frontend, backend",
 			"p8 countered: “A developer tools API.”",
 		]);
+	});
+	it("keeps only what passed between two agents, in either direction", () => {
+		const sent = (id: string, from: string, to: string) => ({
+			type: "bus",
+			event: {
+				seq: 1,
+				time: "t",
+				type: "sent",
+				message: {
+					id,
+					from,
+					to,
+					pitch: "An app.",
+					rolesNeeded: ["design"],
+				},
+			},
+		});
+		const decision = (agent: string, proposalId: string) => ({
+			type: "decision",
+			agent,
+			proposalId,
+			decision: { decision: "accept" },
+			gateBlocks: 0,
+			fellBack: false,
+		});
+		const events = parseLog(
+			[
+				sent("r1-p1-p2", "p1", "p2"),
+				sent("r1-p1-p3", "p1", "p3"),
+				decision("p2", "r1-p1-p2"),
+				decision("p3", "r1-p1-p3"),
+				{ type: "level", agent: "p2", other: "p1", from: 0, to: 1 },
+				{ type: "level", agent: "p1", other: "p3", from: 0, to: 1 },
+				{ type: "tick", n: 2 },
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		expect(pairEvents(events, "p2", "p1").map(describeEvent)).toEqual([
+			"p1 → p2: proposes “An app.” · needs design",
+			"p2 accepted a proposal",
+			"p2 ↔ p1 unlocked level 1",
+		]);
+	});
+	it("tracks each version of the idea and the one agreed now", () => {
+		const sent = (message: object) => ({
+			type: "bus",
+			event: { seq: 1, time: "t", type: "sent", message },
+		});
+		const events = parseLog(
+			[
+				sent({
+					id: "r1",
+					from: "p1",
+					to: "p2",
+					pitch: "A recipe app.",
+					rolesNeeded: ["design"],
+				}),
+				sent({
+					proposalId: "r1",
+					from: "p2",
+					to: "p1",
+					decision: "counter",
+					pitch: "A meal planner.",
+					rolesNeeded: ["design", "backend"],
+				}),
+				sent({
+					proposalId: "r1.c",
+					from: "p1",
+					to: "p2",
+					decision: "accept",
+				}),
+				sent({
+					kind: "revision",
+					from: "p1",
+					to: "p2",
+					level: 1,
+					pitch: "A family meal planner.",
+					rolesNeeded: ["backend"],
+				}),
+				sent({
+					kind: "revisionAnswer",
+					from: "p2",
+					to: "p1",
+					adopt: false,
+				}),
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		const { versions, agreed } = ideaVersions(events, "p1", "p2");
+		expect(versions.map((v) => [v.how, v.author, v.status])).toEqual([
+			["proposal", "p1", "countered"],
+			["counter", "p2", "accepted"],
+			["revision", "p1", "kept"],
+		]);
+		expect(agreed).toBe(1);
+	});
+	it("settles crossing revisions by who each answer replies to", () => {
+		const sent = (message: object) => ({
+			type: "bus",
+			event: { seq: 1, time: "t", type: "sent", message },
+		});
+		const revision = (from: string, to: string, roles: string[]) =>
+			sent({
+				kind: "revision",
+				from,
+				to,
+				level: 2,
+				pitch: "A civic platform.",
+				rolesNeeded: roles,
+			});
+		const events = parseLog(
+			[
+				sent({
+					id: "r1",
+					from: "p9",
+					to: "p11",
+					pitch: "Join your project: A civic app.",
+					rolesNeeded: ["design"],
+				}),
+				sent({
+					proposalId: "r1",
+					from: "p11",
+					to: "p9",
+					decision: "accept",
+				}),
+				revision("p9", "p11", ["backend"]),
+				revision("p11", "p9", ["product"]),
+				sent({
+					kind: "revisionAnswer",
+					from: "p11",
+					to: "p9",
+					adopt: true,
+				}),
+				sent({
+					kind: "revisionAnswer",
+					from: "p9",
+					to: "p11",
+					adopt: false,
+				}),
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		const { versions, agreed } = ideaVersions(events, "p9", "p11");
+		expect(versions.map((v) => [v.author, v.to, v.status])).toEqual([
+			["p11", "p11", "accepted"],
+			["p9", "p11", "adopted"],
+			["p11", "p9", "kept"],
+		]);
+		expect(versions[0]?.pitch).toBe("A civic app.");
+		expect(agreed).toBe(1);
 	});
 });

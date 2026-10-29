@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AgentMessage } from "../../engine/agent.js";
 import type { RunEvent } from "../../engine/events.js";
 
 export type Event = RunEvent;
@@ -104,6 +105,21 @@ for (const [i, pair] of [
 	});
 	demoEvents.push({ type: "tick", n: i + 1 });
 	demoEvents.push({
+		type: "bus",
+		event: {
+			seq: i + 1,
+			time: "2026-10-28T12:00:00Z",
+			type: "sent",
+			message: {
+				id: `demo-${i}`,
+				from: a,
+				to: b,
+				pitch: demoPeople.find((p) => p.id === a)?.pitch ?? "",
+				rolesNeeded: demoPeople.find((p) => p.id === b)?.roles ?? [],
+			},
+		},
+	});
+	demoEvents.push({
 		type: "decision",
 		agent: b,
 		proposalId: `demo-${i}`,
@@ -112,6 +128,20 @@ for (const [i, pair] of [
 		fellBack: false,
 		rationale:
 			"Our projects point in a similar direction. I want to learn whether the working styles and availability align before going further.",
+	});
+	demoEvents.push({
+		type: "bus",
+		event: {
+			seq: i + 50,
+			time: "2026-10-28T12:00:00Z",
+			type: "sent",
+			message: {
+				decision: "accept",
+				proposalId: `demo-${i}`,
+				from: b,
+				to: a,
+			},
+		},
 	});
 	for (const level of [1, 2] as const) {
 		demoEvents.push({
@@ -131,6 +161,56 @@ for (const [i, pair] of [
 			rationale:
 				"There is enough shared direction and complementary experience to keep exploring this partnership.",
 		});
+	}
+	// One pair reshapes the idea at level 2, so the pair view has a change to show.
+	if (i === 0) {
+		const revision = {
+			kind: "revision" as const,
+			from: b,
+			to: a,
+			level: 2 as const,
+			pitch: "Screen-free evenings, planned together with the people you live with.",
+			rolesNeeded: ["design", "backend"],
+		};
+		demoEvents.push(
+			{
+				type: "interest",
+				agent: b,
+				other: a,
+				level: 2,
+				interest: "continue",
+				revision: {
+					pitch: revision.pitch,
+					rolesNeeded: revision.rolesNeeded,
+				},
+				fellBack: false,
+				rationale:
+					"Households are where screen habits are set, so a shared plan should stick better than a solo one.",
+			},
+			{
+				type: "bus",
+				event: {
+					seq: 100,
+					time: "2026-10-28T12:00:00Z",
+					type: "sent",
+					message: revision,
+				},
+			},
+			{
+				type: "bus",
+				event: {
+					seq: 101,
+					time: "2026-10-28T12:00:00Z",
+					type: "sent",
+					message: {
+						kind: "revisionAnswer",
+						from: a,
+						to: b,
+						adopt: true,
+					},
+				},
+			},
+		);
 	}
 }
 for (const [id, members, title] of [
@@ -350,12 +430,201 @@ export function describe(e: Event): string {
 		case "bus":
 			return e.event.type === "rejected"
 				? `Message blocked: ${e.event.reason}`
-				: `${e.event.message.from} → ${e.event.message.to}`;
+				: `${e.event.message.from} → ${e.event.message.to}: ${describeMessage(e.event.message)}`;
 		case "exchange":
 			return "Private model exchange";
 		default:
 			return "Run activity";
 	}
+}
+// What a bus message says, without its sender and recipient. Mirrors `describeMessage` in
+// src/describe.ts, which the browser can't import.
+export function describeMessage(m: AgentMessage): string {
+	if ("kind" in m) {
+		switch (m.kind) {
+			case "share":
+				return `shared level ${m.level}: ${Object.entries(m.shared)
+					.map(
+						([k, v]) =>
+							`${k} ${Array.isArray(v) ? v.join(", ") : String(v)}`,
+					)
+					.join(" · ")}`;
+			case "interest":
+				return m.interest === "continue"
+					? `continues at level ${m.level}`
+					: `withdraws at level ${m.level}`;
+			case "offer":
+				return `offers a place on ${m.team}`;
+			case "answer":
+				return `answers ${m.answer} (${m.team})`;
+			case "leave":
+				return `leaves ${m.team}`;
+			case "revision":
+				return `proposes a new version: “${m.pitch}”`;
+			case "revisionAnswer":
+				return m.adopt
+					? "adopts the new version"
+					: "keeps the current version";
+		}
+	}
+	if ("decision" in m) {
+		const said =
+			"pitch" in m
+				? `: “${m.pitch}”`
+				: "reason" in m
+					? `: “${m.reason}”`
+					: "";
+		return `${m.decision}${said}`;
+	}
+	return `proposes “${m.pitch}” · needs ${m.rolesNeeded.join(", ")}`;
+}
+// Everything between agents `a` and `b`, in order: the messages they sent each other, each one's
+// decisions on the other's proposals, and the checks, hunches, and levels one ran about the other.
+export function pairEvents(events: Event[], a: string, b: string): Event[] {
+	const isPair = (x: string, y: string) =>
+		(x === a && y === b) || (x === b && y === a);
+	// Decisions name only a proposal id, so match them to the proposals sent between the two.
+	const proposals = new Set<string>();
+	for (const e of events)
+		if (
+			e.type === "bus" &&
+			e.event.type === "sent" &&
+			"id" in e.event.message &&
+			isPair(e.event.message.from, e.event.message.to)
+		)
+			proposals.add(e.event.message.id);
+	return events.filter((e) => {
+		switch (e.type) {
+			case "bus":
+				return (
+					e.event.type === "sent" &&
+					isPair(e.event.message.from, e.event.message.to)
+				);
+			case "decision":
+				return proposals.has(e.proposalId);
+			case "interest":
+			case "hunch":
+			case "revisionAnswer":
+			case "level":
+				return isPair(e.agent, e.other);
+			case "offers":
+				return e.to.some((id) => isPair(e.agent, id));
+			case "commitment":
+				return e.offers.some((id) => isPair(e.agent, id));
+			default:
+				return false;
+		}
+	});
+}
+// One version of the project idea two agents discussed, and what became of it.
+export type IdeaVersion = {
+	how: "proposal" | "join" | "counter" | "revision" | "offer";
+	// Whose idea it is. That's the sender, unless someone asked to join the recipient's project.
+	author: string;
+	from: string;
+	to: string;
+	pitch: string;
+	rolesNeeded: string[];
+	status:
+		| "open"
+		| "accepted"
+		| "declined"
+		| "countered"
+		| "adopted"
+		| "kept"
+		| "committed"
+		| "busy";
+};
+// Matches JOIN_PREFIX in src/engine/proposal.ts, which the browser can't import.
+const JOIN_PREFIX = "Join your project: ";
+// Every version of the idea that passed between `a` and `b`, oldest first, and the index of the one they
+// agree on now: the last accepted proposal or counter, adopted revision, or offer committed to. Offers
+// carry the version the team will build. Both sides may send a revision at once, so each answer settles
+// the latest revision from the agent it answers.
+export function ideaVersions(
+	events: Event[],
+	a: string,
+	b: string,
+): { versions: IdeaVersion[]; agreed: number | undefined } {
+	const versions: IdeaVersion[] = [];
+	let agreed: number | undefined;
+	let onTable: number | undefined;
+	const revised = new Map<string, number>();
+	const offered = new Map<string, number>();
+	for (const e of pairEvents(events, a, b)) {
+		if (e.type !== "bus" || e.event.type !== "sent") continue;
+		const m = e.event.message;
+		const settle = (
+			i: number | undefined,
+			status: IdeaVersion["status"],
+		) => {
+			const v = i === undefined ? undefined : versions[i];
+			if (v) v.status = status;
+		};
+		if (!("kind" in m)) {
+			if ("decision" in m) {
+				if (m.decision === "accept") {
+					settle(onTable, "accepted");
+					agreed = onTable;
+				} else
+					settle(
+						onTable,
+						m.decision === "decline" ? "declined" : "countered",
+					);
+				if (m.decision !== "counter") continue;
+			}
+			// A proposal, or a counter, which is a new proposal back.
+			const joins = m.pitch.startsWith(JOIN_PREFIX);
+			onTable = versions.length;
+			versions.push({
+				how: "decision" in m ? "counter" : joins ? "join" : "proposal",
+				author: joins ? m.to : m.from,
+				from: m.from,
+				to: m.to,
+				pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
+				rolesNeeded: m.rolesNeeded,
+				status: "open",
+			});
+		} else if (m.kind === "revision") {
+			revised.set(m.from, versions.length);
+			versions.push({
+				how: "revision",
+				author: m.from,
+				from: m.from,
+				to: m.to,
+				pitch: m.pitch,
+				rolesNeeded: m.rolesNeeded,
+				status: "open",
+			});
+		} else if (m.kind === "revisionAnswer") {
+			const i = revised.get(m.to);
+			settle(i, m.adopt ? "adopted" : "kept");
+			if (m.adopt) agreed = i;
+		} else if (m.kind === "offer") {
+			offered.set(m.team, versions.length);
+			versions.push({
+				how: "offer",
+				author: m.from,
+				from: m.from,
+				to: m.to,
+				pitch: m.pitch,
+				rolesNeeded: m.rolesNeeded,
+				status: "open",
+			});
+		} else if (m.kind === "answer") {
+			const i = offered.get(m.team);
+			settle(
+				i,
+				m.answer === "commit"
+					? "committed"
+					: m.answer === "busy"
+						? "busy"
+						: "declined",
+			);
+			if (m.answer === "commit") agreed = i;
+		}
+	}
+	return { versions, agreed };
 }
 export function project(events: Event[]) {
 	const people = new Map<string, Person>();

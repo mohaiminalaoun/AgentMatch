@@ -31,6 +31,8 @@ import {
 import {
 	demoEvents,
 	describe,
+	ideaVersions,
+	pairEvents,
 	parseLog,
 	project,
 	type Event,
@@ -38,11 +40,12 @@ import {
 import "./style.css";
 import { groupAgents } from "./layout.js";
 import { AgentCharacter, type Mood } from "./AgentCharacter.js";
+import { IdeaCard } from "./IdeaCard.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
 const short = (id: string) => id.replace(/^a0?/, "").replace(/^p/, "");
 function App() {
 	const [events, setEvents] = useState<Event[]>(demoEvents),
-		[cursor, setCursor] = useState(51),
+		[cursor, setCursor] = useState(68),
 		[playing, setPlaying] = useState(false),
 		[speed, setSpeed] = useState(1),
 		[selected, setSelected] = useState("a01"),
@@ -54,7 +57,9 @@ function App() {
 		[query, setQuery] = useState(""),
 		[approvals, setApprovals] = useState<Record<string, string>>({}),
 		[showHelp, setHelp] = useState(false),
-		[showMessages, setShowMessages] = useState(false);
+		[showMessages, setShowMessages] = useState(false),
+		// Another agent whose conversation with the selected one fills the Activity tab.
+		[partner, setPartner] = useState("");
 	const file = useRef<HTMLInputElement>(null);
 	const canvas = useRef<HTMLDivElement>(null);
 	useEffect(() => {
@@ -120,6 +125,15 @@ function App() {
 							e.event.message.to === current.id)),
 			)
 		: [];
+	const idea =
+		current && partner
+			? ideaVersions(visibleEvents, current.id, partner)
+			: undefined;
+	const activity =
+		current && partner
+			? pairEvents(visibleEvents, current.id, partner)
+			: related;
+	useEffect(() => setPartner(""), [selected, events]);
 	const teamFor = (id: string) =>
 		state.teams.find((t) => t.members.includes(id));
 	const {
@@ -1072,7 +1086,7 @@ function App() {
 												{t}
 												{t === "Activity" && (
 													<span>
-														{related.length}
+														{activity.length}
 													</span>
 												)}
 											</button>
@@ -1211,11 +1225,15 @@ function App() {
 															return (
 																<button
 																	key={id}
-																	onClick={() =>
-																		setSelected(
+																	onClick={() => {
+																		setPartner(
 																			id,
-																		)
-																	}
+																		);
+																		setTab(
+																			"Activity",
+																		);
+																	}}
+																	aria-label={`Show the conversation with ${id}`}
 																>
 																	<span className="tiny-avatar">
 																		{short(
@@ -1296,34 +1314,67 @@ function App() {
 														agents do not see them.
 													</p>
 												)}
-												{related
-													.slice()
-													.reverse()
-													.map((e, i) => (
-														<div
-															className="agent-activity"
-															key={i}
+												{partner && (
+													<div className="pair-bar">
+														<span>
+															With Agent{" "}
+															{short(
+																partner,
+															).padStart(2, "0")}
+														</span>
+														<button
+															onClick={() =>
+																setSelected(
+																	partner,
+																)
+															}
 														>
-															<span className="activity-marker" />
-															<p>{describe(e)}</p>
-															{privateView &&
-																"rationale" in
-																	e &&
-																e.rationale && (
-																	<blockquote>
-																		<LockKeyhole
-																			size={
-																				12
-																			}
-																		/>{" "}
-																		{
-																			e.rationale
+															Open agent
+														</button>
+														<button
+															aria-label="Show all activity"
+															onClick={() =>
+																setPartner("")
+															}
+														>
+															<X size={12} />
+														</button>
+													</div>
+												)}
+												{idea && <IdeaCard {...idea} />}
+												{partner && (
+													<div className="detail-label">
+														EVERY STEP, OLDEST FIRST
+													</div>
+												)}
+												{/* A conversation reads oldest first; an agent's own feed shows the latest first. */}
+												{(partner
+													? activity
+													: activity.slice().reverse()
+												).map((e, i) => (
+													<div
+														className="agent-activity"
+														key={i}
+													>
+														<span className="activity-marker" />
+														<p>{describe(e)}</p>
+														{privateView &&
+															"rationale" in e &&
+															e.rationale && (
+																<blockquote>
+																	<LockKeyhole
+																		size={
+																			12
 																		}
-																	</blockquote>
-																)}
-														</div>
-													))}
-												{!related.length && (
+																	/>{" "}
+																	{
+																		e.rationale
+																	}
+																</blockquote>
+															)}
+													</div>
+												))}
+												{!activity.length && (
 													<p className="muted">
 														Play the replay to see
 														activity.
