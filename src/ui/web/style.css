@@ -500,6 +500,19 @@ h1 > span {
 	stroke: #7954be;
 	stroke-width: 3;
 }
+.network-link {
+	transition: opacity 0.3s;
+}
+.link-level rect {
+	fill: white;
+	stroke: #ddd2ec;
+}
+.link-level text {
+	font:
+		600 8px "DM Sans",
+		sans-serif;
+	fill: #67597a;
+}
 .node-monogram {
 	font:
 		500 14px Manrope,

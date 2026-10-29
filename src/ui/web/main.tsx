@@ -46,6 +46,7 @@ import { AgentCharacter, type Mood } from "./AgentCharacter.js";
 import { IdeaCard } from "./IdeaCard.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
 const short = (id: string) => id.replace(/^a0?/, "").replace(/^p/, "");
+const agentName = (id: string) => `Agent ${short(id).padStart(2, "0")}`;
 // What each board status says on a card, and the hover text that explains it.
 const statusText: Record<BoardEntry["status"], [string, string]> = {
 	exploring: [
@@ -107,6 +108,11 @@ function App() {
 				["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
 			)
 				return;
+			if (e.key === "Escape") {
+				if (showHelp) setHelp(false);
+				else setSelected("");
+				return;
+			}
 			if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
 			e.preventDefault();
 			setPlaying(false);
@@ -118,7 +124,7 @@ function App() {
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [events.length]);
+	}, [events.length, showHelp]);
 	const state = useMemo(
 		() => project(events.slice(0, cursor)),
 		[events, cursor],
@@ -128,7 +134,34 @@ function App() {
 		() => board(events.slice(0, cursor)),
 		[events, cursor],
 	);
-	const current = people.find((p) => p.id === selected) ?? people[0];
+	const current = people.find((p) => p.id === selected);
+	// Clicking the selected agent again deselects it.
+	const toggleAgent = (id: string) => {
+		setSelected((s) => (s === id ? "" : id));
+		setTab("Overview");
+	};
+	// Everyone the selected agent has talked to: anyone it approached or was approached by.
+	const talkedTo = new Set(
+		state.links.flatMap((l) =>
+			l.a === current?.id ? [l.b] : l.b === current?.id ? [l.a] : [],
+		),
+	);
+	// With an agent selected, clicking someone it talked to opens their conversation (clicking again
+	// closes it), and clicking anyone else selects them instead.
+	const clickAgent = (id: string) => {
+		if (!current || id === current.id || !talkedTo.has(id)) toggleAgent(id);
+		else if (id === partner) setPartner("");
+		else {
+			setPartner(id);
+			setTab("Activity");
+		}
+	};
+	// Out of focus: anyone but the selected agent and its open partner, or, with no conversation open,
+	// anyone it hasn't talked to.
+	const faded = (id: string) =>
+		!!current &&
+		id !== current.id &&
+		(partner ? id !== partner : !talkedTo.has(id));
 	const visibleEvents = events
 		.slice(0, cursor)
 		.filter((e) => e.type !== "exchange");
@@ -160,6 +193,11 @@ function App() {
 			? pairEvents(visibleEvents, current.id, partner)
 			: related;
 	useEffect(() => setPartner(""), [selected, events]);
+	// Scrubbing back to before the two met closes their conversation.
+	const partnerLinked = talkedTo.has(partner);
+	useEffect(() => {
+		if (partner && !partnerLinked) setPartner("");
+	}, [partner, partnerLinked]);
 	const teamFor = (id: string) =>
 		state.teams.find((t) => t.members.includes(id));
 	const {
@@ -539,8 +577,13 @@ function App() {
 											<span className="live-dot" /> THE
 											POSSIBILITY SPACE
 											<span>
-												Every dot is someone’s next
-												chapter.
+												{!current
+													? "Every dot is someone’s next chapter."
+													: partner
+														? `Showing ${agentName(current.id)} and ${agentName(partner)}’s conversation. Click ${agentName(partner)} again to close it.`
+														: talkedTo.size
+															? `Click a highlighted agent to open its conversation with ${agentName(current.id)}.`
+															: `${agentName(current.id)} hasn’t talked to anyone yet.`}
 											</span>
 										</div>
 										<svg
@@ -551,6 +594,7 @@ function App() {
 											}}
 											role="img"
 											aria-label="Agent connections and team clusters"
+											onClick={() => setSelected("")}
 										>
 											<defs>
 												<radialGradient id="halo">
@@ -617,11 +661,28 @@ function App() {
 											{state.links.map((l) => {
 												const a = point(l.a),
 													b = point(l.b);
+												const mine =
+													l.a === current?.id ||
+													l.b === current?.id;
+												const open =
+													mine &&
+													!!partner &&
+													(l.a === partner ||
+														l.b === partner);
+												const lineFaded =
+													!!current &&
+													(partner ? !open : !mine);
 												return a && b ? (
 													<g
 														key={[l.a, l.b]
 															.sort()
 															.join(":")}
+														className="network-link"
+														style={{
+															opacity: lineFaded
+																? 0.15
+																: 1,
+														}}
 													>
 														<line
 															x1={a.x}
@@ -629,17 +690,19 @@ function App() {
 															x2={b.x}
 															y2={b.y}
 															stroke={
-																l.level >= 2
-																	? "#9c89ce"
-																	: "#c9c9d9"
+																open
+																	? "#7a64c0"
+																	: l.level >=
+																		  2
+																		? "#9c89ce"
+																		: "#c9c9d9"
 															}
 															strokeWidth={
-																l.a ===
-																	current?.id ||
-																l.b ===
-																	current?.id
-																	? 2
-																	: 1.2
+																open
+																	? 3
+																	: mine
+																		? 2
+																		: 1.2
 															}
 															strokeDasharray={
 																l.level === 0
@@ -657,6 +720,27 @@ function App() {
 																path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
 															/>
 														</circle>
+														{/* The level each of the selected agent's conversations reached. */}
+														{mine && !lineFaded && (
+															<g
+																className="link-level"
+																transform={`translate(${(a.x + b.x) / 2},${(a.y + b.y) / 2})`}
+															>
+																<rect
+																	x="-11"
+																	y="-8"
+																	width="22"
+																	height="16"
+																	rx="5"
+																/>
+																<text
+																	y="3.5"
+																	textAnchor="middle"
+																>
+																	L{l.level}
+																</text>
+															</g>
+														)}
 													</g>
 												) : null;
 											})}
@@ -678,31 +762,59 @@ function App() {
 														style={{
 															opacity: dim
 																? 0.2
-																: 1,
+																: faded(p.id)
+																	? 0.3
+																	: 1,
 															transform: `translate(${pos.x}px,${pos.y}px)`,
 														}}
 														role="button"
 														tabIndex={0}
-														aria-label={`Inspect agent ${p.id}`}
-														onClick={() => {
-															setSelected(p.id);
-															setTab("Overview");
+														aria-label={
+															current &&
+															!active &&
+															talkedTo.has(p.id)
+																? p.id ===
+																	partner
+																	? `Close the conversation with ${p.id}`
+																	: `Open the conversation between ${current.id} and ${p.id}`
+																: `Inspect agent ${p.id}`
+														}
+														aria-pressed={
+															active ||
+															p.id === partner
+														}
+														onClick={(e) => {
+															// Clicking empty canvas deselects, so keep this click off it.
+															e.stopPropagation();
+															clickAgent(p.id);
 														}}
 														onKeyDown={(e) => {
 															if (
 																e.key ===
 																	"Enter" ||
 																e.key === " "
-															)
-																setSelected(
+															) {
+																e.preventDefault();
+																clickAgent(
 																	p.id,
 																);
+															}
 														}}
 													>
 														<g
 															transform={`scale(${pos.scale})`}
 														>
-															{active && (
+															{/* The character ignores the pointer, so this catches clicks on its body. */}
+															<rect
+																x="-47"
+																y="-62"
+																width="94"
+																height="117"
+																fill="transparent"
+															/>
+															{(active ||
+																p.id ===
+																	partner) && (
 																<ellipse
 																	cx="0"
 																	cy="8"
@@ -853,10 +965,9 @@ function App() {
 													aria-pressed={
 														b.id === current?.id
 													}
-													onClick={() => {
-														setSelected(b.id);
-														setTab("Overview");
-													}}
+													onClick={() =>
+														toggleAgent(b.id)
+													}
 												>
 													<div className="board-card-top">
 														<strong>
