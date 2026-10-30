@@ -13,6 +13,7 @@ import {
 	isOpen,
 	placesLeft,
 	projectOwner,
+	offerMessages,
 	runCommitment,
 	safeToOffer,
 	explainOffers,
@@ -626,6 +627,70 @@ describe("team size and skills", () => {
 		});
 		expect(formatEvent(offers!, { rationale: false })).toContain(
 			"its model chose x, j · dropped j: every needed role they could fill is already covered: frontend by x",
+		);
+	});
+
+	test("an owner choosing whom to offer sees the version agreed with each person, not its original idea", async () => {
+		const world = frontendCase();
+		const a = world.agents.a!;
+		world.agents.a = {
+			...a,
+			profile: {
+				...a.profile,
+				preferences: { ...a.profile.preferences, maxTeamSize: 2 },
+			},
+		};
+		// x and a agreed on a reshaped version.
+		for (const [self, other] of [
+			["a", "x"],
+			["x", "a"],
+		] as const) {
+			world.agents[self] = recordMessage(world.agents[self]!, other, {
+				kind: "revision",
+				from: "x",
+				to: "a",
+				level: 2,
+				title: "Reshaped",
+				pitch: "The reshaped project.",
+				rolesNeeded: ["ml"],
+			});
+			world.agents[self] = recordMessage(world.agents[self]!, other, {
+				kind: "revisionAnswer",
+				from: "a",
+				to: "x",
+				adopt: true,
+			});
+		}
+		const { client, prompts } = fakeClient({ a: ["x"] });
+		await commit(world, client);
+		const [system, user] = (
+			JSON.parse(prompts.a!) as { content: string }[]
+		).slice(1);
+		expect(system!.content).toContain("Your human has no team yet");
+		expect(system!.content).not.toContain('"description":"A project."');
+		expect(user!.content).toContain('"id":"x","shared":');
+		expect(user!.content).toContain(
+			'"version":{"title":"Reshaped","pitch":"The reshaped project.","rolesNeeded":["ml"]}',
+		);
+	});
+
+	test("once a team exists, the owner sees the version the team is building", () => {
+		const [system] = offerMessages(
+			createWorld([human("a")]).agents.a!,
+			["j"],
+			1,
+			{},
+			["design"],
+			{
+				team: {
+					title: "Team",
+					pitch: "What the team builds.",
+					rolesNeeded: ["design"],
+				},
+			},
+		);
+		expect(system!.content).toContain(
+			'Your human\'s team is building this version of the project: {"title":"Team","pitch":"What the team builds."',
 		);
 	});
 

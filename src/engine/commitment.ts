@@ -421,7 +421,8 @@ const INTRO =
 	"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.";
 
 // The prompt asking `owner` which of `candidates` get one of its `places`: its own profile, plus only what
-// each candidate has shared with it.
+// each candidate has shared with it, and the version of the project the team would build: the team's, once it
+// exists, otherwise the one agreed with each candidate, since the first one offered decides it.
 export function offerMessages(
 	owner: AgentState,
 	candidates: readonly string[],
@@ -430,7 +431,13 @@ export function offerMessages(
 	leftTeams: Record<string, number> = {},
 	// The roles the team still needs.
 	needed: readonly string[] = [],
+	// The team's version once it exists; otherwise the version agreed with each candidate.
+	versions: { team: Terms } | { agreed: Record<string, Terms> } = {
+		agreed: {},
+	},
 ): Message[] {
+	const agreed = "agreed" in versions ? versions.agreed : {};
+	const plural = places === 1 ? "" : "s";
 	return [
 		{
 			role: "system",
@@ -438,7 +445,9 @@ export function offerMessages(
 				INTRO,
 				aboutHuman(owner, 2),
 				[
-					`Your human's project idea is ${JSON.stringify(owner.profile.projectIdeas[0] ?? "the one you came up with while brainstorming")}, and the team has ${places} place${places === 1 ? "" : "s"} left.`,
+					"team" in versions
+						? `Your human's team is building this version of the project: ${JSON.stringify(versions.team)}. It has ${places} place${plural} left.`
+						: `Your human has no team yet, and it has ${places} place${plural}. Each person below shows the version of the project you agreed with them: the team builds the version agreed with whoever you put first, and anyone after them joins that version.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
@@ -448,7 +457,7 @@ export function offerMessages(
 		},
 		{
 			role: "user",
-			content: `Ready to join: ${JSON.stringify(candidates.map((id) => ({ id, shared: contactOf(owner, id).learned, ...(leftTeams[id] && { leftTeams: leftTeams[id] }) })))}`,
+			content: `Ready to join: ${JSON.stringify(candidates.map((id) => ({ id, shared: contactOf(owner, id).learned, ...(agreed[id] && { version: agreed[id] }), ...(leftTeams[id] && { leftTeams: leftTeams[id] }) })))}`,
 		},
 	];
 }
@@ -839,6 +848,20 @@ export async function runCommitment(
 							.map((id) => [id, agents[id]!.leftTeams]),
 					),
 					stillNeeded(current(), owner),
+					teamOf(current(), owner)
+						? { team: versionFor(current(), owner, owner)! }
+						: {
+								agreed: Object.fromEntries(
+									candidates.flatMap((id) => {
+										const version = versionFor(
+											current(),
+											owner,
+											id,
+										);
+										return version ? [[id, version]] : [];
+									}),
+								),
+							},
 				),
 				AgentOffers,
 				{
