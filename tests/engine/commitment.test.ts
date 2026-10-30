@@ -126,7 +126,7 @@ function ready(world: World, owner: string, joiner: string): void {
 }
 
 // A client whose fake model answers offer prompts from `offers` (owner → ids), commitment prompts from
-// `commits` (agent → owner id or null), and re-checks from `stays` (agent → stay or leave), counting calls
+// `commits` (agent → owner id or null, or a list of those, one per call), and re-checks from `stays` (agent → stay or leave), counting calls
 // per agent and keeping each prompt.
 function fakeClient(
 	offers: Record<string, unknown[]> = {},
@@ -145,7 +145,13 @@ function fakeClient(
 			? { rationale: "Best fits.", offer: offers[who] ?? [] }
 			: last.startsWith("Your teammates")
 				? { rationale: "Weighed it.", decision: stays[who] ?? "stay" }
-				: { rationale: "Best team.", commit: commits[who] ?? null };
+				: {
+						rationale: "Best team.",
+						commit:
+							(Array.isArray(commits[who])
+								? commits[who].shift()
+								: commits[who]) ?? null,
+					};
 		return new Response(
 			JSON.stringify({
 				choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -301,22 +307,58 @@ describe("runCommitment", () => {
 		).toBeUndefined();
 	});
 
-	test("an owner that sent offers is busy: it answers busy, not decline, without a model call", async () => {
+	test("an owner offered a place that chooses to lead answers busy, not decline, and sends its own offers", async () => {
 		const world = createWorld([human("a"), human("b"), human("j", false)]);
 		ready(world, "a", "b");
 		ready(world, "b", "j");
-		const { client, calls } = fakeClient({}, { j: "b" });
+		const { client, calls, prompts } = fakeClient({}, { j: "b", b: null });
 		const { events, world: after } = await commit(world, client);
-		expect(calls).not.toContain("b");
+		expect(calls).toContain("b");
+		expect(prompts.b).toContain("Your human also owns a project");
+		expect(prompts.b).toContain("Your human's own team, if they lead");
 		expect(
 			events.find((e) => e.type === "commitment" && e.agent === "b"),
 		).toMatchObject({
 			chose: null,
 			busy: true,
+			rationale: "Best team.",
 		});
 		expect(messagesOf(events)).toContain("b→a busy");
 		expect(messagesOf(events)).not.toContain("b→a decline");
 		expect(after.teams.map((t) => t.members)).toEqual([["b", "j"]]);
+	});
+
+	test("an owner offered a place can join instead: its own offers are never sent", async () => {
+		const world = createWorld([human("a"), human("b"), human("j", false)]);
+		ready(world, "a", "b");
+		ready(world, "b", "j");
+		const { client } = fakeClient({}, { b: "a" });
+		const { events, world: after } = await commit(world, client);
+		expect(messagesOf(events)).not.toContain("b→j offer");
+		expect(messagesOf(events)).toContain("b→a commit");
+		expect(events.some((e) => e.type === "offers" && e.agent === "b")).toBe(
+			false,
+		);
+		expect(after.teams.map((t) => t.members)).toEqual([["a", "b"]]);
+	});
+
+	test("a join only holds if the owner joined leads; otherwise the joiner is busy", async () => {
+		// a offers b, b offers c, c offers a. b joins a, but a joins c, who leads: only c and a team up.
+		const world = createWorld([human("a"), human("b"), human("c")]);
+		ready(world, "a", "b");
+		ready(world, "b", "c");
+		ready(world, "c", "a");
+		const { client } = fakeClient({}, { b: ["a"], a: ["c"], c: [null] });
+		const { events, world: after } = await commit(world, client);
+		expect(messagesOf(events)).not.toContain("a→b offer");
+		expect(messagesOf(events)).toContain("a→c commit");
+		expect(after.teams.map((t) => t.members)).toEqual([["c", "a"]]);
+		expect(
+			events.find((e) => e.type === "commitment" && e.agent === "b"),
+		).toMatchObject({ chose: null, busy: true });
+		expect(messagesOf(events).filter((m) => m.startsWith("b→"))).toEqual(
+			[],
+		);
 	});
 
 	test("someone busy in one pass can commit in the next, once its own offers are settled", async () => {
@@ -330,7 +372,8 @@ describe("runCommitment", () => {
 		ready(world, "z", "x");
 		ready(world, "x", "m");
 		ready(world, "y", "m");
-		const { client } = fakeClient({}, { m: "y", x: "z" });
+		// x leads at first, then, its own offer settled, commits to z.
+		const { client } = fakeClient({}, { m: "y", x: [null, "z"] });
 		const result = await commit(world, client);
 		expect(result.world.teams.map((t) => t.members)).toEqual([
 			["y", "m"],
@@ -646,7 +689,7 @@ describe("the agreed project", () => {
 		});
 	});
 
-	test("the team builds the reshaped version, with its roles, and the commit prompt showed it", async () => {
+	test("the team builds the reshaped version, with its roles and no longer the idea's title, and the commit prompt showed it", async () => {
 		const world = createWorld([human("a"), human("j", false)]);
 		ready(world, "a", "j");
 		counterAccepted(world, "a", "j", "A tutor for injury recovery.", [
@@ -656,7 +699,7 @@ describe("the agreed project", () => {
 		const { world: after, events } = await commit(world, client);
 		expect(after.teams[0]).toMatchObject({
 			project: {
-				title: "a's project",
+				title: "New project",
 				description: "A tutor for injury recovery.",
 			},
 			rolesNeeded: ["frontend"],

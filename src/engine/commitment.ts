@@ -395,6 +395,7 @@ export function offerMessages(
 export function commitmentMessages(
 	agent: AgentState,
 	held: readonly Offer[],
+	offeringTo: readonly string[] = [],
 ): Message[] {
 	const offers = held.map((offer) => ({
 		owner: offer.from,
@@ -410,13 +411,32 @@ export function commitmentMessages(
 				[
 					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",
 					"Committing is final: your human joins that team, can't join any other, and their name is shared with every teammate.",
-					"Commit to at most one, by its owner's id, or use null to decline them all. Choose where your human's skills are most needed and the project fits them best. Your rationale is private.",
+					...(offeringTo.length > 0
+						? [
+								`Your human also owns a project, and is about to offer places on it to ${offeringTo.join(", ")}. Committing to one of these offers means joining that team instead, and your human's own offers are never sent. Use null to lead your human's own project instead.`,
+								"Commit to at most one, by its owner's id, or use null to lead. Choose the team where your human's skills are most needed and the people and project fit them best, their own included. Your rationale is private.",
+							]
+						: [
+								"Commit to at most one, by its owner's id, or use null to decline them all. Choose where your human's skills are most needed and the project fits them best. Your rationale is private.",
+							]),
 				].join("\n"),
 			].join("\n\n"),
 		},
 		{
 			role: "user",
-			content: `Offers: ${JSON.stringify(offers)}`,
+			content: [
+				`Offers: ${JSON.stringify(offers)}`,
+				...(offeringTo.length > 0
+					? [
+							`Your human's own team, if they lead: ${JSON.stringify(
+								offeringTo.map((id) => ({
+									id,
+									shared: contactOf(agent, id).learned,
+								})),
+							)}`,
+						]
+					: []),
+			].join("\n"),
 		},
 	];
 }
@@ -450,11 +470,13 @@ export function recheckMessages(agent: AgentState, team: Team): Message[] {
 
 // Turns ready pairs into committed teams, after a round's conversations have gone quiet, without anyone
 // seeing the whole picture (deferred acceptance):
-// 1. Each project owner offers its places to the people it's ready with. If there are more of them than
-//    places, its model picks. An offer binds the owner.
-// 2. Every agent holding offers picks one, all at once, so no offer wins by arriving first. Commit goes to
-//    the pick and decline to the rest. An agent that sent offers is bound to its own project and answers
-//    busy, which can be offered again.
+// 1. Each project owner chooses whom to offer its places, among the people it's ready with. If there are
+//    more of them than places, its model picks. Nothing is sent yet.
+// 2. An owner with no team yet who is being offered a place decides first: lead, sending its offers, which
+//    bind it; or join one of those teams, so its own offers are never sent. A join holds only if the owner
+//    joined leads; otherwise the joiner is busy for this pass.
+// 2b. Every other agent holding offers picks one, all at once, so no offer wins by arriving first. Commit
+//    goes to the pick and decline to the rest. An owner that leads answers busy, which can be offered again.
 // 3. A commit adds the member to the owner's team; the member and every teammate open level 3 and share
 //    names, built by code and gate-checked.
 //    Steps 1–3 repeat until a pass changes nothing, so someone busy in one pass can commit in the next.
@@ -591,27 +613,61 @@ export async function runCommitment(
 		const choices = await Promise.all(
 			owners.map((owner) => chooseMembers(owner)),
 		);
-		let offers = 0;
-		for (const choice of choices) {
-			emit({ type: "offers", ...choice });
+		// The offers each owner plans to make. None is sent until owners being offered a place have decided.
+		const planned = choices.flatMap((choice) => {
 			const version = offerVersion(current(), choice.agent, choice.to);
-			for (const to of version ? choice.to : []) {
-				const offer: Offer = {
-					kind: "offer",
-					from: choice.agent,
-					to,
-					team: teamId(choice.agent),
-					...version!,
-				};
-				send(offer, []);
-				offers++;
-			}
-		}
+			return (version ? choice.to : []).map((to): Offer => ({
+				kind: "offer",
+				from: choice.agent,
+				to,
+				team: teamId(choice.agent),
+				...version!,
+			}));
+		});
 		const bound = new Set(
 			choices.filter((c) => c.to.length > 0).map((c) => c.agent),
 		);
 
-		// 2. Everyone holding offers picks one at once. An owner with offers out is busy: it answers "busy",
+		// 2. An owner with no team yet who is being offered a place decides first: lead its own project, or
+		// join one of those teams, in which case its own offers are never sent. A join only holds if the
+		// owner joined leads; otherwise the joiner is busy this pass and can try again in the next.
+		const deciding = [...bound].filter(
+			(owner) =>
+				!teamOf(current(), owner) &&
+				planned.some((offer) => offer.to === owner),
+		);
+		const decided = new Map(
+			await Promise.all(
+				deciding.map(
+					async (owner) =>
+						[
+							owner,
+							await choosePlace(
+								owner,
+								planned.filter((offer) => offer.to === owner),
+								planned
+									.filter((offer) => offer.from === owner)
+									.map((offer) => offer.to),
+							),
+						] as const,
+				),
+			),
+		);
+		const joining = (owner: string) => decided.get(owner)?.chose != null;
+		for (const choice of choices) {
+			if (!joining(choice.agent)) {
+				emit({ type: "offers", ...choice });
+			}
+		}
+		let offers = 0;
+		for (const offer of planned) {
+			if (!joining(offer.from)) {
+				send(offer, []);
+				offers++;
+			}
+		}
+
+		// 3. Everyone else holding offers picks one at once. An owner who leads is busy: it answers "busy",
 		// which, unlike a decline, leaves it open to the same offer in a later pass.
 		const held = new Map<string, Offer[]>();
 		for (const { receiver, message } of deliver()) {
@@ -620,19 +676,32 @@ export async function runCommitment(
 			}
 		}
 		const picks = await Promise.all(
-			[...held].map(([agent, offers]) =>
-				bound.has(agent)
+			[...held].map(([agent, offers]) => {
+				const owners = offers.map((o) => o.from);
+				const decision = decided.get(agent);
+				// A join holds if the owner joined sent its offers; anything else from a bound owner is busy.
+				if (decision?.chose && owners.includes(decision.chose)) {
+					return { ...decision, offers: owners };
+				}
+				return bound.has(agent)
 					? {
 							agent,
-							offers: offers.map((o) => o.from),
+							offers: owners,
 							chose: null,
 							busy: true,
-							rationale: undefined,
-							fellBack: false,
+							rationale: decision?.rationale,
+							fellBack: decision?.fellBack ?? false,
 						}
-					: choosePlace(agent, offers),
-			),
+					: choosePlace(agent, offers);
+			}),
 		);
+		// A joiner whose owner didn't lead may hold nothing that was sent: its decision is recorded, but
+		// it answers no one, since no offer reached it.
+		for (const d of decided.values()) {
+			if (!held.has(d.agent)) {
+				emit({ type: "commitment", ...d, chose: null, busy: true });
+			}
+		}
 		let declines = 0;
 		for (const pick of picks) {
 			emit({ type: "commitment", ...pick });
@@ -746,11 +815,15 @@ export async function runCommitment(
 
 	// Which offer `agent` commits to. If no valid answer comes back, it declines them all: a commitment
 	// can't be undone, so not making one is the safe default.
-	async function choosePlace(agent: string, held: Offer[]) {
+	async function choosePlace(
+		agent: string,
+		held: Offer[],
+		offeringTo: string[] = [],
+	) {
 		const owners = held.map((offer) => offer.from);
 		try {
 			const { data } = await client.chatJson(
-				commitmentMessages(agents[agent]!, held),
+				commitmentMessages(agents[agent]!, held, offeringTo),
 				AgentCommitment,
 				{
 					...llmOptions,
@@ -852,10 +925,13 @@ export async function runCommitment(
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
 			project: team?.project ?? {
-				// Someone who came up with the idea while brainstorming may have had no idea of their own.
+				// The owner's idea keeps its title only while the team builds the pitch they listed: a
+				// reshaped version, or one from brainstorming (maybe by someone with no idea), is a new project.
 				title:
-					agents[owner]!.profile.projectIdeas[0]?.title ??
-					"New project",
+					version.pitch === publicPitch(agents[owner]!)?.pitch
+						? (agents[owner]!.profile.projectIdeas[0]?.title ??
+							"New project")
+						: "New project",
 				description: version.pitch,
 			},
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
