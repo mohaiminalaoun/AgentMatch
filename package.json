@@ -29,7 +29,8 @@
 		"build:ui": "tsc -p tsconfig.ui.json && vite build",
 		"preview:ui": "vite preview --host 127.0.0.1",
 		"eval:explain": "tsx src/eval-explain.ts",
-		"eval:explain:label": "tsx src/eval-explain-label.ts"
+		"eval:explain:label": "tsx src/eval-explain-label.ts",
+		"regressions": "tsx src/regressions.ts"
 	},
 	"repository": {
 		"type": "git",

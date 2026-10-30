@@ -557,6 +557,32 @@ describe("team size and skills", () => {
 		expect(selectOffers(world, "a", ["k", "j"])).toEqual(["k"]);
 	});
 
+	// The pilot's dropped frontend expert, as a regression case: pins today's behavior, which removes every
+	// role a chosen person could fill, so the change that logs why (or assigns roles explicitly) updates it.
+	test("someone chosen for one role also uses up every other needed role they could fill", () => {
+		const world = createWorld([
+			human("a"),
+			{
+				...human("x", false, 4, "ml"),
+				skills: [
+					{ name: "ml", level: "intermediate" },
+					{ name: "frontend", level: "beginner" },
+				],
+			},
+			human("j", false, 4, "frontend"),
+		]);
+		ready(world, "a", "x");
+		ready(world, "a", "j");
+		world.agents.a = {
+			...world.agents.a!,
+			listing: { pitch: "a's project", rolesNeeded: ["ml", "frontend"] },
+		};
+		expect(candidatesOf(world, "a").sort()).toEqual(["j", "x"]);
+		// x is picked for ml, and their beginner frontend counts as covering frontend, so the frontend
+		// expert j gets no offer, and nothing records why.
+		expect(selectOffers(world, "a", ["x", "j"])).toEqual(["x"]);
+	});
+
 	test("places are capped by the smallest maximum among the team, as learned", async () => {
 		const world = createWorld([human("a", true, 5), human("j", false, 2)]);
 		ready(world, "a", "j");
