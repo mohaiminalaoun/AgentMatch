@@ -47,8 +47,10 @@ function Version({
 	const dropped = before
 		? before.rolesNeeded.filter((r) => !v.rolesNeeded.includes(r))
 		: [];
+	const renamed = v.title && v.title !== before?.title;
 	return (
 		<>
+			{renamed && <p className="idea-title">{v.title}</p>}
 			{before && before.pitch === v.pitch ? (
 				<p className="idea-same">Same pitch as before</p>
 			) : (

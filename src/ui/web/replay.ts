@@ -546,6 +546,8 @@ export type IdeaVersion = {
 	author: string;
 	from: string;
 	to: string;
+	// The project's name in this version, if it was given one.
+	title?: string | undefined;
 	pitch: string;
 	rolesNeeded: string[];
 	status:
@@ -614,6 +616,7 @@ export function ideaVersions(
 				author: joins ? m.to : m.from,
 				from: m.from,
 				to: m.to,
+				title: m.title,
 				pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
@@ -626,6 +629,7 @@ export function ideaVersions(
 				author: m.from,
 				from: m.from,
 				to: m.to,
+				title: m.title,
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
@@ -642,6 +646,7 @@ export function ideaVersions(
 				author: m.from,
 				from: m.from,
 				to: m.to,
+				title: m.title,
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
