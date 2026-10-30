@@ -27,6 +27,7 @@ import {
 	SkipForward,
 	Sparkles,
 	Upload,
+	UserPlus,
 	Users,
 	X,
 } from "lucide-react";
@@ -329,6 +330,14 @@ function App() {
 				>
 					<Layers3 size={21} />
 				</button>
+				<a
+					className="rail-button"
+					href="/people.html"
+					title="People in the pilot"
+					aria-label="People in the pilot"
+				>
+					<UserPlus size={21} />
+				</a>
 				<div className="rail-bottom">
 					<button
 						className="rail-button"

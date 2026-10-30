@@ -1,0 +1,211 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap");
+:root {
+	--bg: #f7f8fa;
+	--panel: #fff;
+	--ink: #353542;
+	--muted: #6e6680;
+	--line: #e5e3eb;
+	--accent: #7954be;
+	--accent-soft: #f0ebf9;
+	--good: #2f6b4f;
+	--good-soft: #eaf5ef;
+	--bad: #a3354f;
+	--bad-soft: #fbecef;
+	font-family: "DM Sans", sans-serif;
+	font-size: 14px;
+	color: var(--ink);
+	background: var(--bg);
+}
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	background: var(--bg);
+}
+button,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 0.9em;
+	background: var(--accent-soft);
+	border-radius: 4px;
+	padding: 1px 5px;
+}
+.people-page {
+	max-width: 880px;
+	margin: 0 auto;
+	padding: 32px 16px 64px;
+	display: grid;
+	gap: 20px;
+}
+.people-page header a {
+	color: var(--accent);
+	font:
+		700 13px Manrope,
+		sans-serif;
+	text-decoration: none;
+}
+.people-page h1 {
+	font:
+		750 26px Manrope,
+		sans-serif;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 8px 0 6px;
+}
+.people-page header p {
+	color: var(--muted);
+	margin: 0;
+	max-width: 640px;
+	line-height: 1.5;
+}
+.people-editor,
+.people-list {
+	background: var(--panel);
+	border: 1px solid var(--line);
+	border-radius: 11px;
+	padding: 18px;
+	display: grid;
+	gap: 12px;
+}
+.people-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.people-actions button,
+.people-list button,
+.people-save {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	border: 1px solid var(--line);
+	background: var(--panel);
+	border-radius: 8px;
+	padding: 7px 12px;
+	cursor: pointer;
+}
+.people-actions button:hover:not(:disabled),
+.people-list button:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+button:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+button:focus-visible,
+textarea:focus-visible {
+	outline: 3px solid #b8a0ea;
+	outline-offset: 2px;
+}
+.people-editor textarea {
+	width: 100%;
+	min-height: 300px;
+	resize: vertical;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 12.5px;
+	line-height: 1.5;
+	background: #fcfcfe;
+}
+.people-check,
+.people-outcome > li {
+	border-radius: 8px;
+	padding: 10px 12px;
+	line-height: 1.5;
+}
+.people-check {
+	display: grid;
+	gap: 2px;
+}
+.good {
+	background: var(--good-soft);
+	color: var(--good);
+}
+.bad {
+	background: var(--bad-soft);
+	color: var(--bad);
+}
+.people-check ul,
+.people-outcome ul {
+	margin: 4px 0 0;
+	padding-left: 18px;
+}
+.people-save {
+	justify-self: start;
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+	font-weight: 600;
+}
+.people-outcome {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 6px;
+}
+.people-list h2 {
+	font:
+		700 16px Manrope,
+		sans-serif;
+	margin: 0;
+}
+.people-list h2 span {
+	color: var(--muted);
+	font-weight: 600;
+	margin-left: 4px;
+}
+.people-list ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 8px;
+}
+.people-list li {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 10px 12px;
+}
+.people-list li div {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+.people-list li span {
+	color: var(--muted);
+	font-size: 12.5px;
+	overflow-wrap: anywhere;
+}
+.people-list button.confirm {
+	border-color: var(--bad);
+	color: var(--bad);
+	background: var(--bad-soft);
+}
+.people-empty,
+.people-next {
+	color: var(--muted);
+	margin: 0;
+}
+@media (max-width: 560px) {
+	.people-list li {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}
+.people-list li code {
+	justify-self: start;
+}
