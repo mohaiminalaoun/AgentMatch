@@ -557,6 +557,9 @@ export type IdeaVersion = {
 		| "kept"
 		| "committed"
 		| "busy";
+	// The private reasoning of whoever sent this version, and of whoever answered it, when the log has it.
+	why?: string | undefined;
+	answerWhy?: string | undefined;
 };
 // Matches JOIN_PREFIX in src/engine/proposal.ts, which the browser can't import.
 const JOIN_PREFIX = "Join your project: ";
@@ -574,15 +577,22 @@ export function ideaVersions(
 	let onTable: number | undefined;
 	const revised = new Map<string, number>();
 	const offered = new Map<string, number>();
-	for (const e of pairEvents(events, a, b)) {
+	const pair = pairEvents(events, a, b);
+	const why = reasons(pair);
+	for (const e of pair) {
 		if (e.type !== "bus" || e.event.type !== "sent") continue;
 		const m = e.event.message;
+		// The reasoning behind this message, which settles a version or starts one.
+		const reason = why(m);
 		const settle = (
 			i: number | undefined,
 			status: IdeaVersion["status"],
 		) => {
 			const v = i === undefined ? undefined : versions[i];
-			if (v) v.status = status;
+			if (v) {
+				v.status = status;
+				v.answerWhy = reason;
+			}
 		};
 		if (!("kind" in m)) {
 			if ("decision" in m) {
@@ -607,6 +617,7 @@ export function ideaVersions(
 				pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
+				why: reason,
 			});
 		} else if (m.kind === "revision") {
 			revised.set(m.from, versions.length);
@@ -618,6 +629,7 @@ export function ideaVersions(
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
+				why: reason,
 			});
 		} else if (m.kind === "revisionAnswer") {
 			const i = revised.get(m.to);
@@ -633,6 +645,7 @@ export function ideaVersions(
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
 				status: "open",
+				why: reason,
 			});
 		} else if (m.kind === "answer") {
 			const i = offered.get(m.team);
@@ -648,6 +661,122 @@ export function ideaVersions(
 		}
 	}
 	return { versions, agreed };
+}
+type Team = Extract<Event, { type: "team" }>["team"];
+// One step on the way to a team, by `who`: an offer of places, an answer to one, the owner choosing to lead
+// over offers to join others, or a member's re-check after the team grew. `why` is who's private reasoning.
+export type TeamStep = {
+	who: string;
+	what:
+		"offered" | "joined" | "declined" | "busy" | "led" | "stayed" | "left";
+	// Whom it offered places to; whose offer it answered; or, for "led", whose offers it passed up.
+	others: string[];
+	why?: string | undefined;
+};
+// How `team` came about: the idea as it changed in the conversation that founded the team (its owner with
+// the first member to join), then every offer, answer, and re-check involving the team, in order.
+export function teamStory(
+	events: Event[],
+	team: Team,
+): {
+	owner: string;
+	founder: string | undefined;
+	idea: ReturnType<typeof ideaVersions>;
+	steps: TeamStep[];
+} {
+	const owner = team.members[0]!;
+	const founded = events.find(
+		(e): e is Extract<Event, { type: "team" }> =>
+			e.type === "team" && e.team.id === team.id,
+	);
+	const founder = founded?.team.members[1] ?? team.members[1];
+	const steps: TeamStep[] = [];
+	for (const e of events) {
+		if (e.type === "offers" && e.agent === owner && e.to.length > 0)
+			steps.push({
+				who: owner,
+				what: "offered",
+				others: e.to,
+				why: e.rationale,
+			});
+		if (e.type === "commitment" && e.agent === owner && e.busy)
+			steps.push({
+				who: owner,
+				what: "led",
+				others: e.offers,
+				why: e.rationale,
+			});
+		if (
+			e.type === "commitment" &&
+			e.agent !== owner &&
+			e.offers.includes(owner)
+		)
+			steps.push({
+				who: e.agent,
+				what:
+					e.chose === owner ? "joined" : e.busy ? "busy" : "declined",
+				others: [owner],
+				why: e.rationale,
+			});
+		if (e.type === "recheck" && e.team === team.id)
+			steps.push({
+				who: e.agent,
+				what: e.decision === "leave" ? "left" : "stayed",
+				others: [],
+				why: e.rationale,
+			});
+	}
+	return {
+		owner,
+		founder,
+		idea: founder
+			? ideaVersions(events, owner, founder)
+			: { versions: [], agreed: undefined },
+		steps,
+	};
+}
+// Matches each message between two agents to the private reasoning its sender's model gave for it, from the
+// decision, interest, revision answer, offer, or commitment event behind it. Those events can come just
+// before or just after their message, so each is looked up by what it's about, oldest first.
+function reasons(pair: Event[]): (m: AgentMessage) => string | undefined {
+	const queues = new Map<string, (string | undefined)[]>();
+	const add = (key: string, why: string | undefined) =>
+		queues.set(key, [...(queues.get(key) ?? []), why]);
+	for (const e of pair) {
+		if (e.type === "decision")
+			add(`decision|${e.agent}|${e.proposalId}`, e.rationale);
+		if (e.type === "interest" && e.revision)
+			add(
+				`revision|${e.agent}|${e.other}|${e.revision.pitch}`,
+				e.rationale,
+			);
+		if (e.type === "revisionAnswer")
+			add(`answer|${e.agent}|${e.other}`, e.rationale);
+		if (e.type === "offers")
+			for (const to of e.to) add(`offer|${e.agent}|${to}`, e.rationale);
+		if (e.type === "commitment")
+			for (const owner of e.offers)
+				add(`commit|${e.agent}|${owner}`, e.rationale);
+	}
+	const take = (key: string) => queues.get(key)?.shift();
+	return (m) => {
+		if (!("kind" in m))
+			return "decision" in m
+				? take(`decision|${m.from}|${m.proposalId}`)
+				: undefined;
+		switch (m.kind) {
+			case "revision":
+				return take(`revision|${m.from}|${m.to}|${m.pitch}`);
+			case "revisionAnswer":
+				return take(`answer|${m.from}|${m.to}`);
+			case "offer":
+				return take(`offer|${m.from}|${m.to}`);
+			case "answer":
+				return take(`commit|${m.from}|${m.to}`);
+			default:
+				return undefined;
+		}
+	};
 }
 // One entry on the public board: what any agent could see about someone, plus how many agents approached
 // them, which only the operator sees.

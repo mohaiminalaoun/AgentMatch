@@ -39,6 +39,7 @@ import {
 	pairEvents,
 	parseLog,
 	project,
+	teamStory,
 	type BoardEntry,
 	type Event,
 } from "./replay.js";
@@ -46,8 +47,10 @@ import "./style.css";
 import { groupAgents } from "./layout.js";
 import { AgentCharacter, type Mood } from "./AgentCharacter.js";
 import { IdeaCard } from "./IdeaCard.js";
+import { TeamStory } from "./TeamStory.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
-const short = (id: string) => id.replace(/^a0?/, "").replace(/^p/, "");
+// "a03" → "3", "p4" → "4", and a pilot id like "p-c41e" → "c41e".
+const short = (id: string) => id.replace(/^a0?/, "").replace(/^p-?/, "");
 const agentName = (id: string) => `Agent ${short(id).padStart(2, "0")}`;
 // What each board status says on a card, and the hover text that explains it.
 const statusText: Record<BoardEntry["status"], [string, string]> = {
@@ -84,7 +87,9 @@ function App() {
 		[showHelp, setHelp] = useState(false),
 		[showMessages, setShowMessages] = useState(false),
 		// Another agent whose conversation with the selected one fills the Activity tab.
-		[partner, setPartner] = useState("");
+		[partner, setPartner] = useState(""),
+		// The team whose story is open under its card, if any.
+		[openTeam, setOpenTeam] = useState("");
 	const file = useRef<HTMLInputElement>(null);
 	// The network panel and inspector go full screen together, so an open conversation stays visible.
 	const studio = useRef<HTMLDivElement>(null);
@@ -201,7 +206,20 @@ function App() {
 		current && partner
 			? pairEvents(visibleEvents, current.id, partner)
 			: related;
-	useEffect(() => setPartner(""), [selected, events]);
+	// A conversation opened from elsewhere (a team's story) selects one agent and names the other here,
+	// since selecting an agent otherwise closes any open conversation.
+	const pendingPartner = useRef("");
+	useEffect(() => {
+		setPartner(pendingPartner.current);
+		pendingPartner.current = "";
+	}, [selected, events]);
+	const openConversation = (a: string, b: string) => {
+		pendingPartner.current = b;
+		if (selected === a) setPartner(b);
+		setSelected(a);
+		setTab("Activity");
+		setView("network");
+	};
 	// Scrubbing back to before the two met closes their conversation.
 	const partnerLinked = talkedTo.has(partner);
 	useEffect(() => {
@@ -1114,24 +1132,13 @@ function App() {
 												</button>
 											</div>
 										)}
-										{circles
-											.filter((c) =>
-												c.id.startsWith("open-"),
-											)
-											.map((c) => (
-												<text
-													key={c.id}
-													x={c.x}
-													y={c.titleY}
-													textAnchor="middle"
-													className="team-label open-group-label"
-												>
-													Still exploring
-												</text>
-											))}
 										{state.teams.map((t, i) => (
 											<article
-												className="team-card"
+												className={
+													openTeam === t.id
+														? "team-card open"
+														: "team-card"
+												}
 												key={t.id}
 											>
 												<div className="team-card-top">
@@ -1166,6 +1173,36 @@ function App() {
 														</button>
 													))}
 												</div>
+												<button
+													className="team-story-toggle"
+													aria-expanded={
+														openTeam === t.id
+													}
+													onClick={() =>
+														setOpenTeam((o) =>
+															o === t.id
+																? ""
+																: t.id,
+														)
+													}
+												>
+													<ChevronDown size={15} />
+													{openTeam === t.id
+														? "Hide how it formed"
+														: "How it formed"}
+												</button>
+												{openTeam === t.id && (
+													<TeamStory
+														story={teamStory(
+															visibleEvents,
+															t,
+														)}
+														members={t.members}
+														onOpenConversation={
+															openConversation
+														}
+													/>
+												)}
 												<div className="approval-row">
 													{approvals[t.id] ? (
 														<span className="approval-status">
@@ -1642,7 +1679,12 @@ function App() {
 														</button>
 													</div>
 												)}
-												{idea && <IdeaCard {...idea} />}
+												{idea && (
+													<IdeaCard
+														{...idea}
+														showWhy={privateView}
+													/>
+												)}
 												{partner && (
 													<div className="detail-label">
 														EVERY STEP, OLDEST FIRST

@@ -2400,3 +2400,66 @@ h1 > span {
 		height: 212px;
 	}
 }
+/* A team's story, opened under its card: the card takes the full width so the history has room. */
+.team-card.open {
+	width: 100%;
+	margin-right: 0;
+}
+.team-story-toggle {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 9px;
+	color: #7b648d;
+	margin: -6px 0 13px;
+}
+.team-story-toggle[aria-expanded="true"] svg {
+	transform: rotate(180deg);
+}
+.team-story {
+	border-top: 1px solid #f0eaf5;
+	padding: 14px 0 4px;
+	display: grid;
+	gap: 10px;
+}
+.team-story p {
+	min-height: 0;
+}
+.team-story .team-story-note {
+	font-size: 9px;
+	margin: -6px 0 0;
+}
+.team-steps {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 0 4px;
+}
+.team-steps > li {
+	border-left: 2px solid #ece6f1;
+	padding: 0 0 10px 12px;
+	font-size: 10px;
+	color: #72677a;
+}
+.team-steps .good {
+	color: #3c7767;
+}
+.idea-why {
+	margin-top: 5px;
+	font-size: 9px;
+	color: #72677a;
+}
+.idea-why > summary {
+	cursor: pointer;
+	color: #7b648d;
+	width: fit-content;
+}
+.idea-why > p {
+	margin: 4px 0 0;
+	line-height: 1.6;
+	min-height: 0;
+}
+.team-story-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}

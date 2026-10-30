@@ -8,6 +8,7 @@ import {
 	pairEvents,
 	parseLog,
 	project,
+	teamStory,
 	type Event,
 } from "../../src/ui/web/replay.js";
 describe("browser replay", () => {
@@ -364,6 +365,156 @@ describe("browser replay", () => {
 		]);
 		expect(versions[0]?.pitch).toBe("A civic app.");
 		expect(agreed).toBe(1);
+	});
+	it("tells a team's story: its idea with each side's reasoning, then offers, answers, and re-checks", () => {
+		const sent = (message: object) => ({
+			type: "bus",
+			event: { seq: 1, time: "t", type: "sent", message },
+		});
+		const team = {
+			id: "team-o",
+			members: ["o", "m"],
+			project: { title: "New project", description: "A tutor." },
+			rolesNeeded: ["devops"],
+			status: "committed",
+		};
+		const events = parseLog(
+			[
+				sent({
+					id: "r1",
+					from: "o",
+					to: "m",
+					pitch: "A study app.",
+					rolesNeeded: ["design"],
+				}),
+				sent({
+					proposalId: "r1",
+					from: "m",
+					to: "o",
+					decision: "accept",
+				}),
+				{
+					type: "decision",
+					agent: "m",
+					proposalId: "r1",
+					decision: { decision: "accept" },
+					rationale: "Fits my skills.",
+					gateBlocks: 0,
+					fellBack: false,
+				},
+				sent({
+					kind: "interest",
+					from: "o",
+					to: "m",
+					level: 1,
+					interest: "continue",
+				}),
+				{
+					type: "interest",
+					agent: "o",
+					other: "m",
+					level: 1,
+					interest: "continue",
+					revision: { pitch: "A tutor.", rolesNeeded: ["devops"] },
+					rationale: "Use their devops.",
+					fellBack: false,
+				},
+				sent({
+					kind: "revision",
+					from: "o",
+					to: "m",
+					level: 1,
+					pitch: "A tutor.",
+					rolesNeeded: ["devops"],
+				}),
+				sent({
+					kind: "revisionAnswer",
+					from: "m",
+					to: "o",
+					adopt: true,
+				}),
+				{
+					type: "revisionAnswer",
+					agent: "m",
+					other: "o",
+					adopt: true,
+					rationale: "Better for me.",
+					fellBack: false,
+				},
+				{
+					type: "offers",
+					agent: "o",
+					to: ["m"],
+					places: 3,
+					fellBack: false,
+				},
+				{
+					type: "commitment",
+					agent: "o",
+					offers: ["k"],
+					chose: null,
+					busy: true,
+					rationale: "Leading suits them.",
+					fellBack: false,
+				},
+				sent({
+					kind: "offer",
+					from: "o",
+					to: "m",
+					team: "team-o",
+					pitch: "A tutor.",
+					rolesNeeded: ["devops"],
+				}),
+				{
+					type: "commitment",
+					agent: "m",
+					offers: ["o"],
+					chose: "o",
+					rationale: "Best team.",
+					fellBack: false,
+				},
+				sent({
+					kind: "answer",
+					from: "m",
+					to: "o",
+					team: "team-o",
+					answer: "commit",
+				}),
+				{ type: "team", team },
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		const story = teamStory(events, team as never);
+		expect(story.owner).toBe("o");
+		expect(story.founder).toBe("m");
+		expect(
+			story.idea.versions.map((v) => [
+				v.how,
+				v.status,
+				v.why,
+				v.answerWhy,
+			]),
+		).toEqual([
+			["proposal", "accepted", undefined, "Fits my skills."],
+			["revision", "adopted", "Use their devops.", "Better for me."],
+			["offer", "committed", undefined, "Best team."],
+		]);
+		expect(story.idea.agreed).toBe(2);
+		expect(story.steps).toEqual([
+			{ who: "o", what: "offered", others: ["m"], why: undefined },
+			{
+				who: "o",
+				what: "led",
+				others: ["k"],
+				why: "Leading suits them.",
+			},
+			{ who: "m", what: "joined", others: ["o"], why: "Best team." },
+		]);
+		// Before the offers, the story stops at the adopted revision, with no steps yet.
+		const earlier = teamStory(events.slice(0, 8), team as never);
+		expect(earlier.idea.agreed).toBe(1);
+		expect(earlier.steps).toEqual([]);
 	});
 	it("builds the public board: listings, people looking to join, and each one's status", () => {
 		const team = (id: string, members: string[]): Event => ({
