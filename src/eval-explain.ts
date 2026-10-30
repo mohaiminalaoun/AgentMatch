@@ -62,7 +62,16 @@ try {
 		status.call(0);
 	});
 	status.stop();
-	console.log(formatExplainTable(summarizeJudgments(judged)));
+	console.log(
+		formatExplainTable(
+			summarizeJudgments(
+				judged.map(({ call, judgment }) => ({
+					kind: call.kind,
+					claims: judgment.claims,
+				})),
+			),
+		),
+	);
 	if (failed > 0) {
 		console.log(`\n${failed} judgment(s) failed and were left out.`);
 	}

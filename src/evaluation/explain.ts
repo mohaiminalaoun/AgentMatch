@@ -207,12 +207,12 @@ export type KindSummary = {
 };
 
 export function summarizeJudgments(
-	judged: readonly { call: ExplainedCall; judgment: Judgment }[],
+	judged: readonly { kind: string; claims: readonly Claim[] }[],
 ): KindSummary[] {
 	const byKind = new Map<string, KindSummary>();
-	for (const { call, judgment } of judged) {
-		const s = byKind.get(call.kind) ?? {
-			kind: call.kind,
+	for (const judgment of judged) {
+		const s = byKind.get(judgment.kind) ?? {
+			kind: judgment.kind,
 			calls: 0,
 			claims: 0,
 			supported: 0,
@@ -247,7 +247,7 @@ export function summarizeJudgments(
 		if (judgment.claims.some((c) => c.verdict === "contradicted")) {
 			s.callsWithContradiction++;
 		}
-		byKind.set(call.kind, s);
+		byKind.set(judgment.kind, s);
 	}
 	return [...byKind.values()].sort((a, b) => a.kind.localeCompare(b.kind));
 }

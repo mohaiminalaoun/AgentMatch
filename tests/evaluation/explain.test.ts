@@ -171,23 +171,20 @@ describe("judgeCalls", () => {
 
 describe("summarizeJudgments", () => {
 	test("counts each verdict per kind, separately, with asserted ones and categories", () => {
-		const [d, i] = explainedCalls([decision, interest]);
 		const summaries = summarizeJudgments([
 			{
-				call: d!,
-				judgment: {
-					claims: [
-						claim("supported"),
-						claim("unsupported", "asserted", "invented scheduling"),
-						claim(
-							"contradicted",
-							"tentative",
-							"misdescribes an option",
-						),
-					],
-				},
+				kind: "decision",
+				claims: [
+					claim("supported"),
+					claim("unsupported", "asserted", "invented scheduling"),
+					claim(
+						"contradicted",
+						"tentative",
+						"misdescribes an option",
+					),
+				],
 			},
-			{ call: i!, judgment: { claims: [claim("supported")] } },
+			{ kind: "interest check", claims: [claim("supported")] },
 		]);
 		expect(summaries).toEqual([
 			{
