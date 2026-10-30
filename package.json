@@ -27,7 +27,8 @@
 		"pilot:view": "tsx src/pilot-view.ts",
 		"dev:ui": "vite --host 127.0.0.1",
 		"build:ui": "tsc -p tsconfig.ui.json && vite build",
-		"preview:ui": "vite preview --host 127.0.0.1"
+		"preview:ui": "vite preview --host 127.0.0.1",
+		"eval:explain": "tsx src/eval-explain.ts"
 	},
 	"repository": {
 		"type": "git",
