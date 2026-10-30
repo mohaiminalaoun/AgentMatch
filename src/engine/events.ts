@@ -128,6 +128,12 @@ export const RunEvent = z.discriminatedUnion("type", [
 		places: z.number().int(),
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
+		// The model's own choice, best first, when it was asked; `to` is what was left after the code's checks.
+		ranked: z.array(z.string()).optional(),
+		// Everyone the code's checks left out of `ranked` (or, on a fallback, of everyone ready), and why.
+		dropped: z
+			.array(z.object({ id: z.string(), reason: z.string() }))
+			.optional(),
 	}),
 	// An agent holding offers committed to one owner's team, or to none (`chose` null). `busy` when it had
 	// offers of its own out and answered busy without a model call.

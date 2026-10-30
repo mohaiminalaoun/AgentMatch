@@ -244,44 +244,95 @@ export function selectOffers(
 	owner: string,
 	ordered: readonly string[],
 ): string[] {
+	return explainOffers(world, owner, ordered).kept;
+}
+
+// Someone `selectOffers` left out, and why, so a log shows when code overrode the owner's model.
+export type DroppedOffer = { id: string; reason: string };
+
+// What `selectOffers` keeps, plus everyone in `ordered` it drops, each with the reason.
+export function explainOffers(
+	world: World,
+	owner: string,
+	ordered: readonly string[],
+): { kept: string[]; dropped: DroppedOffer[] } {
 	const size = membersOf(world, owner).length;
 	let version = teamOf(world, owner)
 		? versionFor(world, owner, owner)
 		: undefined;
 	let needed = version ? stillNeeded(world, owner, version) : undefined;
 	let limit = size + placesLeft(world, owner);
+	// Who covers each role already: a team member, or someone kept before.
+	const coveredBy = new Map<string, string>();
+	for (const id of membersOf(world, owner).slice(1)) {
+		for (const role of rolesOf(world, owner, id)) {
+			coveredBy.set(role, coveredBy.get(role) ?? id);
+		}
+	}
 	const kept: string[] = [];
+	const dropped: DroppedOffer[] = [];
 	for (const id of ordered) {
 		const theirs = version ?? versionFor(world, owner, id);
-		if (!theirs || !safeToOffer(world, owner, id, theirs)) {
+		if (!theirs) {
+			dropped.push({
+				id,
+				reason: "no version of the project agreed with them",
+			});
 			continue;
 		}
-		const filled = fills(
-			world,
-			owner,
-			id,
-			needed ?? stillNeeded(world, owner, theirs),
-		);
-		const newLimit = Math.min(limit, maxSizeFor(world, owner, id));
+		if (!safeToOffer(world, owner, id, theirs)) {
+			dropped.push({
+				id,
+				reason: "the version would reveal something learned from someone else",
+			});
+			continue;
+		}
+		const stillOpen = needed ?? stillNeeded(world, owner, theirs);
+		const filled = fills(world, owner, id, stillOpen);
+		const theirMax = maxSizeFor(world, owner, id);
+		const newLimit = Math.min(limit, theirMax);
 		// Only the first person kept can be offered their own version; anyone after joins theirs.
 		const ownPlace =
 			kept.length === 0 &&
 			!version &&
 			wroteTheirVersion(world, owner, id);
-		if (
-			(filled.length === 0 && !ownPlace) ||
-			size + kept.length + 1 > newLimit
-		) {
+		if (filled.length === 0 && !ownPlace) {
+			const theirRoles = [...rolesOf(world, owner, id)].filter((role) =>
+				theirs.rolesNeeded.includes(role),
+			);
+			dropped.push({
+				id,
+				reason:
+					theirRoles.length === 0
+						? `fills none of the roles needed (${stillOpen.join(", ") || "none left"})`
+						: `every needed role they could fill is already covered: ${theirRoles
+								.map(
+									(role) =>
+										`${role} by ${coveredBy.get(role) ?? "the team"}`,
+								)
+								.join(", ")}`,
+			});
+			continue;
+		}
+		if (size + kept.length + 1 > newLimit) {
+			dropped.push({
+				id,
+				reason:
+					theirMax < limit
+						? `they want a team of at most ${theirMax}, and it would be ${size + kept.length + 1}`
+						: `the team would pass its size limit of ${limit}`,
+			});
 			continue;
 		}
 		kept.push(id);
 		limit = newLimit;
 		version = theirs;
-		needed = (needed ?? stillNeeded(world, owner, theirs)).filter(
-			(role) => !filled.includes(role),
-		);
+		for (const role of filled) {
+			coveredBy.set(role, coveredBy.get(role) ?? id);
+		}
+		needed = stillOpen.filter((role) => !filled.includes(role));
 	}
-	return kept;
+	return { kept, dropped };
 }
 
 // The version every offer in a pass carries: the team's, or the one agreed with the first person offered.
@@ -760,7 +811,8 @@ export async function runCommitment(
 	}
 
 	// Whom `owner` offers a place: everyone ready if they can all be taken together, otherwise its model's
-	// ranking, trimmed by selectOffers. If no valid ranking comes back, id order is used instead.
+	// ranking, trimmed by selectOffers. If no valid ranking comes back, id order is used instead. Anyone the
+	// model ranked (or, on a fallback, anyone ready) whom the trimming drops is reported with the reason.
 	async function chooseMembers(owner: string) {
 		const candidates = candidatesOf(current(), owner);
 		const places = placesLeft(current(), owner);
@@ -801,23 +853,29 @@ export async function runCommitment(
 						),
 				},
 			);
+			const ranked = [...new Set(data.offer)];
+			const { kept, dropped } = explainOffers(current(), owner, ranked);
 			return {
 				agent: owner,
-				to: selectOffers(current(), owner, [...new Set(data.offer)]),
+				to: kept,
 				places,
 				rationale: data.rationale,
 				fellBack: false,
+				ranked,
+				...(dropped.length > 0 && { dropped }),
 			};
 		} catch (error) {
 			if (!(error instanceof StructuredOutputError)) {
 				throw error;
 			}
+			const { dropped } = explainOffers(current(), owner, candidates);
 			return {
 				agent: owner,
 				to: all,
 				places,
 				rationale: undefined,
 				fellBack: true,
+				...(dropped.length > 0 && { dropped }),
 			};
 		}
 	}

@@ -15,10 +15,12 @@ import {
 	projectOwner,
 	runCommitment,
 	safeToOffer,
+	explainOffers,
 	selectOffers,
 	stillNeeded,
 } from "../../src/engine/commitment.js";
 import type { Config } from "../../src/engine/config.js";
+import { formatEvent } from "../../src/describe.js";
 import { decisionMessages } from "../../src/engine/decision.js";
 import { buildBoard, discover } from "../../src/engine/discovery.js";
 import type { RunEvent } from "../../src/engine/events.js";
@@ -558,8 +560,8 @@ describe("team size and skills", () => {
 	});
 
 	// The pilot's dropped frontend expert, as a regression case: pins today's behavior, which removes every
-	// role a chosen person could fill, so the change that logs why (or assigns roles explicitly) updates it.
-	test("someone chosen for one role also uses up every other needed role they could fill", () => {
+	// role a chosen person could fill; the drop is now reported with its reason.
+	function frontendCase() {
 		const world = createWorld([
 			human("a"),
 			{
@@ -577,10 +579,73 @@ describe("team size and skills", () => {
 			...world.agents.a!,
 			listing: { pitch: "a's project", rolesNeeded: ["ml", "frontend"] },
 		};
+		return world;
+	}
+
+	test("someone chosen for one role also uses up every other needed role they could fill, and the drop says so", () => {
+		const world = frontendCase();
 		expect(candidatesOf(world, "a").sort()).toEqual(["j", "x"]);
 		// x is picked for ml, and their beginner frontend counts as covering frontend, so the frontend
-		// expert j gets no offer, and nothing records why.
+		// expert j gets no offer.
 		expect(selectOffers(world, "a", ["x", "j"])).toEqual(["x"]);
+		expect(explainOffers(world, "a", ["x", "j"]).dropped).toEqual([
+			{
+				id: "j",
+				reason: "every needed role they could fill is already covered: frontend by x",
+			},
+		]);
+	});
+
+	test("the offers event shows the model's choice and every drop the code made", async () => {
+		const world = frontendCase();
+		// a wants a team of at most 2, so only one of x and j can join, and a's model is asked to choose.
+		const a = world.agents.a!;
+		world.agents.a = {
+			...a,
+			profile: {
+				...a.profile,
+				preferences: { ...a.profile.preferences, maxTeamSize: 2 },
+			},
+		};
+		const { events } = await commit(
+			world,
+			fakeClient({ a: ["x", "j"] }).client,
+		);
+		const offers = events.find((e) => e.type === "offers");
+		expect(offers).toMatchObject({
+			type: "offers",
+			agent: "a",
+			to: ["x"],
+			ranked: ["x", "j"],
+			dropped: [
+				{
+					id: "j",
+					reason: "every needed role they could fill is already covered: frontend by x",
+				},
+			],
+		});
+		expect(formatEvent(offers!, { rationale: false })).toContain(
+			"its model chose x, j · dropped j: every needed role they could fill is already covered: frontend by x",
+		);
+	});
+
+	test("a drop for size names whose limit it is", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("small", false, 2, "design"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "small");
+		expect(explainOffers(world, "a", ["j", "small"]).dropped).toEqual([
+			{
+				id: "small",
+				reason: "they want a team of at most 2, and it would be 3",
+			},
+		]);
+		expect(explainOffers(world, "a", ["small", "j"]).dropped).toEqual([
+			{ id: "j", reason: "the team would pass its size limit of 2" },
+		]);
 	});
 
 	test("places are capped by the smallest maximum among the team, as learned", async () => {
