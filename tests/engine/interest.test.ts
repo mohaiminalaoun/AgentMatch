@@ -11,7 +11,9 @@ import type { Config } from "../../src/engine/config.js";
 import {
 	checkInterest,
 	considerRevision,
+	coverProblems,
 	interestMessages,
+	revisionMessages,
 } from "../../src/engine/interest.js";
 import { BRAINSTORM_PITCH } from "../../src/engine/proposal.js";
 import { sampleProfile } from "../fixtures.js";
@@ -233,6 +235,172 @@ describe("level 2 and the roles a team needs", () => {
 	});
 });
 
+describe("who covers each role in a revision", () => {
+	// Ada (typescript, beginner design) agreed with p9 on a carbon tracker needing mobile and backend; at level 2,
+	// p9 has shared an expert mobile skill.
+	const ada = () =>
+		learn(
+			recordMessage(
+				recordMessage(at(2), "p9", {
+					id: "p1",
+					from: "p9",
+					to: sampleProfile.id,
+					pitch: "A carbon tracker.",
+					rolesNeeded: ["mobile", "backend"],
+				}),
+				"p9",
+				{
+					decision: "accept",
+					proposalId: "p1",
+					from: sampleProfile.id,
+					to: "p9",
+				},
+			),
+			"p9",
+			{ skills: [{ name: "mobile", level: "expert" }] },
+		);
+	const revision = (
+		rolesNeeded: string[],
+		covers?: {
+			role: string;
+			by: "proposer" | "recipient" | "open" | "dropped";
+		}[],
+	) => ({
+		pitch: "A carbon tracker app.",
+		rolesNeeded,
+		...(covers && { covers }),
+	});
+
+	test("a revision that accounts for every role, truthfully, passes", () => {
+		expect(
+			coverProblems(
+				ada(),
+				"p9",
+				2,
+				revision(
+					["mobile"],
+					[
+						{ role: "mobile", by: "recipient" },
+						{ role: "design", by: "proposer" },
+						{ role: "backend", by: "dropped" },
+					],
+				),
+			),
+		).toEqual([]);
+	});
+
+	test("at level 2, covers are required; at level 1, they're not allowed, since they reveal skills", () => {
+		expect(coverProblems(ada(), "p9", 2, revision(["mobile"]))).toEqual([
+			"at level 2, a revision must list covers: who covers each role the new version needs, and each role the version you've agreed on needed",
+		]);
+		expect(
+			coverProblems(
+				ada(),
+				"p9",
+				1,
+				revision(["mobile"], [{ role: "mobile", by: "recipient" }]),
+			),
+		).toEqual(["leave covers out: skills aren't shared until level 2"]);
+		expect(coverProblems(ada(), "p9", 1, revision(["mobile"]))).toEqual([]);
+	});
+
+	test("every claim is checked: skills the proposer lacks, skills the other side never shared, and roles quietly left out", () => {
+		expect(
+			coverProblems(
+				ada(),
+				"p9",
+				2,
+				revision(
+					["mobile", "ml"],
+					[
+						{ role: "mobile", by: "recipient" },
+						{ role: "ml", by: "recipient" },
+						{ role: "frontend", by: "proposer" },
+					],
+				),
+			),
+		).toEqual([
+			"agent p9 hasn't shared a ml skill",
+			"your human has no frontend skill",
+			'the version you\'ve agreed on needed backend: say in covers who covers it now, or mark it "dropped"',
+		]);
+	});
+
+	test("rolesNeeded is exactly the roles marked recipient or open", () => {
+		expect(
+			coverProblems(
+				ada(),
+				"p9",
+				2,
+				revision(
+					["mobile", "design"],
+					[
+						{ role: "mobile", by: "recipient" },
+						{ role: "design", by: "proposer" },
+						{ role: "backend", by: "open" },
+					],
+				),
+			),
+		).toEqual([
+			'rolesNeeded lists design, so covers must mark it "recipient" or "open"',
+			'covers marks backend "open", so rolesNeeded must list it',
+		]);
+	});
+
+	test("a revision with wrong covers is sent back, and the corrected one goes out", async () => {
+		const client = fakeModel(
+			{
+				rationale: "Mobile-led.",
+				interest: "continue",
+				revision: revision(
+					["mobile"],
+					[{ role: "mobile", by: "recipient" }],
+				),
+			},
+			{
+				rationale: "Mobile-led, backend dropped.",
+				interest: "continue",
+				revision: revision(
+					["mobile"],
+					[
+						{ role: "mobile", by: "recipient" },
+						{ role: "backend", by: "dropped" },
+					],
+				),
+			},
+		);
+		const result = await checkInterest(client, ada(), "p9", 2);
+		expect(client.sent).toHaveLength(2);
+		expect(client.sent[1]).toContain(
+			"the version you've agreed on needed backend",
+		);
+		expect(result.revision?.covers).toEqual([
+			{ role: "mobile", by: "recipient" },
+			{ role: "backend", by: "dropped" },
+		]);
+	});
+
+	test("the other side reads who covers what from its own point of view", () => {
+		const [, user] = revisionMessages(createAgent(sampleProfile), {
+			kind: "revision",
+			from: "p9",
+			to: sampleProfile.id,
+			level: 2,
+			...revision(
+				["mobile"],
+				[
+					{ role: "mobile", by: "proposer" },
+					{ role: "design", by: "recipient" },
+					{ role: "backend", by: "dropped" },
+				],
+			),
+		});
+		expect(user!.content).toContain(
+			"Who covers each role, as they propose it: mobile: p9's human; design: your human; backend: no longer needed.",
+		);
+	});
+});
+
 describe("level 2 in a brainstorm", () => {
 	// Ada at level 2 with p9: p9 proposed brainstorming, Ada accepted, and Ada adopted p9's idea at level 1,
 	// plus `extra` revisions after it. p9 has shared expert backend and beginner design.
@@ -296,7 +464,14 @@ describe("level 2 in a brainstorm", () => {
 			{
 				rationale: "Design-led.",
 				interest: "continue",
-				revision: { pitch: "A poster maker.", rolesNeeded: ["design"] },
+				revision: {
+					pitch: "A poster maker.",
+					rolesNeeded: ["design"],
+					covers: [
+						{ role: "design", by: "recipient" },
+						{ role: "mobile", by: "dropped" },
+					],
+				},
 			},
 			{
 				rationale: "Backend-led.",
@@ -304,6 +479,10 @@ describe("level 2 in a brainstorm", () => {
 				revision: {
 					pitch: "An API for posters.",
 					rolesNeeded: ["backend"],
+					covers: [
+						{ role: "backend", by: "recipient" },
+						{ role: "mobile", by: "dropped" },
+					],
 				},
 			},
 		);

@@ -21,7 +21,7 @@ export function describeMessage(message: AgentMessage): string {
 			case "leave":
 				return `leave (${message.team})`;
 			case "revision":
-				return `revision (level ${message.level}): "${message.pitch}"  roles needed: ${message.rolesNeeded.join(", ")}`;
+				return `revision (level ${message.level}): "${message.pitch}"  roles needed: ${message.rolesNeeded.join(", ")}${message.covers ? `  covers: ${message.covers.map((c) => `${c.role} ${c.by}`).join(", ")}` : ""}`;
 			case "revisionAnswer":
 				return message.adopt
 					? "adopts the revision"
@@ -69,7 +69,7 @@ export function formatEvent(
 			return `     ${event.agent} decides ${event.decision.decision}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}${reasoning(event.rationale)}`;
 		}
 		case "interest":
-			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.revision ? ` · proposes: "${event.revision.pitch}" (needs ${event.revision.rolesNeeded.join(", ")})` : ""}${event.gateBlocks ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+			return `     ${event.agent} at level ${event.level} with ${event.other}: ${event.interest}${event.revision ? ` · proposes: "${event.revision.pitch}" (needs ${event.revision.rolesNeeded.join(", ")}${event.revision.covers ? `; covers: ${event.revision.covers.map((c) => `${c.role} ${c.by}`).join(", ")}` : ""})` : ""}${event.gateBlocks ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "hunch":
 			return `     ${event.agent}'s private hunch about ${event.other}: ${event.steer}${event.riskArea ? ` (${event.riskArea})` : ""}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "revisionAnswer":

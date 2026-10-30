@@ -112,6 +112,10 @@ function fakeClient(script: typeof picks = picks) {
 							revision: {
 								pitch: "A poster maker that prints on demand.",
 								rolesNeeded: ["backend"],
+								covers: [
+									{ role: "backend", by: "recipient" },
+									{ role: "design", by: "proposer" },
+								],
 							},
 						}
 					: { rationale: "Fits.", interest: "continue" };

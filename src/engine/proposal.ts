@@ -179,10 +179,27 @@ export const Leave = z.object({
 
 export type Leave = z.infer<typeof Leave>;
 
+// Who covers one role in a revision: the human proposing it, the human it's sent to, nobody yet ("open"), or
+// nobody because the new version no longer needs it ("dropped"). It says who has which skill, so it's only
+// allowed at level 2, once skills are shared, and code checks every claim against the profiles.
+export const RoleCover = z.object({
+	role: z.string().min(1),
+	by: z.enum(["proposer", "recipient", "open", "dropped"]),
+});
+
+export type RoleCover = z.infer<typeof RoleCover>;
+
+// A reshaped version's terms, plus, at level 2, who covers each role.
+export const RevisionTerms = Terms.extend({
+	covers: z.array(RoleCover).optional(),
+});
+
+export type RevisionTerms = z.infer<typeof RevisionTerms>;
+
 // A reshaped version of the project, proposed alongside a continue once level 1 or 2 is open, when what each
 // side has learned suggests a better idea for both. Free text, so gate-checked like a counter at the
 // sender's level. It doesn't change whose project it is.
-export const Revision = Terms.extend({
+export const Revision = RevisionTerms.extend({
 	kind: z.literal("revision"),
 	from: z.string().min(1),
 	to: z.string().min(1),

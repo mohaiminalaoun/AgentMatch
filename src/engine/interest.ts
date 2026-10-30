@@ -21,14 +21,20 @@ import {
 	type Message,
 	type TokenUsage,
 } from "./llm.js";
-import { BRAINSTORM_PITCH, Terms, termsOf, type Revision } from "./proposal.js";
+import {
+	BRAINSTORM_PITCH,
+	RevisionTerms,
+	termsOf,
+	type Revision,
+	type RoleCover,
+} from "./proposal.js";
 
 // What the model returns after learning a share: private reasoning, then a yes or no, and optionally, with a
 // yes, a reshaped version of the project to propose.
 export const AgentInterest = z.object({
 	rationale: z.string().min(1),
 	interest: z.enum(["continue", "withdraw"]),
-	revision: Terms.optional(),
+	revision: RevisionTerms.optional(),
 });
 
 export type AgentInterest = z.infer<typeof AgentInterest>;
@@ -36,7 +42,7 @@ export type AgentInterest = z.infer<typeof AgentInterest>;
 export type InterestResult = {
 	interest: AgentInterest["interest"];
 	// A reshaped version of the project to send with the continue; always passed by the gate.
-	revision?: Terms | undefined;
+	revision?: RevisionTerms | undefined;
 	// How many times the gate stopped a revision from going out.
 	gateBlocks: number;
 	// The private hunch that steered this check, for agents with "never" notes.
@@ -54,6 +60,80 @@ const WEIGHING: Record<number, string> = {
 	2: "Their skills and preferences are now known (see the facts). Weigh everything together against the standard above: the project, interests, logistics, who can do each role and has the time, and team size.",
 	3: "Their name is now known. Is there any reason not to form a team?",
 };
+
+// What's wrong with a revision's covers, if anything: at level 1 there must be none, since they say who has
+// which skill; at level 2 they must account for every role the new version needs and every role the agreed
+// version needed, rolesNeeded must be exactly the roles marked recipient or open, and every skill claimed must
+// be in the proposer's profile or in what the recipient shared.
+export function coverProblems(
+	agent: AgentState,
+	otherId: string,
+	level: DisclosureLevel,
+	revision: RevisionTerms,
+): string[] {
+	const { covers } = revision;
+	if (level < 2) {
+		return covers
+			? ["leave covers out: skills aren't shared until level 2"]
+			: [];
+	}
+	if (!covers || covers.length === 0) {
+		return [
+			"at level 2, a revision must list covers: who covers each role the new version needs, and each role the version you've agreed on needed",
+		];
+	}
+	const by = new Map(covers.map((c) => [c.role, c.by]));
+	const agreed = agreedTerms(agent, otherId);
+	const before =
+		agreed && agreed.pitch !== BRAINSTORM_PITCH ? agreed.rolesNeeded : [];
+	const mine = new Set(agent.profile.skills.map((s) => s.name));
+	const theirs = new Set(
+		(contactOf(agent, otherId).learned.skills ?? []).map((s) => s.name),
+	);
+	const fromOthers = (c: RoleCover["by"] | undefined) =>
+		c === "recipient" || c === "open";
+	const problems: string[] = [];
+	for (const role of revision.rolesNeeded.filter((r) => r !== "any")) {
+		if (!fromOthers(by.get(role))) {
+			problems.push(
+				`rolesNeeded lists ${role}, so covers must mark it "recipient" or "open"`,
+			);
+		}
+	}
+	for (const c of covers) {
+		if (fromOthers(c.by) && !revision.rolesNeeded.includes(c.role)) {
+			problems.push(
+				`covers marks ${c.role} "${c.by}", so rolesNeeded must list it`,
+			);
+		}
+		if (c.by === "proposer" && !mine.has(c.role)) {
+			problems.push(`your human has no ${c.role} skill`);
+		}
+		if (c.by === "recipient" && !theirs.has(c.role)) {
+			problems.push(`agent ${otherId} hasn't shared a ${c.role} skill`);
+		}
+	}
+	for (const role of before.filter((r) => r !== "any" && !by.has(r))) {
+		problems.push(
+			`the version you've agreed on needed ${role}: say in covers who covers it now, or mark it "dropped"`,
+		);
+	}
+	return problems;
+}
+
+// Who covers each role in `covers`, as `reader` sees a revision from `proposer`.
+export function coversText(
+	covers: readonly RoleCover[],
+	proposer: string,
+): string {
+	const who: Record<RoleCover["by"], string> = {
+		proposer: `${proposer}'s human`,
+		recipient: "your human",
+		open: "nobody yet",
+		dropped: "no longer needed",
+	};
+	return covers.map((c) => `${c.role}: ${who[c.by]}`).join("; ");
+}
 
 // Whether `agent` may propose a revision to `otherId` at `level`: level 1 or 2, while revisions are left.
 export function mayRevise(
@@ -135,6 +215,9 @@ export function interestMessages(
 							[
 								"Optional, only with continue: if what you've learned suggests a better version of the project, one that fits both humans better, add a revision: a short title for it (1 to 4 words, like a product name), a new one-line pitch, and the roles it needs from people other than your human. The pitch describes the project itself, as it would appear on the team's page: not a message to them, no questions, no \"how about\". They'll adopt it or keep the current version. Leave it out if the current version is fine.",
 								"A revision is sent, so it follows the disclosure rules. Describe the idea, not the people.",
+								level === 2
+									? `At this level, a revision also lists covers: for every role the new version needs, and every role the version you've agreed on needed, who covers it: "proposer" (your human), "recipient" (agent ${otherId}'s human), "open" (still needs someone), or "dropped" (the new version doesn't need it). rolesNeeded is exactly the roles marked recipient or open. Claim only skills that are listed: your human's in their profile, theirs in what they shared.`
+									: "Leave covers out at this level: skills aren't shared yet.",
 								disclosureRules(level),
 							].join("\n"),
 						]
@@ -208,6 +291,15 @@ export async function checkInterest(
 						return [
 							"no revisions are allowed now; leave the revision out",
 						];
+					}
+					const coverIssues = coverProblems(
+						agent,
+						otherId,
+						level,
+						revision,
+					);
+					if (coverIssues.length > 0) {
+						return coverIssues;
 					}
 					// A reshaped brainstorm idea has to use what the other person is actually good at.
 					if (
@@ -300,6 +392,11 @@ export function revisionMessages(
 			content: [
 				`The version you've agreed on so far: ${JSON.stringify(agreedTerms(agent, revision.from) ?? "none yet")}`,
 				`Their revision: ${JSON.stringify(termsOf(revision))}`,
+				...(revision.covers
+					? [
+							`Who covers each role, as they propose it: ${coversText(revision.covers, revision.from)}. Check it against the facts. A role marked "no longer needed" is work the new version leaves out: judge whether the project still holds up without it.`,
+						]
+					: []),
 				`What agent ${revision.from} has shared with you so far: ${JSON.stringify(contact.learned)}`,
 				"Adopt the revision, or keep the current version?",
 			].join("\n"),
