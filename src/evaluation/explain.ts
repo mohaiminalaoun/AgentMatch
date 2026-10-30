@@ -143,6 +143,8 @@ export function judgeMessages(call: ExplainedCall): Message[] {
 					`- category, only for unsupported or contradicted claims: one of ${CLAIM_CATEGORIES.map((c) => `"${c}"`).join(", ")}, else null. "role omission read as availability": treating a role a pitch doesn't list as free for this agent, when the pitch's author may cover it. "role count read as headcount": assuming each listed role needs a separate person. "misdescribes an option": describing an offer, project, or person differently from how the prompt shows it.`,
 					"- evidence: quote the prompt text that supports or contradicts it, or say what's missing.",
 				].join("\n"),
+				// Hand labels caught the judge misreading this, the same way agents do.
+				"In a proposal whose pitch starts \"Join your project:\", the roles listed are what the receiving agent's own project needs, not what the sender offers; the sender's skills are only known once shared.",
 				"Judge only against the prompt, not against what you think is true in general.",
 			].join("\n\n"),
 		},
@@ -309,4 +311,163 @@ export function formatExplainTable(summaries: readonly KindSummary[]): string {
 	return [header, ...rows]
 		.map((r) => r.map((cell, i) => cell.padEnd(widths[i]!)).join("  "))
 		.join("\n");
+}
+
+// What `npm run eval:explain` saves next to the log: every judged rationale and its claims.
+export const JudgmentFile = z.object({
+	log: z.string(),
+	judge: z.string(),
+	perKind: z.number(),
+	seed: z.number(),
+	judged: z.array(
+		z.object({
+			index: z.number(),
+			agent: z.string().optional(),
+			kind: z.string(),
+			rationale: z.string(),
+			claims: z.array(Claim),
+		}),
+	),
+});
+export type JudgmentFile = z.infer<typeof JudgmentFile>;
+
+// One claim for a person to label without seeing the judge's verdict: where it came from, so the page can
+// show the agent's prompt, and what the judge said, kept for scoring afterwards.
+export type LabelItem = {
+	id: string;
+	index: number;
+	kind: string;
+	rationale: string;
+	claim: string;
+	judge: Pick<Claim, "verdict" | "stance">;
+};
+
+// `count` claims from `file` to label by hand: up to half the claims the judge flagged (unsupported or
+// contradicted), the rest from those it found supported, in shuffled order so flagged ones don't cluster.
+// The same seed gives the same items.
+export function labelSample(
+	file: JudgmentFile,
+	count: number,
+	seed: number,
+): LabelItem[] {
+	const rng = createRng(seed);
+	const all = file.judged.flatMap((j) =>
+		j.claims.map((c, i): LabelItem => ({
+			id: `${j.index}.${i}`,
+			index: j.index,
+			kind: j.kind,
+			rationale: j.rationale,
+			claim: c.claim,
+			judge: { verdict: c.verdict, stance: c.stance },
+		})),
+	);
+	const flagged = all.filter((item) => item.judge.verdict !== "supported");
+	const supported = all.filter((item) => item.judge.verdict === "supported");
+	const fromFlagged = Math.min(flagged.length, Math.floor(count / 2));
+	const fromSupported = Math.min(supported.length, count - fromFlagged);
+	const picked = [
+		...sample(rng, flagged, fromFlagged),
+		...sample(rng, supported, fromSupported),
+	];
+	return sample(rng, picked, picked.length);
+}
+
+// A person's labels, as the labelling page saves them.
+export const Labels = z.object({
+	// The judgment file, and the count and seed the sample was drawn with, so the same items come back.
+	source: z.string(),
+	count: z.number().int(),
+	seed: z.number().int(),
+	labels: z.record(
+		z.string(),
+		z.object({
+			verdict: z.enum(["supported", "unsupported", "contradicted"]),
+			stance: z.enum(["tentative", "asserted"]).optional(),
+			note: z.string().optional(),
+		}),
+	),
+});
+export type Labels = z.infer<typeof Labels>;
+
+const VERDICTS = ["supported", "unsupported", "contradicted"] as const;
+
+// How well the judge agrees with a person's labels: the share of matching verdicts, Cohen's kappa (agreement
+// beyond chance: 1 is perfect, 0 is no better than chance), a confusion table (rows: person, columns: judge),
+// and, for flagging, the judge's precision (of the claims it flagged, how many the person flagged too) and
+// recall (of the claims the person flagged, how many the judge caught). Stance agreement counts only items
+// labelled with one.
+export type Agreement = {
+	items: number;
+	agreement: number;
+	kappa: number;
+	confusion: Record<string, Record<string, number>>;
+	flagPrecision: number | undefined;
+	flagRecall: number | undefined;
+	stance: { items: number; agreement: number | undefined };
+	disagreements: { item: LabelItem; person: string }[];
+};
+
+export function agreement(
+	items: readonly LabelItem[],
+	labels: Labels,
+): Agreement {
+	const pairs = items.flatMap((item) => {
+		const label = labels.labels[item.id];
+		return label ? [{ item, label }] : [];
+	});
+	const n = pairs.length;
+	const confusion = Object.fromEntries(
+		VERDICTS.map((p) => [
+			p,
+			Object.fromEntries(VERDICTS.map((j) => [j, 0])),
+		]),
+	) as Record<string, Record<string, number>>;
+	for (const { item, label } of pairs) {
+		confusion[label.verdict]![item.judge.verdict]!++;
+	}
+	const matching = VERDICTS.reduce((sum, v) => sum + confusion[v]![v]!, 0);
+	const observed = n === 0 ? 0 : matching / n;
+	const expected =
+		n === 0
+			? 0
+			: VERDICTS.reduce((sum, v) => {
+					const person = VERDICTS.reduce(
+						(s, j) => s + confusion[v]![j]!,
+						0,
+					);
+					const judge = VERDICTS.reduce(
+						(s, p) => s + confusion[p]![v]!,
+						0,
+					);
+					return sum + (person / n) * (judge / n);
+				}, 0);
+	const flagged = (v: string) => v !== "supported";
+	const judgeFlags = pairs.filter((p) => flagged(p.item.judge.verdict));
+	const personFlags = pairs.filter((p) => flagged(p.label.verdict));
+	const both = pairs.filter(
+		(p) => flagged(p.item.judge.verdict) && flagged(p.label.verdict),
+	).length;
+	const withStance = pairs.filter((p) => p.label.stance !== undefined);
+	return {
+		items: n,
+		agreement: observed,
+		kappa: expected === 1 ? 1 : (observed - expected) / (1 - expected),
+		confusion,
+		flagPrecision:
+			judgeFlags.length === 0 ? undefined : both / judgeFlags.length,
+		flagRecall:
+			personFlags.length === 0 ? undefined : both / personFlags.length,
+		stance: {
+			items: withStance.length,
+			agreement:
+				withStance.length === 0
+					? undefined
+					: withStance.filter(
+							(p) => p.label.stance === p.item.judge.stance,
+						).length / withStance.length,
+		},
+		disagreements: pairs
+			.filter((p) => p.label.verdict !== p.item.judge.verdict)
+			.map((p) => ({ item: p.item, person: p.label.verdict })),
+	};
 }

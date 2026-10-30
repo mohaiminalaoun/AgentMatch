@@ -3,15 +3,19 @@ import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import {
+	agreement,
 	callOf,
 	explainedCalls,
 	formatExplainTable,
 	judgeCalls,
 	judgeMessages,
+	labelSample,
 	sampleCalls,
 	summarizeJudgments,
 	type Claim,
 	type ExplainedCall,
+	type JudgmentFile,
+	type Labels,
 } from "../../src/evaluation/explain.js";
 
 const config: Config = {
@@ -130,6 +134,7 @@ describe("judgeMessages", () => {
 		expect(user!.content).toContain("Agent p7 proposes:");
 		expect(user!.content).toContain("Same time zone, so full overlap.");
 		expect(user!.content).not.toContain(FORMAT);
+		expect(system!.content).toContain('"Join your project:"');
 	});
 });
 
@@ -209,5 +214,115 @@ describe("summarizeJudgments", () => {
 		const table = formatExplainTable(summaries);
 		expect(table).toContain("Contradicted");
 		expect(table.split("\n").at(-1)).toMatch(/^all\s+2\s+4\s+50%/);
+	});
+});
+
+describe("labelSample", () => {
+	const file: JudgmentFile = {
+		log: "x.jsonl",
+		judge: "test-model",
+		perKind: 5,
+		seed: 1,
+		judged: [
+			{
+				index: 3,
+				kind: "decision",
+				rationale: "r1",
+				claims: [
+					claim("unsupported"),
+					claim("contradicted"),
+					claim("supported"),
+				],
+			},
+			{
+				index: 9,
+				kind: "interest check",
+				rationale: "r2",
+				claims: [
+					claim("supported"),
+					claim("supported"),
+					claim("supported"),
+				],
+			},
+		],
+	};
+
+	test("takes up to half flagged claims, fills the rest with supported ones, and is repeatable", () => {
+		const items = labelSample(file, 4, 1);
+		expect(items).toHaveLength(4);
+		expect(
+			items.filter((i) => i.judge.verdict !== "supported"),
+		).toHaveLength(2);
+		expect(labelSample(file, 4, 1)).toEqual(items);
+		expect(new Set(items.map((i) => i.id)).size).toBe(4);
+	});
+
+	test("asks for more than there are and gets them all", () => {
+		expect(labelSample(file, 50, 1)).toHaveLength(6);
+	});
+});
+
+describe("agreement", () => {
+	const item = (id: string, verdict: Claim["verdict"]) => ({
+		id,
+		index: 0,
+		kind: "decision",
+		rationale: "r",
+		claim: id,
+		judge: { verdict, stance: "asserted" as const },
+	});
+	const items = [
+		item("a", "supported"),
+		item("b", "supported"),
+		item("c", "unsupported"),
+		item("d", "contradicted"),
+		item("e", "unsupported"),
+	];
+	const labels = (verdicts: Record<string, Claim["verdict"]>): Labels => ({
+		source: "x.explain.json",
+		count: 5,
+		seed: 1,
+		labels: Object.fromEntries(
+			Object.entries(verdicts).map(([id, verdict]) => [id, { verdict }]),
+		),
+	});
+
+	test("perfect agreement has kappa 1 and full precision and recall", () => {
+		const a = agreement(
+			items,
+			labels({
+				a: "supported",
+				b: "supported",
+				c: "unsupported",
+				d: "contradicted",
+				e: "unsupported",
+			}),
+		);
+		expect(a.agreement).toBe(1);
+		expect(a.kappa).toBe(1);
+		expect(a.flagPrecision).toBe(1);
+		expect(a.flagRecall).toBe(1);
+		expect(a.disagreements).toEqual([]);
+	});
+
+	test("counts only labelled items, and lists each disagreement", () => {
+		const a = agreement(
+			items,
+			labels({ a: "unsupported", c: "unsupported", d: "unsupported" }),
+		);
+		expect(a.items).toBe(3);
+		expect(a.agreement).toBeCloseTo(1 / 3);
+		// The judge flagged c and d; the person flagged a, c, and d.
+		expect(a.flagPrecision).toBe(1);
+		expect(a.flagRecall).toBeCloseTo(2 / 3);
+		expect(a.confusion.unsupported).toEqual({
+			supported: 1,
+			unsupported: 1,
+			contradicted: 1,
+		});
+		expect(a.disagreements.map((d) => [d.item.id, d.person])).toEqual([
+			["a", "unsupported"],
+			["d", "unsupported"],
+		]);
 	});
 });
