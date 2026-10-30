@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { z } from "zod";
 import { Note } from "../engine/notes.js";
 import { Profile, ROLES } from "../engine/profile.js";
@@ -33,56 +31,25 @@ export const PilotPerson = z.object({
 
 export type PilotPerson = z.infer<typeof PilotPerson>;
 
-// Reads every .json file in `dir` as one person, in file name order. Collects every problem across all the
-// files before failing, each with its file and field, so they can all be fixed in one go.
-export function loadPeople(dir: string): PilotPerson[] {
-	const files = readdirSync(dir)
-		.filter((name) => name.endsWith(".json"))
-		.sort();
-	const problems: string[] = [];
-	const people: PilotPerson[] = [];
-	const ids = new Map<string, string>();
-	for (const file of files) {
-		let json: unknown;
-		try {
-			json = JSON.parse(readFileSync(join(dir, file), "utf8"));
-		} catch (error) {
-			problems.push(
-				`${file}: not valid JSON (${(error as Error).message})`,
-			);
-			continue;
-		}
-		const parsed = PilotPerson.safeParse(json);
-		if (!parsed.success) {
-			problems.push(
-				...parsed.error.issues.map(
+// Checks `json` as one person: the person, or every problem with it as "field message", so all of them can be
+// fixed in one go. Safe in the browser, so a form can check before anything is saved.
+export function checkPerson(
+	json: unknown,
+): { person: PilotPerson; problems?: undefined } | { problems: string[] } {
+	const parsed = PilotPerson.safeParse(json);
+	return parsed.success
+		? { person: parsed.data }
+		: {
+				problems: parsed.error.issues.map(
 					(issue) =>
-						`${file}: ${issue.path.join(".") || "(whole file)"} ${issue.message}`,
+						`${issue.path.join(".") || "(whole file)"} ${issue.message}`,
 				),
-			);
-			continue;
-		}
-		const { id } = parsed.data.profile;
-		const other = ids.get(id);
-		if (other) {
-			problems.push(
-				`${file}: profile.id "${id}" is also used by ${other}`,
-			);
-			continue;
-		}
-		ids.set(id, file);
-		people.push(parsed.data);
-	}
-	if (files.length === 0) {
-		problems.push(`no .json files in ${dir}`);
-	}
-	if (problems.length > 0) {
-		throw new Error(
-			[
-				`People in ${dir} have problems:`,
-				...problems.map((p) => `- ${p}`),
-			].join("\n"),
-		);
-	}
-	return people;
+			};
+}
+
+// A fresh id for a new person: "p-" and 6 random lowercase letters or digits.
+export function newPersonId(): string {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+	const bytes = crypto.getRandomValues(new Uint8Array(6));
+	return `p-${[...bytes].map((b) => chars[b % chars.length]).join("")}`;
 }

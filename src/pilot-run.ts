@@ -9,7 +9,7 @@ import type { RunEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 import { summarize } from "./engine/simulation.js";
 import { assertRealDataModel } from "./pilot/model.js";
-import { loadPeople } from "./pilot/person.js";
+import { loadPeople } from "./pilot/people.js";
 import { pilotOutcomes, runPilot } from "./pilot/run.js";
 import { createStatus } from "./status.js";
 
