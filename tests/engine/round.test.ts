@@ -124,6 +124,7 @@ describe("proposalFrom", () => {
 			id: "prop-1",
 			from: ada.id,
 			to: "ben",
+			title: "Carbon tracker",
 			pitch: "Carbon tracker: Estimate a household's footprint from receipts.",
 			rolesNeeded: ["frontend", "backend", "product"],
 		});

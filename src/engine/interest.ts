@@ -19,7 +19,7 @@ import {
 	type Message,
 	type TokenUsage,
 } from "./llm.js";
-import { BRAINSTORM_PITCH, Terms, type Revision } from "./proposal.js";
+import { BRAINSTORM_PITCH, Terms, termsOf, type Revision } from "./proposal.js";
 
 // What the model returns after learning a share: private reasoning, then a yes or no, and optionally, with a
 // yes, a reshaped version of the project to propose.
@@ -126,7 +126,7 @@ export function interestMessages(
 				...(revise
 					? [
 							[
-								"Optional, only with continue: if what you've learned suggests a better version of the project, one that fits both humans better, add a revision: a new one-line pitch and the roles it needs from people other than your human. They'll adopt it or keep the current version. Leave it out if the current version is fine.",
+								"Optional, only with continue: if what you've learned suggests a better version of the project, one that fits both humans better, add a revision: a short title for it (1 to 4 words, like a product name), a new one-line pitch, and the roles it needs from people other than your human. The pitch describes the project itself, as it would appear on the team's page: not a message to them, no questions, no \"how about\". They'll adopt it or keep the current version. Leave it out if the current version is fine.",
 								"A revision is sent, so it follows the disclosure rules. Describe the idea, not the people.",
 								disclosureRules(level),
 							].join("\n"),
@@ -289,7 +289,7 @@ export function revisionMessages(
 			role: "user",
 			content: [
 				`The version you've agreed on so far: ${JSON.stringify(agreedTerms(agent, revision.from) ?? "none yet")}`,
-				`Their revision: ${JSON.stringify({ pitch: revision.pitch, rolesNeeded: revision.rolesNeeded })}`,
+				`Their revision: ${JSON.stringify(termsOf(revision))}`,
 				`What agent ${revision.from} has shared with you so far: ${JSON.stringify(contact.learned)}`,
 				"Adopt the revision, or keep the current version?",
 			].join("\n"),

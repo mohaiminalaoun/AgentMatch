@@ -27,6 +27,8 @@ import { getHunch, type Hunch } from "./hunch.js";
 import type { ChatOptions, Exchange } from "./llm.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
+	termsOf,
+	termsText,
 	toResponse,
 	type Interest,
 	type Proposal,
@@ -115,6 +117,7 @@ export function publicPitch(agent: AgentState): Terms | undefined {
 		return undefined;
 	}
 	return {
+		title: idea.title.slice(0, 60),
 		pitch: `${idea.title}: ${idea.description}`.slice(0, 280),
 		rolesNeeded: missingCoreRoles(agent.profile),
 	};
@@ -411,7 +414,7 @@ export async function runRound(
 					const response = toResponse(proposal, result.decision);
 					const pitch =
 						"pitch" in response
-							? `${response.pitch} ${response.rolesNeeded.join(", ")}`
+							? `${termsText(response)} ${response.rolesNeeded.join(", ")}`
 							: "";
 					send(
 						receiver,
@@ -481,7 +484,7 @@ export async function runRound(
 							revision,
 							fieldsMentioned(
 								agentOf(agents, receiver).profile,
-								`${revision.pitch} ${revision.rolesNeeded.join(", ")}`,
+								`${termsText(revision)} ${revision.rolesNeeded.join(", ")}`,
 							),
 						);
 					}
@@ -538,8 +541,7 @@ function asProposal(message: AgentMessage): Proposal | undefined {
 			id: `${message.proposalId}.c`,
 			from: message.from,
 			to: message.to,
-			pitch: message.pitch,
-			rolesNeeded: message.rolesNeeded,
+			...termsOf(message),
 		};
 	}
 	return undefined;

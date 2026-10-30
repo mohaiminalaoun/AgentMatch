@@ -4,12 +4,29 @@ import { Profile } from "./profile.js";
 
 // What is being offered. Proposals and counters both carry these terms.
 export const Terms = z.object({
+	// A short name for the project, written with the version and agreed with it. Optional, since older logs
+	// and fallback pitches have none.
+	title: z.string().min(1).max(60).optional(),
 	// One line, the level-0 pitch.
 	pitch: z.string().min(1).max(280),
 	rolesNeeded: z.array(z.string().min(1)).min(1),
 });
 
 export type Terms = z.infer<typeof Terms>;
+
+// Just the terms of `message`: its title, if it has one, its pitch, and its roles.
+export function termsOf(message: Terms): Terms {
+	return {
+		...(message.title !== undefined && { title: message.title }),
+		pitch: message.pitch,
+		rolesNeeded: message.rolesNeeded,
+	};
+}
+
+// The model-written words of some terms, for the gate and for spotting fields mentioned: title and pitch.
+export function termsText(terms: Terms): string {
+	return [terms.title, terms.pitch].filter(Boolean).join(" ");
+}
 
 export const Proposal = Terms.extend({
 	id: z.string().min(1),

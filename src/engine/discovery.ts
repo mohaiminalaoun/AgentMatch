@@ -17,6 +17,7 @@ import { missingCoreRoles, publicPitch, type World } from "./round.js";
 // its human has left, if any.
 export type BoardEntry = {
 	id: string;
+	title?: string | undefined;
 	pitch: string;
 	rolesNeeded: string[];
 	leftTeams?: number;
@@ -250,6 +251,9 @@ export async function discover(
 							id,
 							from: pick.agent,
 							to,
+							...(target.title !== undefined && {
+								title: target.title,
+							}),
 							pitch: `${JOIN_PREFIX}${target.pitch}`.slice(
 								0,
 								280,

@@ -11,11 +11,15 @@ import {
 	type Message,
 } from "./llm.js";
 import { ROLES } from "./profile.js";
-import { Terms } from "./proposal.js";
+import { Terms, termsOf } from "./proposal.js";
 import { publicPitch, type World } from "./round.js";
 
 // What the model returns: private reasoning, then the public listing.
-export const AgentListing = Terms.extend({ rationale: z.string().min(1) });
+// The title is required here, though optional in Terms, so a listing without one is asked for again.
+export const AgentListing = Terms.extend({
+	title: z.string().min(1).max(60),
+	rationale: z.string().min(1),
+});
 
 export type AgentListing = z.infer<typeof AgentListing>;
 
@@ -29,7 +33,8 @@ export function listingMessages(agent: AgentState): Message[] {
 				aboutHuman(agent, 0),
 				[
 					"Write your human's listing for the public board, which everyone sees before any conversation:",
-					"- pitch: one line about their project idea. You may sharpen the wording, but mention nothing beyond the project idea: not their skills, interests, availability, preferences, or name.",
+					"- title: a short, memorable name for the project, 1 to 4 words, like a product name (their idea's title is fine if it's good).",
+					"- pitch: one line describing the project idea itself, not a message to anyone. You may sharpen the wording, but mention nothing beyond the project idea: not their skills, interests, availability, preferences, or name.",
 					`- rolesNeeded: the roles the project needs teammates to fill, from: ${ROLES.join(", ")}. Think about what this project actually needs (an AI app needs ml; a data dashboard needs data). List only roles others would fill, never one your human would fill. Usually 2 to 4.`,
 					"Your rationale is private.",
 				].join("\n"),
@@ -74,11 +79,12 @@ export async function writeListings(
 					AgentListing,
 					{
 						...llmOptions,
-						check: ({ pitch, rolesNeeded }) => {
+						check: (listing) => {
+							const { rolesNeeded } = listing;
 							const leaks = checkDisclosure(
 								agent.profile,
 								0,
-								draftOf({ pitch, rolesNeeded }),
+								draftOf(termsOf(listing)),
 							);
 							if (leaks.length > 0) {
 								gateBlocks++;
@@ -99,7 +105,7 @@ export async function writeListings(
 					},
 				);
 				const listing = {
-					pitch: data.pitch,
+					...termsOf(data),
 					rolesNeeded: [...new Set(data.rolesNeeded)],
 				};
 				onEvent?.({

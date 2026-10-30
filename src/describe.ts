@@ -48,7 +48,7 @@ export function formatEvent(
 		case "round":
 			return `round · ${event.time} · ${event.model} · agents: ${event.agents.join(", ")}`;
 		case "listing":
-			return `  ${event.agent} lists: "${event.pitch}" · needs ${event.rolesNeeded.join(", ")}${event.gateBlocks > 0 ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back to the built-in pitch)" : ""}${reasoning(event.rationale)}`;
+			return `  ${event.agent} lists: ${event.title ? `${event.title} — ` : ""}"${event.pitch}" · needs ${event.rolesNeeded.join(", ")}${event.gateBlocks > 0 ? ` (gate blocked ${event.gateBlocks})` : ""}${event.fellBack ? " (fell back to the built-in pitch)" : ""}${reasoning(event.rationale)}`;
 		case "discovery":
 			return `  ${event.agent} chooses to approach: ${event.approach.join(", ") || "nobody"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "tick":

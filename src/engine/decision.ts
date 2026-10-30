@@ -101,7 +101,7 @@ export function decisionMessages(
 				[
 					"How to decide:",
 					"- accept if your human could fill a role it needs and the project is something they would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",
-					"- counter if it is a partial fit and one concrete change would make it work; put the changed project in the pitch.",
+					'- counter if it is a partial fit and one concrete change would make it work: put the changed project in the pitch, describing the project itself, not a message to them (no questions, no "how about"), and give it a short new title, 1 to 4 words, if the change makes the old one wrong.',
 					"- rolesNeeded lists roles you need others to fill. Never list a role your human would fill.",
 					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
 					"Be selective: your human has limited time, and accepting a weak fit blocks a better one.",

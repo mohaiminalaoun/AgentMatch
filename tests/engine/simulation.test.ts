@@ -67,6 +67,7 @@ function fakeClient(script: typeof picks = picks) {
 		if (last === "Write the listing.") {
 			reply = {
 				rationale: "Listing.",
+				title: "Listed",
 				pitch: profiles.find((p) => p.id === who)!.projectIdeas[0]!
 					.title,
 				rolesNeeded: listings[who],

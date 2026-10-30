@@ -56,6 +56,9 @@ export function draftOf(message: Decision | Terms): Draft {
 	return "pitch" in message
 		? {
 				texts: {
+					...(message.title !== undefined && {
+						title: message.title,
+					}),
 					pitch: message.pitch,
 					roles: message.rolesNeeded.join(", "),
 				},

@@ -34,6 +34,7 @@ const omar: Profile = {
 
 const good = {
 	rationale: "An AI notes app needs a frontend and data work.",
+	title: "LectureNotes",
 	pitch: "An AI note-taking app that turns lectures into study notes.",
 	rolesNeeded: ["frontend", "data"],
 };
@@ -62,7 +63,12 @@ describe("writeListings", () => {
 		const { client } = fakeModel(good);
 		const world = await writeListings(client, createWorld([nia, omar]));
 		expect(buildBoard(world)).toEqual([
-			{ id: "nia", pitch: good.pitch, rolesNeeded: ["frontend", "data"] },
+			{
+				id: "nia",
+				title: good.title,
+				pitch: good.pitch,
+				rolesNeeded: ["frontend", "data"],
+			},
 		]);
 		expect(proposalFrom(world.agents.nia!, "omar", "p1")).toMatchObject({
 			pitch: good.pitch,
@@ -74,6 +80,26 @@ describe("writeListings", () => {
 		const { client } = fakeModel(good);
 		const world = await writeListings(client, createWorld([nia, omar]));
 		expect(world.agents.nia!.listing!.rolesNeeded).toContain("data");
+	});
+
+	test("a title is checked like the pitch: one that mentions a private field is redrafted", async () => {
+		const { client, sent } = fakeModel(
+			{ ...good, title: "ML expert notes" },
+			good,
+		);
+		const world = await writeListings(client, createWorld([nia]));
+		expect(world.agents.nia!.listing!.title).toBe(good.title);
+		expect(sent[1]!.at(-1)!.content).toContain(
+			'your title mentions "ml" (skills)',
+		);
+	});
+
+	test("a listing without a title is asked for again", async () => {
+		const { title: _, ...untitled } = good;
+		const { client, sent } = fakeModel(untitled, good);
+		const world = await writeListings(client, createWorld([nia]));
+		expect(world.agents.nia!.listing!.title).toBe(good.title);
+		expect(sent).toHaveLength(2);
 	});
 
 	test("a listing that mentions a private field is redrafted", async () => {
@@ -135,6 +161,7 @@ describe("writeListings", () => {
 			{
 				type: "listing",
 				agent: "nia",
+				title: good.title,
 				pitch: good.pitch,
 				rolesNeeded: ["frontend", "data"],
 				rationale: good.rationale,

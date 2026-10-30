@@ -84,6 +84,7 @@ describe("buildBoard", () => {
 		expect(board.map((e) => e.id)).toEqual(["ben", "kemi", "nia"]);
 		expect(board[0]).toEqual({
 			id: "ben",
+			title: "City emissions tracker",
 			pitch: "City emissions tracker: City emissions tracker, as a hackathon project.",
 			rolesNeeded: ["frontend", "design", "product"],
 		});
@@ -91,6 +92,7 @@ describe("buildBoard", () => {
 			"id",
 			"pitch",
 			"rolesNeeded",
+			"title",
 		]);
 	});
 });
@@ -114,6 +116,7 @@ describe("discover", () => {
 				id: "r1-omar-ben",
 				from: "omar",
 				to: "ben",
+				title: "City emissions tracker",
 				pitch: "Join your project: City emissions tracker: City emissions tracker, as a hackathon project.",
 				rolesNeeded: ["frontend", "design", "product"],
 			},
@@ -237,6 +240,7 @@ describe("people looking to join", () => {
 				id: "r1-kemi-omar",
 				from: "kemi",
 				to: "omar",
+				title: "Accessible study tools",
 				pitch: "Accessible study tools: Accessible study tools, as a hackathon project.",
 				rolesNeeded: ["backend", "design", "product"],
 			},

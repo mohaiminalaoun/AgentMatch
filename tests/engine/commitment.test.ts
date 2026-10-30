@@ -592,6 +592,7 @@ describe("the agreed project", () => {
 		to: string,
 		pitch: string,
 		rolesNeeded: string[],
+		title?: string,
 	) {
 		const messages: AgentMessage[] = [
 			{
@@ -599,6 +600,7 @@ describe("the agreed project", () => {
 				proposalId: `${to}-${from}`,
 				from,
 				to,
+				...(title !== undefined && { title }),
 				pitch,
 				rolesNeeded,
 			},
@@ -717,6 +719,35 @@ describe("the agreed project", () => {
 		});
 		// The public board still shows the original listing.
 		expect(after.agents.a!.listing!.pitch).toBe("a's project");
+	});
+
+	test("the team takes the title agreed with its version, and the offer carried it", async () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		counterAccepted(
+			world,
+			"a",
+			"j",
+			"A tutor for injury recovery.",
+			["frontend"],
+			"RehabTutor",
+		);
+		const { client } = fakeClient({}, { j: "a" });
+		const { world: after, events } = await commit(world, client);
+		expect(after.teams[0]!.project).toEqual({
+			title: "RehabTutor",
+			description: "A tutor for injury recovery.",
+		});
+		const offer = events.find(
+			(e) =>
+				e.type === "bus" &&
+				e.event.type === "sent" &&
+				"kind" in e.event.message &&
+				e.event.message.kind === "offer",
+		);
+		expect(offer).toMatchObject({
+			event: { message: { title: "RehabTutor" } },
+		});
 	});
 
 	test("every offer in a pass carries one version: the one agreed with the first person kept", () => {

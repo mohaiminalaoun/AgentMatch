@@ -47,6 +47,8 @@ export const RunEvent = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("listing"),
 		agent: z.string(),
+		// Missing in older logs.
+		title: z.string().optional(),
 		pitch: z.string(),
 		rolesNeeded: z.array(z.string()),
 		rationale: z.string().optional(),

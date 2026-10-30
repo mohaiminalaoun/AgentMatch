@@ -13,7 +13,7 @@ import type {
 	Share,
 	Terms,
 } from "./proposal.js";
-import { BRAINSTORM_PITCH, JOIN_PREFIX } from "./proposal.js";
+import { BRAINSTORM_PITCH, JOIN_PREFIX, termsOf } from "./proposal.js";
 
 export type AgentMessage =
 	| Proposal
@@ -177,8 +177,8 @@ export function agreedVersion(
 			const joins = m.pitch.startsWith(JOIN_PREFIX);
 			onTable = {
 				terms: {
+					...termsOf(m),
 					pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
-					rolesNeeded: m.rolesNeeded,
 				},
 				author: joins ? m.to : m.from,
 			};
@@ -186,7 +186,7 @@ export function agreedVersion(
 			agreed = onTable;
 		} else if ("kind" in m && m.kind === "revision") {
 			revised.set(m.from, {
-				terms: { pitch: m.pitch, rolesNeeded: m.rolesNeeded },
+				terms: termsOf(m),
 				author: m.from,
 			});
 		} else if ("kind" in m && m.kind === "revisionAnswer" && m.adopt) {

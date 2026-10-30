@@ -26,6 +26,7 @@ import type { Profile } from "./profile.js";
 import {
 	BRAINSTORM_PITCH,
 	JOIN_PREFIX,
+	termsOf,
 	type Leave,
 	type Offer,
 	type OfferAnswer,
@@ -97,7 +98,11 @@ function membersOf(world: World, owner: string): string[] {
 
 // The team's version of its project, once there's a team.
 function teamTerms(team: Team): Terms {
-	return { pitch: team.project.description, rolesNeeded: team.rolesNeeded };
+	return {
+		title: team.project.title,
+		pitch: team.project.description,
+		rolesNeeded: team.rolesNeeded,
+	};
 }
 
 // The version of `owner`'s project that `id` would join: the team's if it has formed, otherwise the one
@@ -134,7 +139,14 @@ export function safeToOffer(
 		contact.history,
 	]);
 	return (
-		checkThirdParty({ pitch: version.pitch }, others, known).length === 0
+		checkThirdParty(
+			{
+				...(version.title !== undefined && { title: version.title }),
+				pitch: version.pitch,
+			},
+			others,
+			known,
+		).length === 0
 	);
 }
 
@@ -399,7 +411,7 @@ export function commitmentMessages(
 ): Message[] {
 	const offers = held.map((offer) => ({
 		owner: offer.from,
-		project: { pitch: offer.pitch, rolesNeeded: offer.rolesNeeded },
+		project: termsOf(offer),
 		shared: contactOf(agent, offer.from).learned,
 	}));
 	return [
@@ -739,10 +751,7 @@ export async function runCommitment(
 						(m): m is Offer => "kind" in m && m.kind === "offer",
 					)
 					.at(-1)!;
-				addMember(receiver, message.from, {
-					pitch: offer.pitch,
-					rolesNeeded: offer.rolesNeeded,
-				});
+				addMember(receiver, message.from, termsOf(offer));
 				commits++;
 			}
 		}
@@ -925,13 +934,14 @@ export async function runCommitment(
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
 			project: team?.project ?? {
-				// The owner's idea keeps its title only while the team builds the pitch they listed: a
-				// reshaped version, or one from brainstorming (maybe by someone with no idea), is a new project.
+				// The title agreed with the version. Older versions have none: then the owner's idea keeps its
+				// title only while the team builds the pitch they listed, and anything else is a new project.
 				title:
-					version.pitch === publicPitch(agents[owner]!)?.pitch
+					version.title ??
+					(version.pitch === publicPitch(agents[owner]!)?.pitch
 						? (agents[owner]!.profile.projectIdeas[0]?.title ??
 							"New project")
-						: "New project",
+						: "New project"),
 				description: version.pitch,
 			},
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
