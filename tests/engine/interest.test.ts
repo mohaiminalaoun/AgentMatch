@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { CITE_FACTS, GOOD_TEAM } from "../../src/engine/goals.js";
 import {
 	createAgent,
 	learn,
@@ -46,17 +47,23 @@ function fakeModel(...replies: object[]) {
 }
 
 describe("interestMessages", () => {
-	test("at level 1, interests alone aren't a reason to withdraw, since skills come next", () => {
-		const [system] = interestMessages(at(1), "p9");
-		expect(system!.content).toContain(
-			"don't withdraw over interests alone",
-		);
-		expect(system!.content).toContain("time zones");
+	test("every level judges by the shared standard, with the computed facts", () => {
+		for (const level of [1, 2] as const) {
+			const [system] = interestMessages(at(level), "p9");
+			expect(system!.content).toContain(GOOD_TEAM);
+			expect(system!.content).toContain(CITE_FACTS);
+			expect(system!.content).toContain(
+				"Facts about you and p9 (computed by code",
+			);
+		}
 	});
 
-	test("at level 2, the check is about complementary skills", () => {
-		const [system] = interestMessages(at(2), "p9");
-		expect(system!.content).toContain("complement");
+	test("level 1 doesn't guess at skills, and level 2 weighs everything together", () => {
+		const [one] = interestMessages(at(1), "p9");
+		expect(one!.content).toContain("without guessing at skills");
+		expect(one!.content).not.toContain("interests alone");
+		const [two] = interestMessages(at(2), "p9");
+		expect(two!.content).toContain("Weigh everything together");
 	});
 });
 
@@ -310,7 +317,11 @@ describe("level 2 in a brainstorm", () => {
 
 	test("with no revisions left, falls back to the usual role check", () => {
 		const [system, user] = interestMessages(brainstormedAt2(1), "p9", 2);
-		expect(system!.content).toContain("Be selective");
-		expect(user!.content).toContain("Continue only if one of you does");
+		expect(system!.content).not.toContain(
+			"reshaping the idea to fit you both",
+		);
+		expect(user!.content).toContain(
+			"don't relabel roles just so an offer becomes possible",
+		);
 	});
 });

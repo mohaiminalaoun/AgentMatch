@@ -10,6 +10,7 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
+import { GOOD_TEAM } from "./goals.js";
 import { BRAINSTORM_PITCH, JOIN_PREFIX, type Proposal } from "./proposal.js";
 import { missingCoreRoles, publicPitch, type World } from "./round.js";
 
@@ -113,9 +114,10 @@ export function discoveryMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, 0),
+				GOOD_TEAM,
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
-					"Approach where your human could fill a role a project needs, or the other person could fill one your human's project needs, and the project is something your human would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",
+					"Approach people with whom a good team could plausibly form, judging from what's public: your human could fill a role their project lists, or they could fill one your human's project needs, and it's a project your human would want to build. Roles a pitch doesn't list are unknown, not open: its author may cover them. One person may cover several roles.",
 					...(joiners.length > 0
 						? [
 								"People looking to join have no project of their own, and only their ids are public. You may approach them with your human's project.",
@@ -325,10 +327,11 @@ export function brainstormMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, 0),
+				GOOD_TEAM,
 				[
 					"Everyone below is still without a team, and so is your human. Instead of joining an existing project, you can come up with a new one together.",
 					`Pick up to ${perAgent} people to brainstorm with, best first, by their id: people whose roles would complement your human's (rolesNeeded is what each lacks), and who might share an idea worth building. An idea, where shown, is their own project idea.`,
-					"An empty list is fine, but brainstorming is your human's last chance at a team. Your rationale is private.",
+					"An empty list is fine: brainstorming is the last way to a team, but no team is better than a weak one. Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
 		},

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { GOOD_TEAM } from "../../src/engine/goals.js";
 import { raiseLevel, recordMessage } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
@@ -284,14 +285,16 @@ describe("people looking to join", () => {
 		}
 	});
 
-	test("the prompt counts a strong role fit even when interests overlap loosely", () => {
+	test("the prompt judges by the shared standard, and treats roles a pitch doesn't list as unknown", () => {
 		const [system] = discoveryMessages(
 			createWorld([ben]).agents.ben!,
 			[],
 			3,
 		);
-		expect(system!.content).toContain("a strong role fit counts");
-		expect(system!.content).not.toContain("Approach only");
+		expect(system!.content).toContain(GOOD_TEAM);
+		expect(system!.content).toContain(
+			"Roles a pitch doesn't list are unknown, not open",
+		);
 	});
 });
 

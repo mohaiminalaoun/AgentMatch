@@ -11,7 +11,9 @@ import {
 import type { LlmClient } from "./client.js";
 import { describeViolation, disclosureRules } from "./decision.js";
 import type { DisclosureLevel } from "./disclosure.js";
+import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, draftOf } from "./gate.js";
+import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	StructuredOutputError,
@@ -48,8 +50,8 @@ export type InterestResult = {
 
 // What to weigh at each level, given what has just been shared.
 const WEIGHING: Record<number, string> = {
-	1: "Their interests and availability are now known. Can they actually work together: are the time zones close enough to overlap, and does each have enough hours? Shared interests help, but don't withdraw over interests alone: their skills, shared next, may still fit what's needed.",
-	2: "Their skills and preferences are now known. Do their skills complement your human's, covering roles your human can't? Do their preferred roles and team size fit?",
+	1: "Their interests and availability are now known (see the facts). Is this still worth learning more about? Their skills come next, so weigh what you know now without guessing at skills.",
+	2: "Their skills and preferences are now known (see the facts). Weigh everything together against the standard above: the project, interests, logistics, who can do each role and has the time, and team size.",
 	3: "Their name is now known. Is there any reason not to form a team?",
 };
 
@@ -112,16 +114,21 @@ export function interestMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, level),
+				GOOD_TEAM,
+				factsText(fitFacts(agent, otherId)),
 				[
 					`You and agent ${otherId} both agreed to keep talking and are now at level ${level}.`,
 					WEIGHING[level] ?? "",
 					"Decide whether to keep going toward a team (continue) or stop here (withdraw).",
-					reshape
-						? "Neither human has a team yet, so reshaping the idea to fit you both is worth trying, but a team that doesn't really fit is worse than none."
-						: "Be selective: your human has limited time, and a weak match blocks a better one.",
+					...(reshape
+						? [
+								"Neither human has a team yet, so reshaping the idea to fit you both is worth trying, but a team that doesn't really fit is worse than none.",
+							]
+						: []),
 					revise
 						? "Only continue or withdraw is sent, plus a revision if you add one; your rationale is private, so explain yourself fully there."
 						: "Only the single word continue or withdraw is sent; your rationale is private, so explain yourself fully there.",
+					CITE_FACTS,
 				].join("\n"),
 				...(revise
 					? [
@@ -151,7 +158,7 @@ export function interestMessages(
 						]
 					: level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
 						? [
-								`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). Continue only if one of you does, or add a revision whose roles fit you both; otherwise no offer can follow, however well you get along.`,
+								`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). If neither of you can do one of those roles, a revision may change them only when the work itself changes, and its pitch must say how; don't relabel roles just so an offer becomes possible. Otherwise withdraw: no offer can follow, however well you get along.`,
 							]
 						: []),
 				...(steer ? [steer] : []),
@@ -278,10 +285,13 @@ export function revisionMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				GOOD_TEAM,
+				factsText(fitFacts(agent, revision.from)),
 				[
 					`Agent ${revision.from} proposes a reshaped version of the project you've been discussing.`,
 					"Adopt it if it's a better project for your human to build with them; otherwise keep the current version. Keeping doesn't end the conversation.",
 					"Only adopt or keep is sent; your rationale is private.",
+					CITE_FACTS,
 				].join("\n"),
 			].join("\n\n"),
 		},

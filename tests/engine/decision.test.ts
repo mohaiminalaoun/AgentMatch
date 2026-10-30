@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { CITE_FACTS, GOOD_TEAM } from "../../src/engine/goals.js";
 import {
 	contactOf,
 	createAgent,
@@ -250,10 +251,14 @@ describe("decideOnProposal", () => {
 		expect(sent[0]!.at(-1)!.content).not.toContain("counters");
 	});
 
-	test("the prompt doesn't require shared interests when the role fit is strong", () => {
+	test("the prompt judges by the shared standard, with the computed facts, and asks for grounded claims", () => {
 		const [system] = decisionMessages(ada, proposal);
-		expect(system!.content).toContain("a strong role fit counts");
-		expect(system!.content).not.toContain("accept only if");
+		expect(system!.content).toContain(GOOD_TEAM);
+		expect(system!.content).toContain(CITE_FACTS);
+		expect(system!.content).toContain(
+			"p9's skills and team size: not shared yet",
+		);
+		expect(system!.content).not.toContain("interests overlap only loosely");
 	});
 
 	test("the prompt says roles needed are for others to fill", () => {

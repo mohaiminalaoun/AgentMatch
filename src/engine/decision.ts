@@ -14,6 +14,8 @@ import {
 	type Message,
 	type TokenUsage,
 } from "./llm.js";
+import { factsText, fitFacts } from "./fit.js";
+import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	BRAINSTORM_PITCH,
@@ -103,14 +105,16 @@ export function decisionMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				GOOD_TEAM,
+				factsText(fitFacts(agent, proposal.from)),
 				disclosureRules(contact.level),
 				[
 					"How to decide:",
-					"- accept if your human could fill a role it needs and the project is something they would plausibly enjoy. Shared interests help, but a strong role fit counts even when interests overlap only loosely.",
+					"- accept if a good team could plausibly come of it: your human could fill a role the project lists, and it's something they'd want to build. Nothing is binding yet; accepting opens the next level of sharing.",
 					'- counter if it is a partial fit and one concrete change would make it work: put the changed project in the pitch, describing the project itself, not a message to them (no questions, no "how about"), and give it a short new title, 1 to 4 words, if the change makes the old one wrong.',
 					"- rolesNeeded lists roles you need others to fill. Never list a role your human would fill.",
 					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
-					"Be selective: your human has limited time, and accepting a weak fit blocks a better one.",
+					CITE_FACTS,
 				].join("\n"),
 			].join("\n\n"),
 		},
@@ -164,6 +168,8 @@ export function joinRequestMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				GOOD_TEAM,
+				factsText(fitFacts(agent, proposal.from)),
 				[
 					`Agent ${proposal.from} has no project of its own and asks to join your human's project. The pitch and roles below are your human's own listing: the roles are what your human's project needs from others, not what ${proposal.from} offers.`,
 					`Nothing is known about ${proposal.from}'s human yet. If you accept, you each share interests and availability (level 1), then skills and preferences (level 2), and either side can stop after each. Don't assume they have any skill or would fill any role; that's what the next levels find out.`,
@@ -172,6 +178,7 @@ export function joinRequestMessages(
 					"- decline only if your human's project can't take anyone now, or your human has reasons not to work with someone new on it.",
 					"- Counters aren't possible here: if the project should change to fit them, propose a revision once you know them.",
 					"Your rationale is private; accept and decline carry no text.",
+					CITE_FACTS,
 				].join("\n"),
 			].join("\n\n"),
 		},
