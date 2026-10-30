@@ -119,6 +119,7 @@ describe("discover", () => {
 				title: "City emissions tracker",
 				pitch: "Join your project: City emissions tracker: City emissions tracker, as a hackathon project.",
 				rolesNeeded: ["frontend", "design", "product"],
+				join: true,
 			},
 		]);
 	});

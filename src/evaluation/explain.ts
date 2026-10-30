@@ -24,6 +24,7 @@ export const CALL_KINDS: readonly (readonly [phrase: string, kind: string])[] =
 		["stays or leaves", "recheck"],
 		["Adopt the revision", "revision answer"],
 		["Keep going, or withdraw", "interest check"],
+		["asks to join your human's project:", "join request"],
 		["proposes:", "decision"],
 	];
 

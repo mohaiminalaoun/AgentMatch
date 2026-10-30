@@ -15,7 +15,13 @@ import {
 	type TokenUsage,
 } from "./llm.js";
 import { steerText, type Hunch } from "./hunch.js";
-import { BRAINSTORM_PITCH, Decision, type Proposal } from "./proposal.js";
+import {
+	BRAINSTORM_PITCH,
+	Decision,
+	isJoinRequest,
+	JOIN_PREFIX,
+	type Proposal,
+} from "./proposal.js";
 
 // What the model returns: its private reasoning, then the decision that gets sent.
 // The rationale comes first so the model reasons before it decides.
@@ -137,6 +143,67 @@ export function decisionMessages(
 	];
 }
 
+// The prompt asking `agent`, whose human owns a project, whether to accept or decline a request to join it from
+// someone with no project of their own. The request's terms are the owner's own listing, so its roles are what
+// the owner's project needs, not what the requester offers; nothing about the requester is known until they
+// share, which only happens if the owner accepts.
+export function joinRequestMessages(
+	agent: AgentState,
+	proposal: Proposal,
+	// A private hunch, which adds only a fixed sentence for its steer.
+	hunch?: Hunch,
+): Message[] {
+	const steer = steerText(hunch, "interest");
+	const contact = contactOf(agent, proposal.from);
+	const pitch = proposal.pitch.startsWith(JOIN_PREFIX)
+		? proposal.pitch.slice(JOIN_PREFIX.length)
+		: proposal.pitch;
+	return [
+		{
+			role: "system",
+			content: [
+				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
+				aboutHuman(agent, contact.level),
+				[
+					`Agent ${proposal.from} has no project of its own and asks to join your human's project. The pitch and roles below are your human's own listing: the roles are what your human's project needs from others, not what ${proposal.from} offers.`,
+					`Nothing is known about ${proposal.from}'s human yet. If you accept, you each share interests and availability (level 1), then skills and preferences (level 2), and either side can stop after each. Don't assume they have any skill or would fill any role; that's what the next levels find out.`,
+					"How to decide:",
+					"- accept to find out whether they fit your human's project.",
+					"- decline only if your human's project can't take anyone now, or your human has reasons not to work with someone new on it.",
+					"- Counters aren't possible here: if the project should change to fit them, propose a revision once you know them.",
+					"Your rationale is private; accept and decline carry no text.",
+				].join("\n"),
+			].join("\n\n"),
+		},
+		{
+			role: "user",
+			content: [
+				`Agent ${proposal.from} asks to join your human's project:`,
+				`Your human's pitch: ${pitch}`,
+				`Roles your human's project needs: ${proposal.rolesNeeded.join(", ")}`,
+				...(proposal.leftTeams
+					? [
+							`Reliability: their human has left ${proposal.leftTeams} committed team${proposal.leftTeams === 1 ? "" : "s"} before, so they may leave again.`,
+						]
+					: []),
+				`What you have learned about them so far: ${JSON.stringify(contact.learned)}`,
+				...(steer ? [steer] : []),
+			].join("\n"),
+		},
+	];
+}
+
+// The prompt for deciding on `proposal`: a join request gets its own, anything else the general one.
+export function decisionPrompt(
+	agent: AgentState,
+	proposal: Proposal,
+	hunch?: Hunch,
+): Message[] {
+	return isJoinRequest(proposal)
+		? joinRequestMessages(agent, proposal, hunch)
+		: decisionMessages(agent, proposal, hunch);
+}
+
 // Decides on `proposal` for `agent`, with every outgoing word passed through the disclosure gate. Once a
 // conversation has had MAX_COUNTERS counters, another counter is refused and the model asked again.
 // A counter that reveals too much is redrafted; if nothing allowed comes back, a plain decline is sent.
@@ -152,6 +219,7 @@ export async function decideOnProposal(
 ): Promise<DecisionResult> {
 	const level = contactOf(agent, proposal.from).level;
 	const countersLeft = countersWith(agent, proposal.from) < MAX_COUNTERS;
+	const join = isJoinRequest(proposal);
 	let gateBlocks = 0;
 	if (hunch?.steer === "stop") {
 		return {
@@ -166,14 +234,21 @@ export async function decideOnProposal(
 
 	try {
 		const { data, usage } = await client.chatJson(
-			decisionMessages(agent, proposal, hunch),
+			decisionPrompt(agent, proposal, hunch),
 			AgentDecision,
 			{
 				...options,
 				check: ({ decision }) => {
+					if (join && decision.decision === "counter") {
+						return [
+							"a request to join your human's project is accepted or declined; once you know them, you can propose a revision",
+						];
+					}
+					// Accepting a join request is itself the way to probe, so caution doesn't rule it out.
 					if (
 						decision.decision === "accept" &&
-						hunch?.steer === "careful"
+						hunch?.steer === "careful" &&
+						!join
 					) {
 						return [
 							"your human has private reasons for caution: don't accept as is; counter with a question or change that addresses it, or decline",

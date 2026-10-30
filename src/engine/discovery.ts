@@ -259,6 +259,7 @@ export async function discover(
 								280,
 							),
 							rolesNeeded: target.rolesNeeded,
+							join: true,
 							...record,
 						},
 			);

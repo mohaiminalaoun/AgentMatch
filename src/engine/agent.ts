@@ -13,7 +13,12 @@ import type {
 	Share,
 	Terms,
 } from "./proposal.js";
-import { BRAINSTORM_PITCH, JOIN_PREFIX, termsOf } from "./proposal.js";
+import {
+	BRAINSTORM_PITCH,
+	isJoinRequest,
+	JOIN_PREFIX,
+	termsOf,
+} from "./proposal.js";
 
 export type AgentMessage =
 	| Proposal
@@ -174,7 +179,7 @@ export function agreedVersion(
 	let agreed: Version | undefined;
 	for (const m of contactOf(agent, otherId).history) {
 		if ("pitch" in m && !("kind" in m)) {
-			const joins = m.pitch.startsWith(JOIN_PREFIX);
+			const joins = isJoinRequest(m);
 			onTable = {
 				terms: {
 					...termsOf(m),

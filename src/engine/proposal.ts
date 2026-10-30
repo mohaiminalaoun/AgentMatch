@@ -35,12 +35,24 @@ export const Proposal = Terms.extend({
 	// How many committed teams the proposer's human has left, if any. Filled in by code from the
 	// proposer's state, never by a model, so the recipient can weigh reliability.
 	leftTeams: z.number().int().min(1).optional(),
+	// Set by code when the proposer has no project and asks to join the recipient's: the terms are then the
+	// recipient's own listing, and its roles are what the recipient's project needs, not what the proposer offers.
+	join: z.literal(true).optional(),
 });
 
 export type Proposal = z.infer<typeof Proposal>;
 
 // How a proposal from someone with no project idea starts: they're asking to join the recipient's project.
 export const JOIN_PREFIX = "Join your project: ";
+
+// Whether `message` asks to join the recipient's project: marked with `join`, or, in logs from before the
+// mark existed, starting with JOIN_PREFIX.
+export function isJoinRequest(message: {
+	pitch: string;
+	join?: true | undefined;
+}): boolean {
+	return message.join === true || message.pitch.startsWith(JOIN_PREFIX);
+}
 
 // The pitch of a brainstorm proposal, made between people left without a team: an invitation to come up with
 // a project together. Agreeing to it agrees to brainstorm, not to an idea.

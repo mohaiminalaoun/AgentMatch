@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
-import { JOIN_PREFIX } from "../../src/engine/proposal.js";
 import {
 	caseJudgeMessages,
 	REGRESSION_CASES,
@@ -69,7 +68,9 @@ describe("regression cases", () => {
 			(await byName(name).run(fakeClient())).prompt
 				.map((m) => m.content)
 				.join("\n");
-		expect(await text("join request")).toContain(JOIN_PREFIX);
+		expect(await text("join request")).toContain(
+			"asks to join your human's project",
+		);
 		expect(await text("invented scheduling")).toContain("now at level 1");
 		expect(await text("relabeled roles")).toContain("now at level 2");
 		const offers = await text("misdescribed option");

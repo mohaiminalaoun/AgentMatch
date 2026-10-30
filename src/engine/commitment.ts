@@ -25,7 +25,7 @@ import {
 import type { Profile } from "./profile.js";
 import {
 	BRAINSTORM_PITCH,
-	JOIN_PREFIX,
+	isJoinRequest,
 	termsOf,
 	type Leave,
 	type Offer,
@@ -371,7 +371,7 @@ export function projectOwner(
 	const owner =
 		agreed?.author ??
 		(terms && "pitch" in terms
-			? terms.pitch.startsWith(JOIN_PREFIX)
+			? isJoinRequest(terms)
 				? terms.to
 				: terms.from
 			: undefined);

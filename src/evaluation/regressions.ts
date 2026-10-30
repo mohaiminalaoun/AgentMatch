@@ -13,7 +13,7 @@ import {
 } from "../engine/agent.js";
 import type { LlmClient } from "../engine/client.js";
 import { AgentCommitment, commitmentMessages } from "../engine/commitment.js";
-import { decideOnProposal, decisionMessages } from "../engine/decision.js";
+import { decideOnProposal, decisionPrompt } from "../engine/decision.js";
 import { checkInterest, interestMessages } from "../engine/interest.js";
 import type { Message } from "../engine/llm.js";
 import type { Profile } from "../engine/profile.js";
@@ -94,7 +94,7 @@ async function decide(
 ): Promise<CaseRun> {
 	const result = await decideOnProposal(client, agent, proposal);
 	return {
-		prompt: decisionMessages(agent, proposal),
+		prompt: decisionPrompt(agent, proposal),
 		decision: result.decision.decision,
 		rationale: result.rationale,
 	};
@@ -175,6 +175,7 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 					title: "Ticket Triage",
 					pitch: `${JOIN_PREFIX}AI that reads on-call tickets and suggests the likely root cause.`,
 					rolesNeeded: ["ml", "frontend", "devops"],
+					join: true,
 				},
 			),
 		question:

@@ -11,9 +11,10 @@ import type { Config } from "../../src/engine/config.js";
 import {
 	decideOnProposal,
 	decisionMessages,
+	decisionPrompt,
 } from "../../src/engine/decision.js";
 import type { Message } from "../../src/engine/llm.js";
-import type { Proposal } from "../../src/engine/proposal.js";
+import { JOIN_PREFIX, type Proposal } from "../../src/engine/proposal.js";
 import { sampleProfile } from "../fixtures.js";
 
 const config: Config = {
@@ -260,5 +261,76 @@ describe("decideOnProposal", () => {
 		expect(system!.content).toContain(
 			"rolesNeeded lists roles you need others to fill",
 		);
+	});
+});
+
+describe("join requests", () => {
+	const join: Proposal = {
+		id: "r1-p9-ada",
+		from: "p9",
+		to: sampleProfile.id,
+		pitch: `${JOIN_PREFIX}A tracker for city emissions.`,
+		rolesNeeded: ["design", "backend"],
+		join: true,
+	};
+
+	test("get their own prompt: the roles are the owner's needs, nothing is known about the requester, no counter", () => {
+		const [system, user] = decisionPrompt(ada, join);
+		expect(system!.content).toContain(
+			"the roles are what your human's project needs from others, not what p9 offers",
+		);
+		expect(system!.content).toContain("Don't assume they have any skill");
+		expect(system!.content).not.toContain("- counter if");
+		expect(user!.content).toContain(
+			"Your human's pitch: A tracker for city emissions.",
+		);
+		expect(user!.content).toContain(
+			"Roles your human's project needs: design, backend",
+		);
+		// Anything else still gets the general prompt.
+		expect(decisionPrompt(ada, proposal)).toEqual(
+			decisionMessages(ada, proposal),
+		);
+	});
+
+	test("are recognized by their old prefix too, as in logs from before the mark", () => {
+		const { join: _join, ...unmarked } = join;
+		expect(decisionPrompt(ada, unmarked)).toEqual(
+			decisionPrompt(ada, join),
+		);
+	});
+
+	test("a counter is refused and the model asked again", async () => {
+		const { client, sent } = fakeModel(counter("Something else."), {
+			rationale: "Worth finding out.",
+			decision: { decision: "accept" },
+		});
+		const result = await decideOnProposal(client, ada, join);
+		expect(result.decision).toEqual({ decision: "accept" });
+		expect(sent).toHaveLength(2);
+		expect(JSON.stringify(sent[1])).toContain(
+			"a request to join your human's project is accepted or declined",
+		);
+	});
+
+	test("a careful hunch doesn't rule out accepting, since accepting is how the owner finds out more", async () => {
+		const { client, sent } = fakeModel({
+			rationale: "Let's see.",
+			decision: { decision: "accept" },
+		});
+		const result = await decideOnProposal(
+			client,
+			ada,
+			join,
+			{},
+			{
+				steer: "careful",
+				riskArea: null,
+				rationale: undefined,
+				fellBack: false,
+			},
+		);
+		expect(result.decision).toEqual({ decision: "accept" });
+		expect(sent).toHaveLength(1);
 	});
 });
