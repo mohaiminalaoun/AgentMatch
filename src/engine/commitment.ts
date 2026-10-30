@@ -15,7 +15,9 @@ import {
 import type { LlmClient } from "./client.js";
 import type { ProfileField } from "./disclosure.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
+import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, checkThirdParty } from "./gate.js";
+import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import {
 	StructuredOutputError,
 	type ChatOptions,
@@ -444,6 +446,8 @@ export function offerMessages(
 			content: [
 				INTRO,
 				aboutHuman(owner, 2),
+				GOOD_TEAM,
+				factsAbout(owner, candidates),
 				[
 					"team" in versions
 						? `Your human's team is building this version of the project: ${JSON.stringify(versions.team)}. It has ${places} place${plural} left.`
@@ -452,6 +456,7 @@ export function offerMessages(
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
 					"Prefer people whose skills cover different roles the project needs. leftTeams, where shown, is how many committed teams that person has left before; weigh their reliability. Your rationale is private.",
+					CITE_FACTS,
 				].join("\n"),
 			].join("\n\n"),
 		},
@@ -462,36 +467,70 @@ export function offerMessages(
 	];
 }
 
-// The prompt asking `agent` which offer to commit to: its own profile, plus the version of the project each
-// offer carries (what the team will build) and what that owner has shared with it.
+// The computed facts about each of `ids`, as `agent` knows them, one block each.
+function factsAbout(agent: AgentState, ids: readonly string[]): string {
+	return ids.map((id) => factsText(fitFacts(agent, id))).join("\n\n");
+}
+
+// The prompt asking `agent` which offer to commit to: its own profile, plus every option side by side in the
+// same shape: the version of the project each team will build, how big the team is now, and the computed
+// facts about the person behind it. An owner deciding whether to lead also sees its own team as an option:
+// its own version and the facts about each person it would offer a place.
 export function commitmentMessages(
 	agent: AgentState,
 	held: readonly Offer[],
 	offeringTo: readonly string[] = [],
+	{
+		sizes = {},
+		ownVersion,
+	}: {
+		// Each offering owner's team size now, the owner included.
+		sizes?: Record<string, number>;
+		// The version the agent's own team would build, if it leads.
+		ownVersion?: Terms | undefined;
+	} = {},
 ): Message[] {
 	const offers = held.map((offer) => ({
 		owner: offer.from,
 		project: termsOf(offer),
+		...(sizes[offer.from] !== undefined && {
+			teamSize: sizes[offer.from],
+		}),
 		shared: contactOf(agent, offer.from).learned,
 	}));
+	const options = [
+		...held.map(
+			(offer) =>
+				`Option ${offer.from}: join ${offer.from}'s team${sizes[offer.from] !== undefined ? ` (${sizes[offer.from]} ${sizes[offer.from] === 1 ? "person" : "people"} now, ${sizes[offer.from]! + 1} with your human)` : ""}, building ${JSON.stringify(termsOf(offer))}.\n${factsAbout(agent, [offer.from])}`,
+		),
+		...(offeringTo.length > 0
+			? [
+					`Option null: lead your human's own project${ownVersion ? `, building ${JSON.stringify(ownVersion)}` : ""}, offering places to ${offeringTo.join(", ")}.\n${factsAbout(agent, offeringTo)}`,
+				]
+			: []),
+	];
 	return [
 		{
 			role: "system",
 			content: [
 				INTRO,
 				aboutHuman(agent, 2),
+				GOOD_TEAM,
 				[
 					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",
 					"Committing is final: your human joins that team, can't join any other, and their name is shared with every teammate.",
 					...(offeringTo.length > 0
 						? [
 								`Your human also owns a project, and is about to offer places on it to ${offeringTo.join(", ")}. Committing to one of these offers means joining that team instead, and your human's own offers are never sent. Use null to lead your human's own project instead.`,
-								"Commit to at most one, by its owner's id, or use null to lead. Choose the team where your human's skills are most needed and the people and project fit them best, their own included. Your rationale is private.",
+								"Commit to at most one, by its owner's id, or use null to lead.",
 							]
 						: [
-								"Commit to at most one, by its owner's id, or use null to decline them all. Choose where your human's skills are most needed and the project fits them best. Your rationale is private.",
+								"Commit to at most one, by its owner's id, or use null to decline them all.",
 							]),
+					"Compare the options side by side against the standard above, each as it's shown below: the project as its version describes it, the team's size, and the facts. Your rationale is private.",
+					CITE_FACTS,
 				].join("\n"),
+				["Your options:", ...options].join("\n\n"),
 			].join("\n\n"),
 		},
 		{
@@ -525,13 +564,25 @@ export function recheckMessages(agent: AgentState, team: Team): Message[] {
 			content: [
 				INTRO,
 				aboutHuman(agent, 2),
+				GOOD_TEAM,
 				[
 					`Your human is committed to ${team.members[0]}'s team, building ${JSON.stringify(team.project)}. Someone new has joined, and the team is now ${team.members.length} people.`,
 					"Decide whether your human stays or leaves.",
 					'Leaving is costly: it breaks a commitment, the team loses someone it planned around, and your human gets a public mark ("left 1 team") that every agent sees when deciding whether to work with them. Leave only if the team is now clearly wrong for your human, for example bigger than they want.',
 					"Only stay or leave is sent; your rationale is private.",
+					CITE_FACTS,
 				].join("\n"),
-			].join("\n\n"),
+				factsAbout(
+					agent,
+					team.members.filter(
+						(id) =>
+							id !== agent.id &&
+							contactOf(agent, id).learned.skills !== undefined,
+					),
+				),
+			]
+				.filter(Boolean)
+				.join("\n\n"),
 		},
 		{
 			role: "user",
@@ -913,7 +964,18 @@ export async function runCommitment(
 		const owners = held.map((offer) => offer.from);
 		try {
 			const { data } = await client.chatJson(
-				commitmentMessages(agents[agent]!, held, offeringTo),
+				commitmentMessages(agents[agent]!, held, offeringTo, {
+					sizes: Object.fromEntries(
+						owners.map((owner) => [
+							owner,
+							membersOf(current(), owner).length,
+						]),
+					),
+					ownVersion:
+						offeringTo.length > 0
+							? offerVersion(current(), agent, offeringTo)
+							: undefined,
+				}),
 				AgentCommitment,
 				{
 					...llmOptions,

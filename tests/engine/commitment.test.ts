@@ -4,6 +4,7 @@ import {
 	agreedVersion,
 	contactOf,
 	learn,
+	raiseLevel,
 	recordMessage,
 	type AgentMessage,
 } from "../../src/engine/agent.js";
@@ -16,6 +17,7 @@ import {
 	offerMessages,
 	runCommitment,
 	safeToOffer,
+	commitmentMessages,
 	explainOffers,
 	selectOffers,
 	stillNeeded,
@@ -26,7 +28,12 @@ import { decisionMessages } from "../../src/engine/decision.js";
 import { buildBoard, discover } from "../../src/engine/discovery.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
-import { BRAINSTORM_PITCH, JOIN_PREFIX } from "../../src/engine/proposal.js";
+import {
+	BRAINSTORM_PITCH,
+	JOIN_PREFIX,
+	type Offer,
+} from "../../src/engine/proposal.js";
+import { GOOD_TEAM } from "../../src/engine/goals.js";
 import { createWorld, type World } from "../../src/engine/round.js";
 import { person } from "../fixtures.js";
 
@@ -1233,5 +1240,87 @@ describe("brainstormed teams", () => {
 				status: "committed",
 			},
 		]);
+	});
+});
+
+describe("comparing commitment options", () => {
+	// Mo holds offers from ana (a team of 2) and ivo (just ivo), knows both owners' skills, and could lead a
+	// team of their own with j instead.
+	const mo = () => {
+		let agent = createWorld([human("mo", true, 4, "frontend")]).agents.mo!;
+		for (const [id, skill] of [
+			["ana", "ml"],
+			["ivo", "backend"],
+			["j", "design"],
+		] as const) {
+			agent = learn(raiseLevel(agent, id, 2), id, {
+				interests: ["education"],
+				availability: { hoursPerWeek: 10, utcOffset: 0 },
+				skills: [{ name: skill, level: "expert" }],
+				preferences: {
+					minTeamSize: 2,
+					maxTeamSize: 4,
+					preferredRoles: [skill],
+				},
+			});
+		}
+		return agent;
+	};
+	const offer = (from: string, pitch: string): Offer => ({
+		kind: "offer",
+		from,
+		to: "mo",
+		team: `team-${from}`,
+		title: `${from} app`,
+		pitch,
+		rolesNeeded: ["frontend"],
+	});
+
+	test("every option, leading included, is shown in the same shape: version, team size, and facts", () => {
+		const [system, user] = commitmentMessages(
+			mo(),
+			[
+				offer("ana", "AI that triages on-call tickets."),
+				offer("ivo", "A trip dashboard with smart AI suggestions."),
+			],
+			["j"],
+			{
+				sizes: { ana: 2, ivo: 1 },
+				ownVersion: {
+					title: "Mo app",
+					pitch: "A study planner.",
+					rolesNeeded: ["design"],
+				},
+			},
+		);
+		const text = system!.content;
+		expect(text).toContain(GOOD_TEAM);
+		expect(text).toContain(
+			'Option ana: join ana\'s team (2 people now, 3 with your human), building {"title":"ana app","pitch":"AI that triages on-call tickets."',
+		);
+		expect(text).toContain(
+			"Option ivo: join ivo's team (1 person now, 2 with your human), building",
+		);
+		expect(text).toContain(
+			'Option null: lead your human\'s own project, building {"title":"Mo app","pitch":"A study planner."',
+		);
+		for (const id of ["ana", "ivo", "j"]) {
+			expect(text).toContain(
+				`Facts about you and ${id} (computed by code`,
+			);
+		}
+		expect(text).toContain("Compare the options side by side");
+		// The structured offers stay in the last message, with each team's size.
+		expect(user!.content).toMatch(
+			/^Offers: \[\{"owner":"ana",.*"teamSize":2/,
+		);
+	});
+
+	test("without offers of its own, there's no lead option", () => {
+		const [system] = commitmentMessages(mo(), [
+			offer("ana", "AI that triages on-call tickets."),
+		]);
+		expect(system!.content).not.toContain("Option null");
+		expect(system!.content).toContain("use null to decline them all");
 	});
 });
