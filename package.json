@@ -32,7 +32,8 @@
 		"eval:explain:label": "tsx src/eval-explain-label.ts",
 		"eval:decisions": "tsx src/eval-decisions.ts",
 		"regressions": "tsx src/regressions.ts",
-		"baseline": "tsx src/baseline.ts"
+		"baseline": "tsx src/baseline.ts",
+		"mailbox": "tsx src/mailbox.ts"
 	},
 	"repository": {
 		"type": "git",
