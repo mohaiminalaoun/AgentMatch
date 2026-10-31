@@ -67,6 +67,8 @@ export type Exchange = {
 	messages: readonly Message[];
 	reply: string;
 	usage: TokenUsage | undefined;
+	// The model that answered, since agents may run on different ones.
+	model: string;
 };
 
 export type ChatOptions = {
@@ -174,7 +176,7 @@ export async function chat(
 		...(reasoning !== undefined && { reasoning }),
 		...(cached !== undefined && { cached }),
 	};
-	onExchange?.({ messages, reply: content, usage });
+	onExchange?.({ messages, reply: content, usage, model: config.model });
 	return { content, usage };
 }
 
@@ -323,7 +325,10 @@ function extractJson(text: string): string {
 }
 
 // Lays out an exchange as a readable transcript, one block per message.
-export function formatExchange({ messages, reply }: Exchange): string {
+export function formatExchange({
+	messages,
+	reply,
+}: Pick<Exchange, "messages" | "reply">): string {
 	return [...messages, { role: "assistant", content: reply }]
 		.map(({ role, content }) => `── ${role} ──\n${content}`)
 		.join("\n\n");

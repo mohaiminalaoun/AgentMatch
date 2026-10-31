@@ -197,6 +197,8 @@ export const RunEvent = z.discriminatedUnion("type", [
 			}),
 		),
 		reply: z.string(),
+		// The model that answered; missing in older logs.
+		model: z.string().optional(),
 		usage: z
 			.object({
 				input: z.number(),
@@ -218,6 +220,7 @@ export function exchangeEvent(exchange: Exchange): RunEvent {
 		time: new Date().toISOString(),
 		messages: [...exchange.messages],
 		reply: exchange.reply,
+		model: exchange.model,
 		usage: exchange.usage,
 	};
 }

@@ -11,7 +11,7 @@ import {
 	recordRevealed,
 	type AgentState,
 } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import { stillNeeded } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
@@ -215,7 +215,7 @@ export async function runLock(
 	// unshared, so not confirming is the safe default.
 	async function confidence(member: string, team: Team, ask: 1 | 2) {
 		try {
-			const { data } = await client.chatJson(
+			const { data } = await brainOf(client, member).chatJson(
 				lockMessages(
 					agents[member]!,
 					team,

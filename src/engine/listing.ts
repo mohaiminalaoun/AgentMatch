@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import type { AgentState } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { checkDisclosure, draftOf } from "./gate.js";
 import {
@@ -74,7 +74,7 @@ export async function writeListings(
 		writers.map(async (agent): Promise<AgentState> => {
 			let gateBlocks = 0;
 			try {
-				const { data } = await client.chatJson(
+				const { data } = await brainOf(client, agent.id).chatJson(
 					listingMessages(agent),
 					AgentListing,
 					{

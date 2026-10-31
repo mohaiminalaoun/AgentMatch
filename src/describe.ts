@@ -112,7 +112,7 @@ export function formatRun(
 			tokens += event.usage?.total ?? 0;
 			if (prompts) {
 				lines.push(
-					`\n═══ model call ${calls} · ${event.time} ═══\n${formatExchange({ messages: event.messages, reply: event.reply, usage: event.usage })}\n`,
+					`\n═══ model call ${calls} · ${event.time}${event.model ? ` · ${event.model}` : ""} ═══\n${formatExchange(event)}\n`,
 				);
 			}
 			continue;

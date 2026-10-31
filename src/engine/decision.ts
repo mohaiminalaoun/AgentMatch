@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import { contactOf, type AgentState } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import {
 	FIELD_LEVELS,
 	type DisclosureLevel,
@@ -245,7 +245,7 @@ export async function decideOnProposal(
 	}
 
 	try {
-		const { data, usage } = await client.chatJson(
+		const { data, usage } = await brainOf(client, agent.id).chatJson(
 			decisionPrompt(agent, proposal, hunch),
 			AgentDecision,
 			{

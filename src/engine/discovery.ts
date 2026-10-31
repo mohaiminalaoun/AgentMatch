@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import { brainstormedWith, contactOf, type AgentState } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import { isOpen, teamListing, teamOf } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import {
@@ -192,7 +192,7 @@ export async function discover(
 	const picks = await Promise.all(
 		agents.map(async (agent): Promise<Pick> => {
 			try {
-				const { data } = await client.chatJson(
+				const { data } = await brainOf(client, agent.id).chatJson(
 					discoveryMessages(agent, board, perAgent, seekers),
 					AgentPicks,
 					{
@@ -381,7 +381,7 @@ export async function brainstorm(
 		[...left].map(async (id): Promise<Pick> => {
 			const agent = world.agents[id]!;
 			try {
-				const { data } = await client.chatJson(
+				const { data } = await brainOf(client, agent.id).chatJson(
 					brainstormMessages(agent, entries, perAgent),
 					AgentPicks,
 					{

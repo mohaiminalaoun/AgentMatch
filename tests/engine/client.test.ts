@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { createLlmClient } from "../../src/engine/client.js";
+import {
+	brainOf,
+	createLlmClient,
+	withBrains,
+} from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
 import { Decision } from "../../src/engine/proposal.js";
 
@@ -127,5 +131,29 @@ describe("createLlmClient", () => {
 		const client = createLlmClient(config, { fetch, retry: instantRetry });
 		await client.chat(messages);
 		expect(client.stats.requestMs).toBeGreaterThan(0);
+	});
+});
+
+describe("brainOf", () => {
+	test("answers for an agent with its own brain there, and for everyone else with the shared client", async () => {
+		const shared = fakeServer([{ content: "shared" }]);
+		const other = fakeServer([{ content: "other" }]);
+		const client = withBrains(
+			createLlmClient(config, { fetch: shared.fetch }),
+			{
+				b: createLlmClient(
+					{ ...config, model: "other-model" },
+					{ fetch: other.fetch },
+				),
+			},
+		);
+		expect((await brainOf(client, "a").chat(messages)).content).toBe(
+			"shared",
+		);
+		expect((await brainOf(client, "b").chat(messages)).content).toBe(
+			"other",
+		);
+		expect(brainOf(client, "b").model).toBe("other-model");
+		expect([shared.seen.calls(), other.seen.calls()]).toEqual([1, 1]);
 	});
 });

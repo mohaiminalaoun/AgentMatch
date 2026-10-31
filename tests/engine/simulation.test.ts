@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { contactOf } from "../../src/engine/agent.js";
-import { createLlmClient } from "../../src/engine/client.js";
+import { createLlmClient, withBrains } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
 import type { RunEvent } from "../../src/engine/events.js";
 import type { Profile } from "../../src/engine/profile.js";
@@ -56,7 +56,7 @@ const decisions: Record<string, object> = {
 
 // A fake model that recognizes each kind of prompt and answers from the scripts above. Offers are always
 // taken (the first owner offering is committed to), and everyone is confident in their group at the deadline.
-function fakeClient(script: typeof picks = picks) {
+function fakeClient(script: typeof picks = picks, model = config.model) {
 	// `script[n]` is what each agent picks the n-th time it's asked (its round, unless it was skipped).
 	const discoveryCalls: Record<string, number> = {};
 	const fetch = (async (_url: unknown, init?: RequestInit) => {
@@ -139,7 +139,10 @@ function fakeClient(script: typeof picks = picks) {
 			}),
 		);
 	}) as typeof globalThis.fetch;
-	return createLlmClient(config, { fetch, retry: { sleep: async () => {} } });
+	return createLlmClient(
+		{ ...config, model },
+		{ fetch, retry: { sleep: async () => {} } },
+	);
 }
 
 // Runs the scripted two-round simulation, recording every event and progress line.
@@ -157,6 +160,37 @@ async function simulate(maxRounds = 2, script = picks, brainstorm = false) {
 }
 
 describe("runSimulation", () => {
+	test("an agent with its own brain makes all of its model calls there, and nobody else's, with the same outcome", async () => {
+		const events: RunEvent[] = [];
+		const world = await runSimulation(
+			withBrains(fakeClient(), { a: fakeClient(picks, "other-model") }),
+			profiles,
+			{ maxRounds: 2, brainstorm: false, onEvent: (e) => events.push(e) },
+		);
+		// Each prompt names the agent it's for in its first user message.
+		const calls = events.flatMap((e) =>
+			e.type === "exchange"
+				? [
+						{
+							who: /"id": "(\w+)"/.exec(
+								e.messages[1]!.content,
+							)![1],
+							model: e.model,
+						},
+					]
+				: [],
+		);
+		const own = calls.filter((c) => c.who === "a");
+		expect(own.length).toBeGreaterThan(0);
+		expect(own.every((c) => c.model === "other-model")).toBe(true);
+		expect(
+			calls
+				.filter((c) => c.who !== "a")
+				.every((c) => c.model === "test-model"),
+		).toBe(true);
+		expect(world.teams).toEqual((await simulate()).world.teams);
+	});
+
 	test("runs listings, then discovery and negotiation for each round", async () => {
 		const { phases } = await simulate();
 		expect(phases).toEqual([

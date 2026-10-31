@@ -12,7 +12,7 @@ import {
 	type AgentMessage,
 	type AgentState,
 } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import type { ProfileField } from "./disclosure.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts, groupFactsText } from "./fit.js";
@@ -1067,7 +1067,7 @@ export async function runCommitment(
 			};
 		}
 		try {
-			const { data } = await client.chatJson(
+			const { data } = await brainOf(client, owner).chatJson(
 				offerMessages(
 					agents[owner]!,
 					candidates,
@@ -1175,7 +1175,7 @@ export async function runCommitment(
 			}),
 		);
 		try {
-			const { data } = await client.chatJson(
+			const { data } = await brainOf(client, owner).chatJson(
 				teamVersionMessages(agents[owner]!, ids, agreed),
 				AgentTeamVersion,
 				{
@@ -1234,7 +1234,7 @@ export async function runCommitment(
 	) {
 		const owners = held.map((offer) => offer.from);
 		try {
-			const { data } = await client.chatJson(
+			const { data } = await brainOf(client, agent).chatJson(
 				commitmentMessages(agents[agent]!, held, offeringTo, {
 					sizes: Object.fromEntries(
 						owners.map((owner) => [

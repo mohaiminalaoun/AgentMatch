@@ -9,7 +9,7 @@ import {
 	revisionsWith,
 	type AgentState,
 } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import { describeViolation, disclosureRules } from "./decision.js";
 import type { DisclosureLevel } from "./disclosure.js";
 import { factsText, fitFacts } from "./fit.js";
@@ -277,7 +277,7 @@ export async function checkInterest(
 		};
 	}
 	try {
-		const { data, usage } = await client.chatJson(
+		const { data, usage } = await brainOf(client, agent.id).chatJson(
 			interestMessages(agent, otherId, level, hunch),
 			AgentInterest,
 			{
@@ -415,7 +415,7 @@ export async function considerRevision(
 	options: ChatJsonOptions<AgentAdopt> = {},
 ): Promise<AdoptResult> {
 	try {
-		const { data } = await client.chatJson(
+		const { data } = await brainOf(client, agent.id).chatJson(
 			revisionMessages(agent, revision),
 			AgentAdopt,
 			options,

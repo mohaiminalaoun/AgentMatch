@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { contactOf, type AgentState } from "./agent.js";
-import type { LlmClient } from "./client.js";
+import { brainOf, type LlmClient } from "./client.js";
 import {
 	StructuredOutputError,
 	type ChatJsonOptions,
@@ -102,7 +102,7 @@ export async function getHunch(
 		return undefined;
 	}
 	try {
-		const { data } = await client.chatJson(
+		const { data } = await brainOf(client, agent.id).chatJson(
 			hunchMessages(agent, otherId, situation),
 			AgentHunch,
 			options,

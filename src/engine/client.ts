@@ -38,7 +38,25 @@ export type LlmClient = {
 	readonly stats: ClientStats;
 	// The model every call uses, for labelling logs.
 	readonly model: string;
+	// Agents that think with a different client than this one, by id (see `withBrains`).
+	readonly brains?: Readonly<Record<string, LlmClient>>;
 };
+
+// The client that answers for agent `id`: its own brain if it has one, otherwise the shared client.
+// Every model call an agent makes goes through this, so each brain only ever answers for its own agent.
+export function brainOf(client: LlmClient, id: string): LlmClient {
+	return client.brains?.[id] ?? client;
+}
+
+// The shared client, with some agents answered by other clients instead, e.g. another model,
+// or later an outside agent. The engine stays the referee either way: whoever answers, replies are
+// validated and gate-checked exactly as before.
+export function withBrains(
+	client: LlmClient,
+	brains: Readonly<Record<string, LlmClient>>,
+): LlmClient {
+	return { ...client, brains: { ...client.brains, ...brains } };
+}
 
 export type ClientOptions = {
 	retry?: RetryOptions;

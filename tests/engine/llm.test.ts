@@ -252,7 +252,7 @@ describe("chatJson", () => {
 });
 
 describe("onExchange", () => {
-	test("chat reports the messages sent and the raw reply", async () => {
+	test("chat reports the messages sent, the raw reply, and the model that answered", async () => {
 		const { fn } = fakeFetch(goodReply);
 		const seen: Exchange[] = [];
 		await chat(config, messages, {
@@ -264,6 +264,7 @@ describe("onExchange", () => {
 				messages,
 				reply: "Hello!",
 				usage: { input: 10, output: 2, total: 12 },
+				model: "test-model",
 			},
 		]);
 	});
@@ -311,7 +312,6 @@ describe("formatExchange", () => {
 				{ role: "user", content: "Hi" },
 			],
 			reply: "Hello!",
-			usage: undefined,
 		});
 		expect(text).toBe(
 			"── system ──\nBe brief.\n\n── user ──\nHi\n\n── assistant ──\nHello!",
