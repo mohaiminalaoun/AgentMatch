@@ -16,6 +16,7 @@ import { AgentCommitment, commitmentMessages } from "../engine/commitment.js";
 import { decideOnProposal, decisionPrompt } from "../engine/decision.js";
 import { checkInterest, interestMessages } from "../engine/interest.js";
 import type { Message } from "../engine/llm.js";
+import { AgentConfidence, lockMessages } from "../engine/lock.js";
 import type { Profile } from "../engine/profile.js";
 import { JOIN_PREFIX, type Offer, type Proposal } from "../engine/proposal.js";
 
@@ -84,6 +85,36 @@ function talking(
 	let state = messages.reduce((s, m) => recordMessage(s, other, m), agent);
 	state = raiseLevel(state, other, level);
 	return learn(state, other, learned);
+}
+
+// `agent`'s answer at the deadline about a tentative group of `members` building `title`/`pitch`, which still
+// needs `needed`.
+async function atDeadline(
+	client: LlmClient,
+	agent: AgentState,
+	members: string[],
+	title: string,
+	pitch: string,
+	needed: string[],
+): Promise<CaseRun> {
+	const prompt = lockMessages(
+		agent,
+		{
+			id: `team-${members[0]}`,
+			members,
+			project: { title, description: pitch },
+			rolesNeeded: needed,
+			status: "tentative",
+		},
+		needed,
+		1,
+	);
+	const { data } = await client.chatJson(prompt, AgentConfidence);
+	return {
+		prompt,
+		decision: data.confident ? "stays (confident)" : "drops out",
+		rationale: data.rationale,
+	};
 }
 
 // A decision on `proposal`: the prompt the engine sends, and what came back.
@@ -459,6 +490,109 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 		},
 		question:
 			"Does the rationale dismiss or discount the 9-hour time-zone gap as not mattering, for example because the working-hours overlap is only an assumption or because actual meeting times are unknown, instead of counting it as a real cost?",
+	},
+	{
+		name: "incomplete group",
+		failure:
+			"At the deadline, an agent drops out of a decent group only because it isn't complete: a role is still needed, or the team is smaller than ideal.",
+		expected:
+			"It weighs the gap as a cost and stays when the group is otherwise a good fit.",
+		run: (client) => {
+			const lea = createAgent(
+				person("p-lea", "Lea", {
+					skills: [
+						{ name: "frontend", level: "expert" },
+						{ name: "design", level: "intermediate" },
+					],
+					interests: ["health", "education"],
+					preferences: {
+						minTeamSize: 3,
+						maxTeamSize: 4,
+						preferredRoles: ["frontend"],
+					},
+				}),
+			);
+			const proposal: Proposal = {
+				id: "r1-p-sam-p-lea",
+				from: "p-sam",
+				to: "p-lea",
+				title: "Rehab Coach",
+				pitch: "A web app that guides patients through physical therapy exercises at home.",
+				rolesNeeded: ["frontend", "backend", "design"],
+			};
+			const agent = talking(lea, "p-sam", proposal, 2, {
+				interests: ["health", "fitness"],
+				availability: { hoursPerWeek: 12, utcOffset: -4 },
+				skills: [{ name: "product", level: "expert" }],
+				preferences: {
+					minTeamSize: 3,
+					maxTeamSize: 4,
+					preferredRoles: ["product"],
+				},
+			});
+			return atDeadline(
+				client,
+				agent,
+				["p-sam", "p-lea", "p-kai"],
+				"Rehab Coach",
+				proposal.pitch,
+				["backend"],
+			);
+		},
+		question:
+			"Does the agent drop out (not confident) giving as its main reason that the group is incomplete, such as a role still needed or the team being small, rather than a problem with the project, logistics, or use of its human's skills?",
+	},
+	{
+		name: "bad group",
+		failure:
+			"At the deadline, an agent confirms a group that is clearly wrong for its human, its skills unused and a 10-hour time-zone gap, as if being in a group were enough.",
+		expected:
+			"It drops out, or at least weighs the unused skills and the gap; it may still stay if it gives a real reason.",
+		run: (client) => {
+			const lea = createAgent(
+				person("p-lea", "Lea", {
+					skills: [
+						{ name: "design", level: "expert" },
+						{ name: "data", level: "beginner" },
+					],
+					interests: ["education", "art"],
+					availability: { hoursPerWeek: 8, utcOffset: -5 },
+					preferences: {
+						minTeamSize: 2,
+						maxTeamSize: 4,
+						preferredRoles: ["design"],
+					},
+				}),
+			);
+			const proposal: Proposal = {
+				id: "r1-p-sam-p-lea",
+				from: "p-sam",
+				to: "p-lea",
+				title: "Log Pipe",
+				pitch: "A command-line service that collects server logs and ships them to cloud storage.",
+				rolesNeeded: ["backend", "devops"],
+			};
+			const agent = talking(lea, "p-sam", proposal, 2, {
+				interests: ["developer tools", "infrastructure"],
+				availability: { hoursPerWeek: 20, utcOffset: 5 },
+				skills: [{ name: "backend", level: "expert" }],
+				preferences: {
+					minTeamSize: 2,
+					maxTeamSize: 3,
+					preferredRoles: ["backend"],
+				},
+			});
+			return atDeadline(
+				client,
+				agent,
+				["p-sam", "p-lea"],
+				"Log Pipe",
+				proposal.pitch,
+				["devops"],
+			);
+		},
+		question:
+			"Does the agent stay (confident) without weighing that its human's design and data skills go unused and that the time zones are 10 hours apart, for example staying just because it's already in the group?",
 	},
 	{
 		name: "relabeled roles",
