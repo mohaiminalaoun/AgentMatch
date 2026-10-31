@@ -500,7 +500,8 @@ export function projectOwner(
 }
 
 // Everyone `owner` could offer a place now: both continued through level 2 in a conversation about
-// `owner`'s project, on no team yet, hasn't declined an offer from `owner` or left its team before, fills a
+// `owner`'s project (or any conversation, once `owner` leads a group, whose version is then what's on offer), on
+// no team yet, hasn't declined an offer from `owner` or left its team before, fills a
 // role still needed by the version they'd join (or wrote that version themselves), and wants a team at least
 // as big as this one would become.
 export function candidatesOf(world: World, owner: string): string[] {
@@ -551,14 +552,17 @@ function exclusion(
 	if (!continued(agent, id, owner, READY_LEVEL)) {
 		return "they haven't continued at level 2";
 	}
+	if (teamOf(world, id)) {
+		return "already on a team";
+	}
+	// Whoever wrote the version two people agreed on owns that project. Once the owner leads a group, though,
+	// what's on offer is the group's version, so someone with no group can be offered a place in it whoever
+	// wrote the version between the two of them.
 	const projectBy = projectOwner(world, owner, id);
-	if (projectBy !== owner) {
+	if (projectBy !== owner && !teamOf(world, owner)) {
 		return projectBy === id
 			? "the version agreed with them is theirs, so they would own the team"
 			: "nobody owns the version agreed with them yet";
-	}
-	if (teamOf(world, id)) {
-		return "already on a team";
 	}
 	const needed = stillNeeded(world, owner, versionFor(world, owner, id));
 	if (

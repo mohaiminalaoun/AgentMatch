@@ -1182,6 +1182,39 @@ describe("the agreed project", () => {
 		expect(offers).not.toHaveProperty("teamVersion");
 	});
 
+	test("once the owner leads a group, someone who wrote the version agreed between the two of them can still be offered a place in the group's", () => {
+		// As in the 2026-10-31 pilot: j wrote the version j and a agreed on, so before a has a group, j would own
+		// that project and a can't offer j a place.
+		const world = createWorld([
+			human("a"),
+			human("j", true, 4, "devops"),
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		counterAccepted(world, "j", "a", "j's take on it.", ["frontend"]);
+		expect(explainCandidates(world, "a")).toMatchObject({
+			candidates: [],
+			excluded: [
+				{
+					id: "j",
+					reason: "the version agreed with them is theirs, so they would own the team",
+				},
+			],
+		});
+		// Now a leads a group with k, whose version still needs devops: j can be offered a place in it.
+		world.teams = [
+			{
+				id: "team-a",
+				members: ["a", "k"],
+				project: { title: "a's project", description: "A project." },
+				rolesNeeded: ["frontend", "devops"],
+				status: "tentative",
+			},
+		];
+		expect(candidatesOf(world, "a")).toEqual(["j"]);
+		expect(selectOffers(world, "a", ["j"])).toEqual(["j"]);
+	});
+
 	test("the project belongs to whoever wrote the agreed version, so an adopted revision can move it", () => {
 		// a pitches; j counters with its own version (j's project now); then a revises, and j adopts it.
 		const world = createWorld([human("a"), human("j", true, 4, "ml")]);
