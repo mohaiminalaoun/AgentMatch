@@ -134,6 +134,10 @@ export const RunEvent = z.discriminatedUnion("type", [
 		dropped: z
 			.array(z.object({ id: z.string(), reason: z.string() }))
 			.optional(),
+		// Everyone the owner reached level 2 with who wasn't ready to be offered a place, and why.
+		excluded: z
+			.array(z.object({ id: z.string(), reason: z.string() }))
+			.optional(),
 	}),
 	// An agent holding offers committed to one owner's team, or to none (`chose` null). `busy` when it had
 	// offers of its own out and answered busy without a model call.

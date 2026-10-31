@@ -11,6 +11,7 @@ import {
 import { createLlmClient } from "../../src/engine/client.js";
 import {
 	candidatesOf,
+	explainCandidates,
 	isOpen,
 	placesLeft,
 	projectOwner,
@@ -553,6 +554,59 @@ describe("team size and skills", () => {
 			listing: { pitch: "a's project", rolesNeeded: ["frontend"] },
 		};
 		expect(candidatesOf(world, "a")).toEqual(["j"]);
+		expect(explainCandidates(world, "a").excluded).toEqual([
+			{
+				id: "x",
+				reason: "fills none of the roles still needed (frontend)",
+			},
+		]);
+	});
+
+	test("someone whose agreed version is their own isn't the owner's candidate, and the reason says so", () => {
+		const world = createWorld([human("a"), human("j")]);
+		ready(world, "a", "j");
+		// a proposed its own project to j, so a owns it: j can't offer a a place on it.
+		expect(explainCandidates(world, "j")).toEqual({
+			candidates: [],
+			excluded: [
+				{
+					id: "a",
+					reason: "the version agreed with them is theirs, so they would own the team",
+				},
+			],
+		});
+	});
+
+	test("the offers event lists everyone reached at level 2 who wasn't considered, and why", async () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("x", false, 4, "ml"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "x");
+		world.agents.a = {
+			...world.agents.a!,
+			listing: { pitch: "a's project", rolesNeeded: ["frontend"] },
+		};
+		const { events } = await commit(
+			world,
+			fakeClient({}, { j: "a" }).client,
+		);
+		const offers = events.find((e) => e.type === "offers");
+		expect(offers).toMatchObject({
+			agent: "a",
+			to: ["j"],
+			excluded: [
+				{
+					id: "x",
+					reason: "fills none of the roles still needed (frontend)",
+				},
+			],
+		});
+		expect(formatEvent(offers!, { rationale: false })).toContain(
+			"not considered x: fills none of the roles still needed (frontend)",
+		);
 	});
 
 	test("two people who fill only the same role don't both get offers", () => {

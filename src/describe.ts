@@ -77,7 +77,7 @@ export function formatEvent(
 		case "level":
 			return `     level: ${event.agent} with ${event.other}  ${event.from} → ${event.to}`;
 		case "offers":
-			return `  ${event.agent} offers a place to: ${event.to.join(", ") || "nobody"} (${event.places} left)${event.fellBack ? " (fell back)" : ""}${event.ranked && event.dropped ? ` · its model chose ${event.ranked.join(", ")}` : ""}${(event.dropped ?? []).map((d) => ` · dropped ${d.id}: ${d.reason}`).join("")}${event.rationale === undefined ? "" : reasoning(event.rationale)}`;
+			return `  ${event.agent} offers a place to: ${event.to.join(", ") || "nobody"} (${event.places} left)${event.fellBack ? " (fell back)" : ""}${event.ranked && event.dropped ? ` · its model chose ${event.ranked.join(", ")}` : ""}${(event.dropped ?? []).map((d) => ` · dropped ${d.id}: ${d.reason}`).join("")}${(event.excluded ?? []).map((d) => ` · not considered ${d.id}: ${d.reason}`).join("")}${event.rationale === undefined ? "" : reasoning(event.rationale)}`;
 		case "commitment":
 			return `  ${event.agent} holds offers from ${event.offers.join(", ")} → ${event.chose ? `commits to ${event.chose}'s team` : event.busy ? "busy with its own offers" : "declines them all"}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "recheck":

@@ -391,32 +391,86 @@ export function projectOwner(
 // role still needed by the version they'd join (or wrote that version themselves), and wants a team at least
 // as big as this one would become.
 export function candidatesOf(world: World, owner: string): string[] {
+	return explainCandidates(world, owner).candidates;
+}
+
+// Everyone `owner` reached level 2 with, split into the people it could offer a place and the rest, each with
+// the first check that ruled them out, so a log shows why a conversation that got far never became an offer.
+export function explainCandidates(
+	world: World,
+	owner: string,
+): { candidates: string[]; excluded: DroppedOffer[] } {
 	const agent = world.agents[owner]!;
 	const size = membersOf(world, owner).length;
-	return Object.keys(agent.contacts)
-		.sort()
-		.filter(
-			(id) =>
-				continued(agent, owner, id, READY_LEVEL) &&
-				continued(agent, id, owner, READY_LEVEL) &&
-				projectOwner(world, owner, id) === owner &&
-				!teamOf(world, id) &&
-				(fills(
-					world,
-					owner,
-					id,
-					stillNeeded(world, owner, versionFor(world, owner, id)),
-				).length > 0 ||
-					wroteTheirVersion(world, owner, id)) &&
-				maxSizeFor(world, owner, id) >= size + 1 &&
-				!contactOf(agent, id).history.some(
-					(m) =>
-						"kind" in m &&
-						m.from === id &&
-						((m.kind === "answer" && m.answer === "decline") ||
-							m.kind === "leave"),
-				),
-		);
+	const candidates: string[] = [];
+	const excluded: DroppedOffer[] = [];
+	for (const id of Object.keys(agent.contacts).sort()) {
+		const contact = contactOf(agent, id);
+		const reached =
+			contact.level >= READY_LEVEL ||
+			continued(agent, owner, id, READY_LEVEL) ||
+			continued(agent, id, owner, READY_LEVEL);
+		if (!reached) {
+			continue;
+		}
+		const reason = exclusion(world, owner, id, size, contact.history);
+		if (reason) {
+			excluded.push({ id, reason });
+		} else {
+			candidates.push(id);
+		}
+	}
+	return { candidates, excluded };
+}
+
+// Why `owner` can't offer `id` a place, or undefined if it can.
+function exclusion(
+	world: World,
+	owner: string,
+	id: string,
+	size: number,
+	history: readonly AgentMessage[],
+): string | undefined {
+	const agent = world.agents[owner]!;
+	if (!continued(agent, owner, id, READY_LEVEL)) {
+		return "the owner hasn't continued at level 2";
+	}
+	if (!continued(agent, id, owner, READY_LEVEL)) {
+		return "they haven't continued at level 2";
+	}
+	const projectBy = projectOwner(world, owner, id);
+	if (projectBy !== owner) {
+		return projectBy === id
+			? "the version agreed with them is theirs, so they would own the team"
+			: "nobody owns the version agreed with them yet";
+	}
+	if (teamOf(world, id)) {
+		return "already on a team";
+	}
+	const needed = stillNeeded(world, owner, versionFor(world, owner, id));
+	if (
+		fills(world, owner, id, needed).length === 0 &&
+		!wroteTheirVersion(world, owner, id)
+	) {
+		return `fills none of the roles still needed (${needed.join(", ") || "none left"})`;
+	}
+	const theirMax = maxSizeFor(world, owner, id);
+	if (theirMax < size + 1) {
+		return `they want a team of at most ${theirMax}, and it would be ${size + 1}`;
+	}
+	const ended = history.find(
+		(m) =>
+			"kind" in m &&
+			m.from === id &&
+			((m.kind === "answer" && m.answer === "decline") ||
+				m.kind === "leave"),
+	);
+	if (ended) {
+		return "kind" in ended && ended.kind === "leave"
+			? "they left the team before"
+			: "they declined an offer before";
+	}
+	return undefined;
 }
 
 const INTRO =
@@ -875,8 +929,9 @@ export async function runCommitment(
 	// ranking, trimmed by selectOffers. If no valid ranking comes back, id order is used instead. Anyone the
 	// model ranked (or, on a fallback, anyone ready) whom the trimming drops is reported with the reason.
 	async function chooseMembers(owner: string) {
-		const candidates = candidatesOf(current(), owner);
+		const { candidates, excluded } = explainCandidates(current(), owner);
 		const places = placesLeft(current(), owner);
+		const notConsidered = excluded.length > 0 ? { excluded } : {};
 		// If everyone ready can be taken together, no choice is needed.
 		const all = selectOffers(current(), owner, candidates);
 		if (all.length === candidates.length) {
@@ -886,6 +941,7 @@ export async function runCommitment(
 				places,
 				rationale: undefined,
 				fellBack: false,
+				...notConsidered,
 			};
 		}
 		try {
@@ -938,6 +994,7 @@ export async function runCommitment(
 				fellBack: false,
 				ranked,
 				...(dropped.length > 0 && { dropped }),
+				...notConsidered,
 			};
 		} catch (error) {
 			if (!(error instanceof StructuredOutputError)) {
@@ -951,6 +1008,7 @@ export async function runCommitment(
 				rationale: undefined,
 				fellBack: true,
 				...(dropped.length > 0 && { dropped }),
+				...notConsidered,
 			};
 		}
 	}
