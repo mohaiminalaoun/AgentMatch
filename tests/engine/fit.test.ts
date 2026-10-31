@@ -3,6 +3,7 @@ import { createAgent, learn, raiseLevel } from "../../src/engine/agent.js";
 import {
 	factsText,
 	fitFacts,
+	groupFactsText,
 	timeZoneGap,
 	workdayOverlapHours,
 } from "../../src/engine/fit.js";
@@ -145,5 +146,46 @@ describe("fitFacts", () => {
 		const text = factsText(fitFacts(atLevel(1), "p-leo"));
 		expect(text).not.toContain("devops");
 		expect(text).not.toContain("Leo");
+	});
+});
+
+describe("groupFactsText", () => {
+	// Riya (UTC-5) is choosing between Leo (UTC+2) and Kim (UTC-4), who have never talked to each other.
+	const choosing = () => {
+		let agent = createAgent(riya);
+		for (const [id, utcOffset] of [
+			["p-leo", 2],
+			["p-kim", -4],
+		] as const) {
+			agent = learn(raiseLevel(agent, id, 1), id, {
+				interests: [],
+				availability: { hoursPerWeek: 10, utcOffset },
+			});
+		}
+		return agent;
+	};
+
+	test("lists everyone's time zone, every pair's gap widest first, and their evenings on your human's clock", () => {
+		const text = groupFactsText(choosing(), ["p-leo", "p-kim"])!;
+		expect(text).toContain(
+			"Time zones: your human UTC-5, p-leo UTC+2, p-kim UTC-4.",
+		);
+		expect(text).toContain(
+			"Gaps between each two of them, widest first: your human and p-leo 7 hours; p-leo and p-kim 6 hours; your human and p-kim 1 hour.",
+		);
+		expect(text).toContain(
+			"When it's 19:00 for your human: p-leo 02:00, p-kim 20:00.",
+		);
+		expect(text).toContain(
+			"all of them at once would overlap about 1 hour a day",
+		);
+	});
+
+	test("says whose time zone isn't shared yet, and says nothing for fewer than two others", () => {
+		const agent = raiseLevel(choosing(), "p-new", 0);
+		expect(groupFactsText(agent, ["p-leo", "p-new"])).toContain(
+			"p-new not shared",
+		);
+		expect(groupFactsText(agent, ["p-leo"])).toBeUndefined();
 	});
 });

@@ -35,6 +35,7 @@ function fakeClient(answers: ("yes" | "no" | "invalid")[] = ["no"]) {
 						interest: "continue",
 						commit: null,
 						confident: true,
+						offer: [],
 						rationale: `Because ${++agentCalls}.`,
 					})
 				: answer === "invalid"

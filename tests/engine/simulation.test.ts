@@ -95,6 +95,12 @@ function fakeClient(script: typeof picks = picks) {
 				rationale: "Worth a try.",
 				decision: { decision: "accept" },
 			};
+		} else if (last.startsWith("Ready to join:")) {
+			// Owners offer everyone ready, in order.
+			const ready: { id: string }[] = JSON.parse(
+				last.slice("Ready to join:".length),
+			);
+			reply = { rationale: "All fit.", offer: ready.map((r) => r.id) };
 		} else if (last.startsWith("Your group:")) {
 			reply = { rationale: "Confident.", confident: true };
 		} else if (last.startsWith("Offers:")) {

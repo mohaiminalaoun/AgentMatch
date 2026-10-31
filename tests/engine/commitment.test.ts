@@ -258,7 +258,20 @@ describe("runCommitment", () => {
 		expect(prompts.j).not.toContain("Committing is final");
 	});
 
-	test("an owner with places for everyone ready offers to all without a model call", async () => {
+	test("an owner ready with one person who fits offers without a model call", async () => {
+		const world = createWorld([human("a"), human("j", false)]);
+		ready(world, "a", "j");
+		const { client, calls } = fakeClient({}, { j: "a" });
+		const { events } = await commit(world, client);
+		expect(calls).not.toContain("a");
+		expect(events.find((e) => e.type === "offers")).toMatchObject({
+			agent: "a",
+			to: ["j"],
+			fellBack: false,
+		});
+	});
+
+	test("when everyone ready fits but would put two people together, the owner's model chooses, seeing how they fit each other", async () => {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
@@ -266,14 +279,19 @@ describe("runCommitment", () => {
 		]);
 		ready(world, "a", "j");
 		ready(world, "a", "k");
-		const { client, calls } = fakeClient({}, { j: "a", k: "a" });
+		const { client, calls, prompts } = fakeClient(
+			{ a: ["j", "k"] },
+			{ j: "a", k: "a" },
+		);
 		const { events } = await commit(world, client);
-		expect(calls).not.toContain("a");
+		expect(calls).toContain("a");
+		expect(prompts.a).toContain(
+			"Facts about these people together (computed by code from what each shared with you)",
+		);
 		expect(events.find((e) => e.type === "offers")).toMatchObject({
 			agent: "a",
 			to: ["j", "k"],
 			places: 3,
-			fellBack: false,
 		});
 	});
 
@@ -411,7 +429,7 @@ describe("runCommitment", () => {
 		ready(world, "a", "j");
 		ready(world, "a", "k");
 		ready(world, "x", "j"); // x is turned down by j, so learns nothing
-		const { client } = fakeClient({}, { j: "a", k: "a" });
+		const { client } = fakeClient({ a: ["j", "k"] }, { j: "a", k: "a" });
 		const { world: after } = await commit(world, client);
 		expect(after.teams.map((t) => t.members)).toEqual([["a", "j", "k"]]);
 		for (const agent of Object.values(after.agents)) {
@@ -1249,7 +1267,7 @@ describe("growing a group", () => {
 			},
 		];
 		ready(world, "a", "k");
-		const { client, calls } = fakeClient({}, { k: "a" });
+		const { client, calls } = fakeClient({ a: ["k"] }, { k: "a" });
 		const result = await commit(world, client);
 		expect(result.world.teams[0]!.members).toEqual(["a", "j", "k"]);
 		expect(calls).not.toContain("j");

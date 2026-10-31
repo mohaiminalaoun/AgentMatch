@@ -15,7 +15,7 @@ import {
 import type { LlmClient } from "./client.js";
 import type { ProfileField } from "./disclosure.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
-import { factsText, fitFacts } from "./fit.js";
+import { factsText, fitFacts, groupFactsText } from "./fit.js";
 import { checkDisclosure, checkThirdParty, draftOf } from "./gate.js";
 import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import {
@@ -604,7 +604,10 @@ export function offerMessages(
 	versions: { team: Terms } | { agreed: Record<string, Terms> } = {
 		agreed: {},
 	},
+	// Everyone already in the group besides the owner.
+	members: readonly string[] = [],
 ): Message[] {
+	const together = groupFactsText(owner, [...members, ...candidates]);
 	const agreed = "agreed" in versions ? versions.agreed : {};
 	const plural = places === 1 ? "" : "s";
 	return [
@@ -615,6 +618,12 @@ export function offerMessages(
 				aboutHuman(owner, 2),
 				GOOD_TEAM,
 				factsAbout(owner, candidates),
+				...(together
+					? [
+							together,
+							"The people you choose, and anyone already in the group, may never have talked to each other: you're the only one who can see how they fit together. Weigh how they fit each other, not just your human, especially time zones.",
+						]
+					: []),
 				[
 					"team" in versions
 						? `Your human's team is building this version of the project: ${JSON.stringify(versions.team)}. It has ${places} place${plural} left.`
@@ -1036,9 +1045,14 @@ export async function runCommitment(
 		const { candidates, excluded } = explainCandidates(current(), owner);
 		const places = placesLeft(current(), owner);
 		const notConsidered = excluded.length > 0 ? { excluded } : {};
-		// If everyone ready can be taken together, no choice is needed.
+		// If everyone ready can be taken together, no choice is needed, unless that would put two or more people
+		// in one group who may never have talked: then the owner's model judges how they fit each other.
 		const all = selectOffers(current(), owner, candidates);
-		if (all.length === candidates.length) {
+		const members = membersOf(current(), owner).slice(1);
+		if (
+			all.length === candidates.length &&
+			members.length + all.length < 2
+		) {
 			return {
 				agent: owner,
 				to: all,
@@ -1074,6 +1088,7 @@ export async function runCommitment(
 									}),
 								),
 							},
+					members,
 				),
 				AgentOffers,
 				{

@@ -205,3 +205,52 @@ export function factsText(f: FitFacts): string {
 		...unknowns.map((line) => `- ${line}`),
 	].join("\n");
 }
+
+// What code can say about how a whole group would fit together on the clock, for an agent putting one together:
+// its own time zone and those `ids` shared with it (anyone who hasn't shared one is listed as unknown), every
+// pair's gap, everyone's evening on its human's clock, and the 9-to-5 overlap for all of them, labelled as an
+// estimate. Undefined with fewer than two others. The people in `ids` may never have talked to each other, so
+// the agent is the only one who can see this; it goes into its prompt only.
+export function groupFactsText(
+	agent: AgentState,
+	ids: readonly string[],
+): string | undefined {
+	if (ids.length < 2) {
+		return undefined;
+	}
+	const offsets = new Map<string, number>([
+		["your human", agent.profile.availability.utcOffset],
+	]);
+	const unknown: string[] = [];
+	for (const id of ids) {
+		const offset = contactOf(agent, id).learned.availability?.utcOffset;
+		if (offset === undefined) {
+			unknown.push(id);
+		} else {
+			offsets.set(id, offset);
+		}
+	}
+	const known = [...offsets];
+	const gaps = known.flatMap(([a, x], i) =>
+		known.slice(i + 1).map(([b, y]) => ({
+			pair: `${a} and ${b}`,
+			hours: timeZoneGap(x, y),
+		})),
+	);
+	gaps.sort((p, q) => q.hours - p.hours);
+	const own = agent.profile.availability.utcOffset;
+	const lines = [
+		`Time zones: ${known.map(([id, o]) => `${id} ${utc(o)}`).join(", ")}${unknown.length > 0 ? `; ${unknown.join(", ")} not shared` : ""}.`,
+		`Gaps between each two of them, widest first: ${gaps.map((g) => `${g.pair} ${hours(g.hours)}`).join("; ")}.`,
+		`When it's ${clock(EVENING)} for your human: ${known
+			.slice(1)
+			.map(([id, o]) => `${id} ${clock(EVENING + o - own)}`)
+			.join(", ")}.`,
+	];
+	return [
+		"Facts about these people together (computed by code from what each shared with you):",
+		...lines.map((line) => `- ${line}`),
+		"Estimate (resting on an assumption):",
+		`- If everyone worked ${WORKDAY_START}:00 to ${WORKDAY_END}:00 in their own time zone, all of them at once would overlap about ${hours(workdayOverlapHours(known.map(([, o]) => o)))} a day. Nobody has said when they work.`,
+	].join("\n");
+}

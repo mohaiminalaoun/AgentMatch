@@ -12,13 +12,23 @@ import {
 	type AgentState,
 } from "../engine/agent.js";
 import type { LlmClient } from "../engine/client.js";
-import { AgentCommitment, commitmentMessages } from "../engine/commitment.js";
+import {
+	AgentCommitment,
+	AgentOffers,
+	commitmentMessages,
+	offerMessages,
+} from "../engine/commitment.js";
 import { decideOnProposal, decisionPrompt } from "../engine/decision.js";
 import { checkInterest, interestMessages } from "../engine/interest.js";
 import type { Message } from "../engine/llm.js";
 import { AgentConfidence, lockMessages } from "../engine/lock.js";
 import type { Profile } from "../engine/profile.js";
-import { JOIN_PREFIX, type Offer, type Proposal } from "../engine/proposal.js";
+import {
+	JOIN_PREFIX,
+	termsOf,
+	type Offer,
+	type Proposal,
+} from "../engine/proposal.js";
 
 // What one run of a case produced: the agent's prompt, its decision in a few words, and its rationale.
 export type CaseRun = {
@@ -593,6 +603,86 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 		},
 		question:
 			"Does the agent stay (confident) without weighing that its human's design and data skills go unused and that the time zones are 10 hours apart, for example staying just because it's already in the group?",
+	},
+	{
+		name: "group time zones",
+		failure:
+			"An owner puts two people in one group who are each a few hours from it but far from each other, judging each only against its own human (2-seed run, 2026-10-31: trios averaged 0.125 overlap).",
+		expected:
+			"It weighs how the people it chooses fit each other, including the gap between them; it may still offer both if it says why.",
+		run: async (client) => {
+			const mia = createAgent(
+				person("p-mia", "Mia", {
+					skills: [{ name: "product", level: "expert" }],
+					interests: ["education"],
+					availability: { hoursPerWeek: 15, utcOffset: 0 },
+					projectIdeas: [
+						{
+							title: "Study Buddy",
+							description:
+								"A study planner that pairs students for accountability sessions.",
+						},
+					],
+					preferences: {
+						minTeamSize: 3,
+						maxTeamSize: 4,
+						preferredRoles: ["product"],
+					},
+				}),
+			);
+			const proposal = (to: string): Proposal => ({
+				id: `r1-p-mia-${to}`,
+				from: "p-mia",
+				to,
+				title: "Study Buddy",
+				pitch: "A study planner that pairs students for accountability sessions.",
+				rolesNeeded: ["frontend", "backend"],
+			});
+			const shared = (skill: string, utcOffset: number) => ({
+				interests: ["education"],
+				availability: { hoursPerWeek: 12, utcOffset },
+				skills: [{ name: skill, level: "expert" as const }],
+				preferences: {
+					minTeamSize: 3,
+					maxTeamSize: 4,
+					preferredRoles: [skill],
+				},
+			});
+			const agent = talking(
+				talking(
+					mia,
+					"p-ana",
+					proposal("p-ana"),
+					2,
+					shared("frontend", -5),
+				),
+				"p-ben",
+				proposal("p-ben"),
+				2,
+				shared("backend", 5),
+			);
+			const prompt = offerMessages(
+				agent,
+				["p-ana", "p-ben"],
+				3,
+				{},
+				["frontend", "backend"],
+				{
+					agreed: {
+						"p-ana": termsOf(proposal("p-ana")),
+						"p-ben": termsOf(proposal("p-ben")),
+					},
+				},
+			);
+			const { data } = await client.chatJson(prompt, AgentOffers);
+			return {
+				prompt,
+				decision: `offers ${data.offer.join(", ") || "nobody"}`,
+				rationale: data.rationale,
+			};
+		},
+		question:
+			"Does the owner offer places to both p-ana and p-ben without its rationale weighing that p-ana and p-ben are 10 hours apart from each other (it may mention each one's gap to the owner, but not the gap between them)?",
 	},
 	{
 		name: "relabeled roles",
