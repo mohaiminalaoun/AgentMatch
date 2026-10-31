@@ -55,7 +55,7 @@ const decisions: Record<string, object> = {
 };
 
 // A fake model that recognizes each kind of prompt and answers from the scripts above. Offers are always
-// taken (the first owner offering is committed to), and members always stay when their team grows.
+// taken (the first owner offering is committed to), and everyone is confident in their group at the deadline.
 function fakeClient(script: typeof picks = picks) {
 	// `script[n]` is what each agent picks the n-th time it's asked (its round, unless it was skipped).
 	const discoveryCalls: Record<string, number> = {};
@@ -95,8 +95,8 @@ function fakeClient(script: typeof picks = picks) {
 				rationale: "Worth a try.",
 				decision: { decision: "accept" },
 			};
-		} else if (last.startsWith("Your teammates")) {
-			reply = { rationale: "Still a fit.", decision: "stay" };
+		} else if (last.startsWith("Your group:")) {
+			reply = { rationale: "Confident.", confident: true };
 		} else if (last.startsWith("Offers:")) {
 			const [first] = JSON.parse(last.slice("Offers:".length));
 			reply = { rationale: "Joining.", commit: first.owner };
@@ -165,6 +165,8 @@ describe("runSimulation", () => {
 				/^round 2: conversations finished in \d+ ticks$/,
 			),
 			"round 2: 1 offers → 1 commits in 2 passes · teams: 1",
+			"deadline: every member confirms their group or drops out",
+			"deadline: 0 dropped out · teams: 1",
 		]);
 	});
 
@@ -211,7 +213,7 @@ describe("runSimulation", () => {
 describe("stopping", () => {
 	test("at the round limit, the run says so", async () => {
 		const { events, summary } = await simulate(2);
-		expect(events.at(-1)).toEqual({
+		expect(events.find((e) => e.type === "stopped")).toEqual({
 			type: "stopped",
 			rounds: 2,
 			reason: "limit",
@@ -298,11 +300,11 @@ describe("summarize", () => {
 
 	test("reports the committed teams and who is on none", async () => {
 		const { summary, world, events } = await simulate();
-		// b was on a's team before e joined, so b re-checked, and stayed.
+		// At the deadline, all three were asked, and all stayed.
 		expect(
-			events.filter((e) => e.type === "recheck").map((e) => e.agent),
-		).toEqual(["b"]);
-		expect(summary.departures).toBe(0);
+			events.filter((e) => e.type === "lock").map((e) => e.agent),
+		).toEqual(["a", "b", "e"]);
+		expect(world.teams[0]!.status).toBe("committed");
 		expect(summary.teams.map((t) => t.members)).toEqual([["a", "b", "e"]]);
 		expect(summary.unplaced).toEqual(["c", "d"]);
 		// b and e never talked, but as teammates they know each other's names.

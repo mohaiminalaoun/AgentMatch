@@ -4,7 +4,6 @@ import { createLlmClient } from "../../src/engine/client.js";
 import {
 	commitmentMessages,
 	offerMessages,
-	recheckMessages,
 } from "../../src/engine/commitment.js";
 import type { Config } from "../../src/engine/config.js";
 import { decisionMessages } from "../../src/engine/decision.js";
@@ -14,6 +13,7 @@ import {
 	revisionMessages,
 } from "../../src/engine/interest.js";
 import { listingMessages } from "../../src/engine/listing.js";
+import { lockMessages } from "../../src/engine/lock.js";
 import { notesFor, type Note } from "../../src/engine/notes.js";
 import { createWorld, proposalFrom, runRound } from "../../src/engine/round.js";
 import { person, sampleProfile } from "../fixtures.js";
@@ -110,7 +110,7 @@ describe("each prompt holds only the notes its level allows", () => {
 		]);
 	});
 
-	test("offers, commitment, and re-checks use level 2", () => {
+	test("offers, commitment, and the deadline use level 2", () => {
 		const level2 = ["zz-note-level0", "zz-note-level1", "zz-note-level2"];
 		expect(seen(offerMessages(ada(2), ["p9"], 1))).toEqual(level2);
 		expect(
@@ -129,13 +129,18 @@ describe("each prompt holds only the notes its level allows", () => {
 		).toEqual(level2);
 		expect(
 			seen(
-				recheckMessages(ada(2), {
-					id: "team-p9",
-					members: ["p9", sampleProfile.id],
-					project: { title: "Carbon", description: "A tracker." },
-					rolesNeeded: ["mobile"],
-					status: "committed",
-				}),
+				lockMessages(
+					ada(2),
+					{
+						id: "team-p9",
+						members: ["p9", sampleProfile.id],
+						project: { title: "Carbon", description: "A tracker." },
+						rolesNeeded: ["mobile"],
+						status: "tentative",
+					},
+					[],
+					1,
+				),
 			),
 		).toEqual(level2);
 	});

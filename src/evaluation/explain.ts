@@ -23,6 +23,11 @@ export const CALL_KINDS: readonly (readonly [phrase: string, kind: string])[] =
 		["Write one version for the whole team", "team version"],
 		["offered your human a place", "commitment"],
 		["stays or leaves", "recheck"],
+		["this is the deadline", "deadline"],
+		[
+			"dropped out of your human's group at the deadline",
+			"deadline re-ask",
+		],
 		["Adopt the revision", "revision answer"],
 		["Keep going, or withdraw", "interest check"],
 		["asks to join your human's project:", "join request"],

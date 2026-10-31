@@ -162,6 +162,17 @@ export const RunEvent = z.discriminatedUnion("type", [
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),
+	// At the deadline, a member said whether they're confident in their group: `ask` 1 for everyone, 2 for the
+	// rest of a group someone dropped out of. Not confident means they dropped out.
+	z.object({
+		type: z.literal("lock"),
+		agent: z.string(),
+		team: z.string(),
+		ask: z.union([z.literal(1), z.literal(2)]),
+		confident: z.boolean(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
 	// A team formed, gained a member, or lost one.
 	z.object({ type: z.literal("team"), team: Team }),
 	// The normal rounds are over, and the people still without a team start brainstorming together.

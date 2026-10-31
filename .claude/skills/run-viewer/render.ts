@@ -166,6 +166,7 @@ events.forEach((e, i) => {
 		case "listing":
 		case "discovery":
 		case "recheck":
+		case "lock":
 			rows.push({
 				...base,
 				agents: [

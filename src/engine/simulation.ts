@@ -12,6 +12,7 @@ import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import type { Note } from "./notes.js";
 import { writeListings } from "./listing.js";
+import { runLock } from "./lock.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
 	continued,
@@ -98,11 +99,12 @@ export type SimulationSummary = {
 };
 
 // The whole system: every agent writes its board listing once, then each round everyone still open picks whom
-// to approach, all the resulting conversations play out at once, and ready pairs become committed teams.
-// Rounds repeat until one changes nothing (no proposals, commits, or departures, and no mail left) or
+// to approach, all the resulting conversations play out at once, and ready pairs form tentative groups.
+// Rounds repeat until one changes nothing (no proposals or commits, and no mail left) or
 // `maxRounds` is reached. Then, if at least two people are still without a team, up to BRAINSTORM_ROUNDS
 // brainstorm rounds let them meet each other and come up with new projects together. It always ends: a pair that has talked is never approached again, so the untried
-// pairs run out. An agent that picked nobody isn't asked again until the board changes.
+// pairs run out. An agent that picked nobody isn't asked again until the board changes. At the end comes the
+// deadline (`runLock`): each member confirms their group or drops out, and the groups left become teams.
 // Everything shares one client and one bus.
 export async function runSimulation(
 	client: LlmClient,
@@ -170,22 +172,20 @@ export async function runSimulation(
 			`${label}: conversations finished in ${result.ticks} ticks${result.quiet ? "" : " (stopped at the tick limit)"}`,
 		);
 		const commitment = await runCommitment(client, world, {
-			revealNames,
 			...(onEvent && { onEvent }),
 		});
 		world = commitment.world;
 		onPhase?.(
 			commitment.skipped
 				? `${label}: no offers (mail still waiting at the tick limit)`
-				: `${label}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"}${commitment.departures > 0 ? ` · ${commitment.departures} left` : ""} · teams: ${world.teams.length}`,
+				: `${label}: ${commitment.offers} offers → ${commitment.commits} commits in ${commitment.passes} pass${commitment.passes === 1 ? "" : "es"} · teams: ${world.teams.length}`,
 		);
 
 		const stable =
 			proposals.length === 0 &&
 			result.quiet &&
 			!commitment.skipped &&
-			commitment.commits === 0 &&
-			commitment.departures === 0;
+			commitment.commits === 0;
 		let done = false;
 		if (!stopped) {
 			// The normal rounds are over: brainstorm if at least two people are still without a team.
@@ -211,7 +211,18 @@ export async function runSimulation(
 		}
 		if (done) {
 			onEvent?.({ type: "stopped", rounds: round, reason: stopped! });
-			return world;
+			// The deadline: every member confirms their group or drops out, and only then are names shared.
+			onPhase?.(
+				"deadline: every member confirms their group or drops out",
+			);
+			const lock = await runLock(client, world, {
+				revealNames,
+				...(onEvent && { onEvent }),
+			});
+			onPhase?.(
+				`deadline: ${lock.dropped.length} dropped out · teams: ${lock.world.teams.length}`,
+			);
+			return lock.world;
 		}
 	}
 }

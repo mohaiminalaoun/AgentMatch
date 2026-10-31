@@ -69,18 +69,7 @@ export const AgentCommitment = z.object({
 
 export type AgentCommitment = z.infer<typeof AgentCommitment>;
 
-// What a member's model returns when its team has grown: stay, or leave at a cost.
-export const AgentStay = z.object({
-	rationale: z.string().min(1),
-	decision: z.enum(["stay", "leave"]),
-});
-
-export type AgentStay = z.infer<typeof AgentStay>;
-
 export type CommitmentOptions = {
-	// Whether teammates swap names (level 3) as soon as they commit (default true). With real people, names wait
-	// until every member's human has approved the team, outside the engine.
-	revealNames?: boolean;
 	onExchange?: ChatOptions["onExchange"];
 	onEvent?: (event: RunEvent) => void;
 };
@@ -89,8 +78,6 @@ export type CommitmentResult = {
 	world: World;
 	offers: number;
 	commits: number;
-	// Members who left a team after it grew.
-	departures: number;
 	// How many offer-and-commit passes ran.
 	passes: number;
 	// True if mail from the round was still waiting, so nothing was offered.
@@ -633,7 +620,7 @@ export function offerMessages(
 						? `Your human's team is building this version of the project: ${JSON.stringify(versions.team)}. It has ${places} place${plural} left.`
 						: `Your human has no team yet, and it has ${places} place${plural}. Each person below shows the version of the project you agreed with them: the team builds the version agreed with whoever you put first, and anyone after them joins that version. A version's roles are what it needs from people other than whoever wrote it (writtenBy): your human never has to fill a role in a version your human wrote; the person offered should fill one.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
-					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
+					`Choose who gets an offer, at most ${places}, best first, by their id. Anyone who accepts joins your human's group until the deadline at the end of matching, when each member confirms they're confident in the group or drops out; names are exchanged only among those who confirm.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; someone who only duplicates a role already offered won't get one, unless the team would otherwise be smaller than someone's smallest size.`,
 					"Prefer people whose skills cover different roles the project needs. leftTeams, where shown, is how many committed teams that person has left before; weigh their reliability. Your rationale is private.",
 					CITE_FACTS,
@@ -749,7 +736,7 @@ export function commitmentMessages(
 				GOOD_TEAM,
 				[
 					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",
-					"Committing is final: your human joins that team, can't join any other, and their name is shared with every teammate.",
+					"Committing puts your human in that group until the deadline at the end of matching: they can't switch to another group before then. At the deadline, each member confirms they're confident in the group or drops out, and names are shared only among those who confirm.",
 					...(offeringTo.length > 0
 						? [
 								`Your human also owns a project, and is about to offer places on it to ${offeringTo.join(", ")}. Committing to one of these offers means joining that team instead, and your human's own offers are never sent. Use null to lead your human's own project instead.`,
@@ -784,47 +771,9 @@ export function commitmentMessages(
 	];
 }
 
-// The prompt asking a member of `team`, which has just grown, whether its human stays: its own profile, the
-// project, and what it knows about each teammate (a name, for anyone it never talked to).
-export function recheckMessages(agent: AgentState, team: Team): Message[] {
-	const teammates = team.members
-		.filter((id) => id !== agent.id)
-		.map((id) => ({ id, ...contactOf(agent, id).learned }));
-	return [
-		{
-			role: "system",
-			content: [
-				INTRO,
-				aboutHuman(agent, 2),
-				GOOD_TEAM,
-				[
-					`Your human is committed to ${team.members[0]}'s team, building ${JSON.stringify(team.project)}. Someone new has joined, and the team is now ${team.members.length} people.`,
-					"Decide whether your human stays or leaves.",
-					'Leaving is costly: it breaks a commitment, the team loses someone it planned around, and your human gets a public mark ("left 1 team") that every agent sees when deciding whether to work with them. Leave only if the team is now clearly wrong for your human, for example bigger than they want.',
-					"Only stay or leave is sent; your rationale is private.",
-					CITE_FACTS,
-				].join("\n"),
-				factsAbout(
-					agent,
-					team.members.filter(
-						(id) =>
-							id !== agent.id &&
-							contactOf(agent, id).learned.skills !== undefined,
-					),
-				),
-			]
-				.filter(Boolean)
-				.join("\n\n"),
-		},
-		{
-			role: "user",
-			content: `Your teammates and what you know about each: ${JSON.stringify(teammates)}`,
-		},
-	];
-}
-
-// Turns ready pairs into committed teams, after a round's conversations have gone quiet, without anyone
-// seeing the whole picture (deferred acceptance):
+// Turns ready pairs into tentative teams (groups), after a round's conversations have gone quiet, without anyone
+// seeing the whole picture (deferred acceptance). A group holds until the deadline at the end of matching
+// (`runLock`), when each member confirms or drops out; nobody leaves or switches groups before then.
 // 1. Each project owner chooses whom to offer its places, among the people it's ready with. If there are
 //    more of them than places, its model picks. Nothing is sent yet.
 // 2. An owner with no team yet who is being offered a place decides first: lead, sending its offers, which
@@ -832,16 +781,13 @@ export function recheckMessages(agent: AgentState, team: Team): Message[] {
 //    joined leads; otherwise the joiner is busy for this pass.
 // 2b. Every other agent holding offers picks one, all at once, so no offer wins by arriving first. Commit
 //    goes to the pick and decline to the rest. An owner that leads answers busy, which can be offered again.
-// 3. A commit adds the member to the owner's team; the member and every teammate open level 3 and share
-//    names, built by code and gate-checked.
+// 3. A commit adds the member to the owner's group. Names wait for the deadline.
 //    Steps 1–3 repeat until a pass changes nothing, so someone busy in one pass can commit in the next.
-// 4. In each team that grew, every earlier member (not the owner) re-checks: stay, or leave, which tells
-//    each teammate, frees their place, and adds to the leaver's public `leftTeams`.
 // Returns a new world; the one passed in is unchanged.
 export async function runCommitment(
 	client: LlmClient,
 	world: World,
-	{ revealNames = true, onExchange, onEvent }: CommitmentOptions = {},
+	{ onExchange, onEvent }: CommitmentOptions = {},
 ): Promise<CommitmentResult> {
 	const { bus } = world;
 	if (bus.waiting() > 0) {
@@ -849,7 +795,6 @@ export async function runCommitment(
 			world,
 			offers: 0,
 			commits: 0,
-			departures: 0,
 			passes: 0,
 			skipped: true,
 		};
@@ -875,7 +820,6 @@ export async function runCommitment(
 	async function play(): Promise<CommitmentResult> {
 		// Steps 1–3 repeat until a pass changes nothing: a commit places someone and can free an owner who
 		// was busy with its own offers; a decline rules a pair out. Both are finite, so the passes stop.
-		const before = new Map(teams.map((t) => [t.id, t.members]));
 		let offers = 0;
 		let commits = 0;
 		let passes = 0;
@@ -889,31 +833,10 @@ export async function runCommitment(
 			}
 		}
 
-		// 4. Earlier members of teams that grew decide whether to stay.
-		const toRecheck = teams.flatMap((team) => {
-			const earlier = before.get(team.id) ?? [];
-			return earlier.length < team.members.length
-				? earlier.slice(1).map((member) => ({ member, team }))
-				: [];
-		});
-		const rechecks = await Promise.all(
-			toRecheck.map(({ member, team }) => recheck(member, team)),
-		);
-		let departures = 0;
-		for (const result of rechecks) {
-			emit({ type: "recheck", ...result });
-			if (result.decision === "leave") {
-				removeMember(result.agent, result.team);
-				departures++;
-			}
-		}
-		deliver();
-
 		return {
 			world: current(),
 			offers,
 			commits,
-			departures,
 			passes,
 			skipped: false,
 		};
@@ -1339,71 +1262,10 @@ export async function runCommitment(
 		}
 	}
 
-	// Whether `member` stays on `team` now that it has grown. If no valid answer comes back, it stays:
-	// leaving breaks a commitment and costs the human a public mark.
-	async function recheck(member: string, team: Team) {
-		try {
-			const { data } = await client.chatJson(
-				recheckMessages(agents[member]!, team),
-				AgentStay,
-				llmOptions,
-			);
-			return {
-				agent: member,
-				team: team.id,
-				decision: data.decision,
-				rationale: data.rationale,
-				fellBack: false,
-			};
-		} catch (error) {
-			if (!(error instanceof StructuredOutputError)) {
-				throw error;
-			}
-			return {
-				agent: member,
-				team: team.id,
-				decision: "stay" as const,
-				rationale: undefined,
-				fellBack: true,
-			};
-		}
-	}
-
-	// Takes `member` off team `id`: each teammate is told, and the member's public count of teams left goes up.
-	// Names already shared stay known; nothing can unshare them. A team left with only its owner dissolves.
-	function removeMember(member: string, id: string) {
-		const team = teams.find((t) => t.id === id)!;
-		for (const teammate of team.members.filter((m) => m !== member)) {
-			const leave: Leave = {
-				kind: "leave",
-				from: member,
-				to: teammate,
-				team: id,
-			};
-			bus.send(member, leave);
-			agents[member] = recordMessage(agents[member]!, teammate, leave);
-		}
-		agents[member] = {
-			...agents[member]!,
-			leftTeams: agents[member]!.leftTeams + 1,
-		};
-		const members = team.members.filter((m) => m !== member);
-		teams = teams.filter((t) => t !== team);
-		if (members.length >= 2) {
-			const updated = { ...team, members };
-			teams = [...teams, updated];
-			emit({ type: "team", team: updated });
-		}
-	}
-
-	// Puts `member` on `owner`'s team, creating it from `version` (the version they committed to) if needed,
-	// and has them swap names with every teammate. An existing team keeps its version.
+	// Puts `member` on `owner`'s group, creating it from `version` (the version they committed to) if needed. An
+	// existing group keeps its version. Nobody swaps names yet: that waits for the deadline.
 	function addMember(owner: string, member: string, version: Terms) {
 		const team = teams.find((t) => t.members[0] === owner);
-		for (const teammate of revealNames ? (team?.members ?? [owner]) : []) {
-			shareName(teammate, member);
-			shareName(member, teammate);
-		}
 		const updated: Team = {
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
@@ -1419,34 +1281,10 @@ export async function runCommitment(
 				description: version.pitch,
 			},
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
-			status: "committed",
+			status: "tentative",
 		};
 		teams = [...teams.filter((t) => t !== team), updated];
 		emit({ type: "team", team: updated });
-	}
-
-	// Opens level 3 from `from` to `to` and sends `from`'s name: a share built from the profile and checked
-	// by the gate anyway, as a second line of defense.
-	function shareName(from: string, to: string) {
-		const agent = agents[from]!;
-		const level = contactOf(agent, to).level;
-		if (level < 3) {
-			emit({ type: "level", agent: from, other: to, from: level, to: 3 });
-			agents[from] = raiseLevel(agent, to, 3);
-		}
-		const shared: Partial<Profile> = { name: agent.profile.name };
-		if (
-			checkDisclosure(agent.profile, 3, { texts: {}, shared }).length > 0
-		) {
-			throw new Error(`name share from ${from} broke the rules`);
-		}
-		const share: Share = { kind: "share", from, to, level: 3, shared };
-		bus.send(from, share);
-		agents[from] = recordRevealed(
-			recordMessage(agents[from]!, to, share),
-			to,
-			["name"],
-		);
 	}
 }
 

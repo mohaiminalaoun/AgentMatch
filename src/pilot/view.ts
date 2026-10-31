@@ -39,8 +39,8 @@ export function eventsFor(id: string, events: readonly RunEvent[]): RunEvent[] {
 					: [];
 			case "exchange":
 				return [];
-			// Decisions, discovery, interest checks, hunches, revision answers, levels, offers, commitments, and
-			// rechecks: each is one agent's own step, with its private reasoning.
+			// Decisions, discovery, interest checks, hunches, revision answers, levels, offers, commitments,
+			// rechecks, and deadline answers: each is one agent's own step, with its private reasoning.
 			default:
 				return event.agent === id ? [event] : [];
 		}

@@ -139,12 +139,11 @@ function ready(world: World, owner: string, joiner: string): void {
 }
 
 // A client whose fake model answers offer prompts from `offers` (owner → ids), commitment prompts from
-// `commits` (agent → owner id or null, or a list of those, one per call), and re-checks from `stays` (agent → stay or leave), counting calls
-// per agent and keeping each prompt.
+// `commits` (agent → owner id or null, or a list of those, one per call), and team-version prompts from
+// `teamVersions` (owner → version), counting calls per agent and keeping each prompt.
 function fakeClient(
 	offers: Record<string, unknown[]> = {},
 	commits: Record<string, unknown> = {},
-	stays: Record<string, unknown> = {},
 	teamVersions: Record<string, unknown> = {},
 ) {
 	const prompts: Record<string, string> = {};
@@ -162,18 +161,13 @@ function fakeClient(
 						rationale: "One for all.",
 						...(teamVersions[who] as object),
 					}
-				: last.startsWith("Your teammates")
-					? {
-							rationale: "Weighed it.",
-							decision: stays[who] ?? "stay",
-						}
-					: {
-							rationale: "Best team.",
-							commit:
-								(Array.isArray(commits[who])
-									? commits[who].shift()
-									: commits[who]) ?? null,
-						};
+				: {
+						rationale: "Best team.",
+						commit:
+							(Array.isArray(commits[who])
+								? commits[who].shift()
+								: commits[who]) ?? null,
+					};
 		return new Response(
 			JSON.stringify({
 				choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -229,7 +223,7 @@ describe("projectOwner", () => {
 });
 
 describe("runCommitment", () => {
-	test("a ready pair becomes a committed team, and the two swap names", async () => {
+	test("a ready pair becomes a tentative team, and nobody swaps names until the deadline", async () => {
 		const world = createWorld([human("a"), human("j", false)]);
 		ready(world, "a", "j");
 		const { client } = fakeClient({}, { j: "a" });
@@ -242,41 +236,26 @@ describe("runCommitment", () => {
 				// The version they agreed on: here, a's listing.
 				project: { title: "a's project", description: "a's project" },
 				rolesNeeded: ["frontend"],
-				status: "committed",
+				status: "tentative",
 			},
 		]);
-		expect(messagesOf(result.events)).toEqual([
-			"a→j offer",
-			"j→a commit",
-			"a→j share",
-			"j→a share",
-		]);
+		expect(messagesOf(result.events)).toEqual(["a→j offer", "j→a commit"]);
 		const { agents } = result.world;
-		expect(contactOf(agents.a!, "j").learned.name).toBe("Name of j");
-		expect(contactOf(agents.j!, "a").learned.name).toBe("Name of a");
-		expect(contactOf(agents.a!, "j").level).toBe(3);
-		expect(contactOf(agents.a!, "j").revealed).toContain("name");
+		expect(contactOf(agents.a!, "j").level).toBeLessThan(3);
+		expect(contactOf(agents.a!, "j").revealed).not.toContain("name");
+		expect(contactOf(agents.j!, "a").learned.name).toBeUndefined();
 		expect(result).toMatchObject({ offers: 1, commits: 1, skipped: false });
 	});
 
-	test("with names held back for approval, the team forms but nobody swaps names", async () => {
+	test("the commit prompt says the group holds until the deadline, not that it's final", async () => {
 		const world = createWorld([human("a"), human("j", false)]);
 		ready(world, "a", "j");
-		const events: RunEvent[] = [];
-		const result = await runCommitment(
-			fakeClient({}, { j: "a" }).client,
-			world,
-			{ revealNames: false, onEvent: (e) => events.push(e) },
+		const { client, prompts } = fakeClient({}, { j: "a" });
+		await commit(world, client);
+		expect(prompts.j).toContain(
+			"Committing puts your human in that group until the deadline at the end of matching",
 		);
-		expect(result.world.teams.map((t) => t.members)).toEqual([["a", "j"]]);
-		expect(messagesOf(events)).toEqual(["a→j offer", "j→a commit"]);
-		expect(contactOf(result.world.agents.a!, "j").level).toBeLessThan(3);
-		expect(contactOf(result.world.agents.a!, "j").revealed).not.toContain(
-			"name",
-		);
-		expect(
-			contactOf(result.world.agents.j!, "a").learned.name,
-		).toBeUndefined();
+		expect(prompts.j).not.toContain("Committing is final");
 	});
 
 	test("an owner with places for everyone ready offers to all without a model call", async () => {
@@ -422,7 +401,7 @@ describe("runCommitment", () => {
 		});
 	});
 
-	test("teammates who never talked learn each other's names, and nobody else learns any", async () => {
+	test("nobody learns a name when a group forms, even teammates", async () => {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
@@ -435,14 +414,9 @@ describe("runCommitment", () => {
 		const { client } = fakeClient({}, { j: "a", k: "a" });
 		const { world: after } = await commit(world, client);
 		expect(after.teams.map((t) => t.members)).toEqual([["a", "j", "k"]]);
-		expect(contactOf(after.agents.j!, "k").learned.name).toBe("Name of k");
-		expect(contactOf(after.agents.k!, "j").learned.name).toBe("Name of j");
 		for (const agent of Object.values(after.agents)) {
-			const team = after.teams.find((t) => t.members.includes(agent.id));
-			for (const [other, contact] of Object.entries(agent.contacts)) {
-				if (contact.learned.name !== undefined) {
-					expect(team?.members).toContain(other);
-				}
+			for (const contact of Object.values(agent.contacts)) {
+				expect(contact.learned.name).toBeUndefined();
 			}
 		}
 	});
@@ -1141,7 +1115,6 @@ describe("the agreed project", () => {
 			fakeClient(
 				{ a: ["j", "k"] },
 				{ j: "a", k: "a" },
-				{},
 				{ a: teamVersion },
 			).client,
 		);
@@ -1178,7 +1151,6 @@ describe("the agreed project", () => {
 			fakeClient(
 				{ a: ["j", "k"] },
 				{ j: "a" },
-				{},
 				{
 					a: {
 						pitch: "An ML tutor for everyone.",
@@ -1260,9 +1232,8 @@ describe("the agreed project", () => {
 	});
 });
 
-describe("leaving a team", () => {
-	// a's team with j already on it; k is ready to join, so the team grows and j re-checks.
-	function growing() {
+describe("growing a group", () => {
+	test("when a group grows, nobody re-checks or leaves: members only drop out at the deadline", async () => {
 		const world = createWorld([
 			human("a"),
 			human("j", false),
@@ -1274,77 +1245,19 @@ describe("leaving a team", () => {
 				members: ["a", "j"],
 				project: { title: "a's project", description: "A project." },
 				rolesNeeded: ["frontend", "design"],
-				status: "committed",
+				status: "tentative",
 			},
 		];
 		ready(world, "a", "k");
-		return world;
-	}
-
-	test("when a team grows, only its earlier members re-check: not the owner or the newcomer", async () => {
 		const { client, calls } = fakeClient({}, { k: "a" });
-		const { events } = await commit(growing(), client);
-		expect(
-			events.filter((e) => e.type === "recheck").map((e) => e.agent),
-		).toEqual(["j"]);
-		expect(calls.filter((who) => who === "a")).toEqual([]);
-	});
-
-	test("a team that didn't grow has no re-checks", async () => {
-		const world = createWorld([human("a"), human("j", false)]);
-		ready(world, "a", "j");
-		const { events } = await commit(
-			world,
-			fakeClient({}, { j: "a" }).client,
-		);
-		expect(events.some((e) => e.type === "recheck")).toBe(false);
-	});
-
-	test("the re-check prompt says leaving is costly and lists the teammates", async () => {
-		const { client, prompts } = fakeClient({}, { k: "a" });
-		await commit(growing(), client);
-		expect(prompts.j).toContain("Leaving is costly");
-		expect(prompts.j).toContain("the team is now 3 people");
-		expect(prompts.j).toContain('\\"id\\":\\"k\\"');
-	});
-
-	test("a member who leaves tells every teammate, frees their place, and gets a public mark", async () => {
-		const { client } = fakeClient({}, { k: "a" }, { j: "leave" });
-		const result = await commit(growing(), client);
-		expect(result.departures).toBe(1);
-		expect(result.world.teams.map((t) => t.members)).toEqual([["a", "k"]]);
-		expect(messagesOf(result.events)).toEqual(
-			expect.arrayContaining(["j→a leave", "j→k leave"]),
-		);
-		expect(result.world.agents.j!.leftTeams).toBe(1);
-		expect(isOpen(result.world, "j")).toBe(true);
-		// Names already shared stay known: k learned j's name on joining, before j left.
-		expect(contactOf(result.world.agents.k!, "j").learned.name).toBe(
-			"Name of j",
-		);
-	});
-
-	test("the owner doesn't offer the place back to someone who left", async () => {
-		const { client } = fakeClient({}, { k: "a" }, { j: "leave" });
-		const first = await commit(growing(), client);
-		ready(first.world, "a", "j");
-		const second = await commit(
-			first.world,
-			fakeClient({}, { j: "a" }).client,
-		);
-		expect(second.offers).toBe(0);
-	});
-
-	test("if no valid answer comes back, the member stays", async () => {
-		const { client } = fakeClient({}, { k: "a" }, { j: "maybe" });
-		const result = await commit(growing(), client);
+		const result = await commit(world, client);
 		expect(result.world.teams[0]!.members).toEqual(["a", "j", "k"]);
-		expect(result.events.find((e) => e.type === "recheck")).toMatchObject({
-			decision: "stay",
-			fellBack: true,
-		});
+		expect(calls).not.toContain("j");
+		expect(messagesOf(result.events)).not.toContain("j→a leave");
 	});
+});
 
+describe("reliability marks", () => {
 	test("the mark shows on the leaver's board entry and travels with their proposals, set by code", async () => {
 		const world = createWorld([human("x"), human("y"), human("z")]);
 		world.agents.x = { ...world.agents.x!, leftTeams: 2 };
@@ -1481,7 +1394,7 @@ describe("brainstormed teams", () => {
 					description: "A study-group finder for night owls.",
 				},
 				rolesNeeded: ["backend"],
-				status: "committed",
+				status: "tentative",
 			},
 		]);
 	});
