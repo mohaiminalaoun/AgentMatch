@@ -101,6 +101,9 @@ export const RunEvent = z.discriminatedUnion("type", [
 		riskArea: RiskArea.nullable(),
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
+		// The note the steer rests on, numbered from 1; and whether code made an uncited steer neutral.
+		evidence: z.number().int().optional(),
+		unfounded: z.boolean().optional(),
 	}),
 	// An agent decided whether to adopt a revision it received.
 	z.object({

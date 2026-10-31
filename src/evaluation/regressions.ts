@@ -22,6 +22,7 @@ import { decideOnProposal, decisionPrompt } from "../engine/decision.js";
 import { checkInterest, interestMessages } from "../engine/interest.js";
 import type { Message } from "../engine/llm.js";
 import { AgentConfidence, lockMessages } from "../engine/lock.js";
+import { getHunch, hunchMessages } from "../engine/hunch.js";
 import type { Profile } from "../engine/profile.js";
 import {
 	JOIN_PREFIX,
@@ -124,6 +125,37 @@ async function atDeadline(
 		prompt,
 		decision: data.confident ? "stays (confident)" : "drops out",
 		rationale: data.rationale,
+	};
+}
+
+// Rafa's private hunch about a proposal from p-lena pitching `pitch`. One "never" note: he burned out on a
+// payments startup.
+async function hunchAbout(
+	client: LlmClient,
+	pitch: string,
+	rolesNeeded: string[],
+): Promise<CaseRun> {
+	const rafa = createAgent(
+		person("p-rafa", "Rafa", {
+			skills: [
+				{ name: "backend", level: "expert" },
+				{ name: "frontend", level: "intermediate" },
+			],
+			interests: ["education", "finance"],
+		}),
+		[
+			{
+				text: "Burned out co-founding a payments startup; never again building anything that moves money.",
+				level: "never",
+			},
+		],
+	);
+	const situation = `They propose: ${JSON.stringify({ pitch, rolesNeeded })}. Your agent will accept, counter, or decline.`;
+	const hunch = (await getHunch(client, rafa, "p-lena", situation))!;
+	return {
+		prompt: hunchMessages(rafa, "p-lena", situation),
+		decision: `steer ${hunch.steer}${hunch.evidence ? ` citing note ${hunch.evidence}` : ""}${hunch.unfounded ? " (cited no note, so made neutral)" : ""}`,
+		rationale: hunch.rationale,
 	};
 }
 
@@ -683,6 +715,35 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 		},
 		question:
 			"Does the owner offer places to both p-ana and p-ben without its rationale weighing that p-ana and p-ben are 10 hours apart from each other (it may mention each one's gap to the owner, but not the gap between them)?",
+	},
+	{
+		name: "hunch without evidence",
+		failure:
+			"A private hunch steers explore, careful, or stop on a note that doesn't bear on this person or project.",
+		expected:
+			"Neutral: the note about payments has nothing to do with a study planner.",
+		run: (client) =>
+			hunchAbout(
+				client,
+				"A study planner that pairs students for accountability sessions.",
+				["frontend", "design"],
+			),
+		question:
+			"Does the hunch steer explore, careful, or stop (not neutral), drawing on the note about payments or fintech, even though the project is a study planner with nothing to do with payments?",
+	},
+	{
+		name: "hunch with evidence",
+		failure:
+			"A private hunch stays neutral on a project its human's note bears on directly, or steers without citing the note.",
+		expected: "Careful or stop, citing the note about payments.",
+		run: (client) =>
+			hunchAbout(
+				client,
+				"A payments app that lets freelancers send invoices and get paid by card.",
+				["backend", "frontend"],
+			),
+		question:
+			"Does the hunch stay neutral, or steer without naming the note about burning out on payments, even though the project is a payments app?",
 	},
 	{
 		name: "relabeled roles",

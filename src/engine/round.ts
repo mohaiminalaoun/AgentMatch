@@ -179,6 +179,8 @@ export async function runRound(
 			riskArea: hunch.riskArea,
 			rationale: hunch.rationale,
 			fellBack: hunch.fellBack,
+			...(hunch.evidence !== null && { evidence: hunch.evidence }),
+			...(hunch.unfounded && { unfounded: true }),
 		});
 	const llmOptions = {
 		onExchange: (exchange: Exchange) => {

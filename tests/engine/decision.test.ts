@@ -343,6 +343,8 @@ describe("join requests", () => {
 				riskArea: null,
 				rationale: undefined,
 				fellBack: false,
+				evidence: 1,
+				unfounded: false,
 			},
 		);
 		expect(result.decision).toEqual({ decision: "accept" });

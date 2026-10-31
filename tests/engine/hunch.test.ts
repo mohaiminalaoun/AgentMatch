@@ -40,6 +40,8 @@ const careful: Hunch = {
 	riskArea: "retention",
 	rationale: "Their zzjitsu app lost users fast.",
 	fellBack: false,
+	evidence: 1,
+	unfounded: false,
 };
 
 // A client whose fake model gives each reply in turn (repeating the last), recording every prompt.
@@ -83,24 +85,62 @@ describe("getHunch", () => {
 					rationale: "r",
 					steer: "careful",
 					riskArea: "retention",
+					evidence: 1,
 				}),
 				ada,
 				"p9",
 				"x",
 			),
-		).toMatchObject({ steer: "careful", riskArea: "retention" });
+		).toMatchObject({
+			steer: "careful",
+			riskArea: "retention",
+			evidence: 1,
+		});
 		expect(
 			await getHunch(
 				fakeModel({
 					rationale: "r",
 					steer: "explore",
 					riskArea: "market",
+					evidence: 1,
 				}),
 				ada,
 				"p9",
 				"x",
 			),
 		).toMatchObject({ steer: "explore", riskArea: null });
+	});
+
+	test("a steer that cites no note, or a note that doesn't exist, is made neutral by code, and says so", async () => {
+		for (const evidence of [null, 7]) {
+			expect(
+				await getHunch(
+					fakeModel({
+						rationale: "A vague feeling.",
+						steer: "stop",
+						riskArea: null,
+						evidence,
+					}),
+					ada,
+					"p9",
+					"x",
+				),
+			).toMatchObject({
+				steer: "neutral",
+				evidence: null,
+				unfounded: true,
+			});
+		}
+	});
+
+	test("the hunch prompt numbers the notes and asks for the one a steer rests on", () => {
+		const [system] = hunchMessages(ada, "p9", "x");
+		expect(system!.content).toContain(
+			"1. Built a zzjitsu app that died after two weeks.",
+		);
+		expect(system!.content).toContain(
+			"must rest on one specific note that bears on this person or this project",
+		);
 	});
 
 	test("falls back to neutral if no valid answer comes back", async () => {
@@ -230,6 +270,7 @@ describe("in a round", () => {
 						rationale: "zzjitsu again.",
 						steer: "careful",
 						riskArea: "retention",
+						evidence: 1,
 					}
 				: {
 						rationale: "Probe it.",

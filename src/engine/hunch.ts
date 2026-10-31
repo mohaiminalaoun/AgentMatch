@@ -22,11 +22,13 @@ export const RiskArea = z.enum([
 ]);
 export type RiskArea = z.infer<typeof RiskArea>;
 
-// What the model returns from a hunch call: private reasoning, then a steer and an optional risk area.
+// What the model returns from a hunch call: private reasoning, then a steer, an optional risk area, and the number
+// of the note the steer rests on.
 export const AgentHunch = z.object({
 	rationale: z.string().min(1),
 	steer: Steer,
 	riskArea: RiskArea.nullable(),
+	evidence: z.number().int().nullable().optional(),
 });
 
 export type AgentHunch = z.infer<typeof AgentHunch>;
@@ -39,6 +41,10 @@ export type Hunch = {
 	rationale: string | undefined;
 	// True when no valid reply came back and the hunch defaulted to neutral.
 	fellBack: boolean;
+	// The note (numbered from 1, as the hunch prompt lists them) the steer rests on, if any.
+	evidence: number | null;
+	// True when the model chose explore, careful, or stop without citing a note, so code made it neutral.
+	unfounded: boolean;
 };
 
 // Whether `agent` has notes it may never draw on in anything sent: only then is a hunch call worth making.
@@ -59,14 +65,16 @@ export function hunchMessages(
 			content: [
 				"You are the private judgment of an AI agent forming hackathon teams for one person, your human. Act in their interest.",
 				`Your human's full profile:\n${JSON.stringify(agent.profile, null, 2)}`,
-				`Everything your human has told you, including things never to be shared:\n${agent.notes.map((note) => `- ${note.text}`).join("\n")}`,
+				`Everything your human has told you, including things never to be shared, numbered:\n${agent.notes.map((note, i) => `${i + 1}. ${note.text}`).join("\n")}`,
 				[
 					"Nothing you write here is sent or shown to the other agent's side. Only your steer is used, as one of these words:",
 					"- neutral: nothing your human has told you bears on this.",
 					"- explore: something here may fit better than it looks; keep going rather than say no early.",
 					"- careful: your human has reasons to be wary; probe before agreeing.",
 					"- stop: this is a bad fit for your human, for reasons the other side can't see.",
-					"With careful, name the risk area it's mostly about, or null. Explain yourself fully in the rationale.",
+					"With careful, name the risk area it's mostly about, or null.",
+					"Explore, careful, and stop must rest on one specific note that bears on this person or this project: give its number as evidence, and say in the rationale how it bears on them. A general worry, or a note about something else, isn't evidence: then the steer is neutral, with evidence null.",
+					"Explain yourself fully in the rationale.",
 				].join("\n"),
 			].join("\n\n"),
 		},
@@ -99,11 +107,22 @@ export async function getHunch(
 			AgentHunch,
 			options,
 		);
+		// A steer other than neutral needs a real note behind it; without one, code makes it neutral.
+		const evidence =
+			data.evidence != null &&
+			data.evidence >= 1 &&
+			data.evidence <= agent.notes.length
+				? data.evidence
+				: null;
+		const unfounded = data.steer !== "neutral" && evidence === null;
+		const steer = unfounded ? "neutral" : data.steer;
 		return {
-			steer: data.steer,
-			riskArea: data.steer === "careful" ? data.riskArea : null,
+			steer,
+			riskArea: steer === "careful" ? data.riskArea : null,
 			rationale: data.rationale,
 			fellBack: false,
+			evidence: steer === "neutral" ? null : evidence,
+			unfounded,
 		};
 	} catch (error) {
 		if (!(error instanceof StructuredOutputError)) {
@@ -114,6 +133,8 @@ export async function getHunch(
 			riskArea: null,
 			rationale: undefined,
 			fellBack: true,
+			evidence: null,
+			unfounded: false,
 		};
 	}
 }
