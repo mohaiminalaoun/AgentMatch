@@ -103,6 +103,21 @@ describe("checkDecisions", () => {
 		]);
 	});
 
+	test("a group still tentative at the end dissolved at the deadline, so it isn't a team and nobody on it is placed", () => {
+		const tentative: RunEvent = {
+			type: "team",
+			team: {
+				id: "team-a",
+				members: ["a", "b"],
+				project: { title: "P", description: "A project." },
+				rolesNeeded: ["ml"],
+				status: "tentative",
+			},
+		};
+		const report = checkDecisions([call(a), call(b), tentative]);
+		expect(report).toMatchObject({ teams: 0, placed: 0, findings: [] });
+	});
+
 	test("the latest version of a team counts", () => {
 		const report = checkDecisions([
 			call(a),

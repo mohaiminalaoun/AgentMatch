@@ -126,7 +126,9 @@ export function checkDecisions(events: readonly RunEvent[]): DecisionReport {
 		}
 	}
 
-	for (const team of teams.values()) {
+	// Only teams that are final: a group still tentative when the run ended dissolved at the deadline.
+	const final = [...teams.values()].filter((t) => t.status === "committed");
+	for (const team of final) {
 		const size = team.members.length;
 		for (const id of team.members) {
 			const prefs = profiles.get(id)?.preferences;
@@ -178,8 +180,8 @@ export function checkDecisions(events: readonly RunEvent[]): DecisionReport {
 	}
 
 	return {
-		teams: teams.size,
-		placed: new Set([...teams.values()].flatMap((t) => t.members)).size,
+		teams: final.length,
+		placed: new Set(final.flatMap((t) => t.members)).size,
 		people: people.size,
 		fellBack,
 		findings,
