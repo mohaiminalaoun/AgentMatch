@@ -629,10 +629,75 @@ describe("team size and skills", () => {
 		ready(world, "a", "k");
 		expect(candidatesOf(world, "a")).toEqual(["j", "k"]);
 		expect(selectOffers(world, "a", ["k", "j"])).toEqual(["k"]);
+		// a team of a and k already suits everyone's smallest size, so no second frontend.
+		expect(
+			explainOffers(world, "a", ["k", "j"], { extraBelowMinimum: true }),
+		).toEqual({
+			kept: ["k"],
+			dropped: [
+				{
+					id: "j",
+					reason: "every needed role they could fill is already taken: frontend by k",
+				},
+			],
+		});
 	});
 
-	// The pilot's dropped frontend expert, as a regression case: pins today's behavior, which removes every
-	// role a chosen person could fill; the drop is now reported with its reason.
+	// j wants a team of at least 3; j and k can both only do frontend.
+	function belowMinimumCase() {
+		const j = human("j", false);
+		const world = createWorld([
+			human("a"),
+			{ ...j, preferences: { ...j.preferences, minTeamSize: 3 } },
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		return world;
+	}
+
+	test("while the team would be smaller than someone's smallest size, a second person for a taken role is kept, but only when the owner's model chose them", () => {
+		const world = belowMinimumCase();
+		expect(selectOffers(world, "a", ["k", "j"])).toEqual(["k"]);
+		expect(
+			explainOffers(world, "a", ["k", "j"], { extraBelowMinimum: true })
+				.kept,
+		).toEqual(["k", "j"]);
+	});
+
+	test("no team version is written when the only people cut are cut over roles, which one version can't change", async () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false),
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		const { events } = await commit(
+			world,
+			fakeClient({ a: ["k", "j"] }, { k: "a" }).client,
+		);
+		const prompts = events.flatMap((e) =>
+			e.type === "exchange" ? [JSON.stringify(e.messages)] : [],
+		);
+		expect(prompts.some((p) => p.includes("Write one version"))).toBe(
+			false,
+		);
+	});
+
+	test("an owner whose model chooses two people for the same role offers both while the team is below someone's smallest size", async () => {
+		const { events } = await commit(
+			belowMinimumCase(),
+			fakeClient({ a: ["k", "j"] }, { j: "a", k: "a" }).client,
+		);
+		expect(events.find((e) => e.type === "offers")).toMatchObject({
+			to: ["k", "j"],
+			ranked: ["k", "j"],
+		});
+	});
+
+	// The pilot's dropped frontend expert, as a regression case: x can do ml and some frontend, j is a frontend
+	// expert, and the project needs both.
 	function frontendCase() {
 		const world = createWorld([
 			human("a"),
@@ -654,18 +719,21 @@ describe("team size and skills", () => {
 		return world;
 	}
 
-	test("someone chosen for one role also uses up every other needed role they could fill, and the drop says so", () => {
+	test("someone chosen for one role doesn't use up every other role they could fill: each person takes a different one", () => {
 		const world = frontendCase();
 		expect(candidatesOf(world, "a").sort()).toEqual(["j", "x"]);
-		// x is picked for ml, and their beginner frontend counts as covering frontend, so the frontend
-		// expert j gets no offer.
-		expect(selectOffers(world, "a", ["x", "j"])).toEqual(["x"]);
-		expect(explainOffers(world, "a", ["x", "j"]).dropped).toEqual([
-			{
-				id: "j",
-				reason: "every needed role they could fill is already covered: frontend by x",
-			},
-		]);
+		// x takes ml, so j, the frontend expert, takes frontend.
+		expect(explainOffers(world, "a", ["x", "j"])).toEqual({
+			kept: ["x", "j"],
+			dropped: [],
+		});
+	});
+
+	test("someone already kept moves to another of their roles to make room", () => {
+		// j can only do frontend; x, kept first, can do ml or frontend, so x takes ml.
+		const world = frontendCase();
+		expect(selectOffers(world, "a", ["x", "j"])).toEqual(["x", "j"]);
+		expect(selectOffers(world, "a", ["j", "x"])).toEqual(["j", "x"]);
 	});
 
 	test("the offers event shows the model's choice and every drop the code made", async () => {
@@ -692,12 +760,12 @@ describe("team size and skills", () => {
 			dropped: [
 				{
 					id: "j",
-					reason: "every needed role they could fill is already covered: frontend by x",
+					reason: "the team would pass its size limit of 2",
 				},
 			],
 		});
 		expect(formatEvent(offers!, { rationale: false })).toContain(
-			"its model chose x, j · dropped j: every needed role they could fill is already covered: frontend by x",
+			"its model chose x, j · dropped j: the team would pass its size limit of 2",
 		);
 	});
 

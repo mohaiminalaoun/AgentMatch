@@ -171,6 +171,16 @@ function maxSizeFor(world: World, owner: string, id: string): number {
 	return preferences?.maxTeamSize ?? Infinity;
 }
 
+// The smallest team `id` wants, as `owner` knows it: from its own profile for the owner, from what `id` shared
+// at level 2 for anyone else, or none if they never said.
+function minSizeFor(world: World, owner: string, id: string): number {
+	const preferences =
+		id === owner
+			? world.agents[owner]!.profile.preferences
+			: contactOf(world.agents[owner]!, id).learned.preferences;
+	return preferences?.minTeamSize ?? 0;
+}
+
 // The roles `id` can fill, as `owner` knows them: skills from its own profile for the owner, from what `id`
 // shared at level 2 for anyone else.
 function rolesOf(world: World, owner: string, id: string): Set<string> {
@@ -247,9 +257,10 @@ export function isOpen(world: World, id: string): boolean {
 }
 
 // Trims `ordered` (best first) to offers that can all be taken at once, for one version of the project: the
-// team's, or, before there's a team, the one agreed with the first person kept. Each person must fill a role
-// of that version that neither the team nor anyone kept before them fills, the version must be safe to send
-// them, and the resulting team must fit every member's largest size, theirs included.
+// team's, or, before there's a team, the one agreed with the first person kept. Each person must be able to
+// take a needed role of that version that nobody on the team covers, a different one from everyone kept
+// before them, the version must be safe to send them, and the resulting team must fit every member's largest
+// size, theirs included.
 export function selectOffers(
 	world: World,
 	owner: string,
@@ -261,27 +272,43 @@ export function selectOffers(
 // Someone `selectOffers` left out, and why, so a log shows when code overrode the owner's model.
 export type DroppedOffer = { id: string; reason: string };
 
+const REVEALS = "the version would reveal something learned from someone else";
+const FILLS_NONE = "fills none of the roles needed";
+
+// Whether a drop is down to the version: one written for everyone might let them in.
+function versionBound(drop: DroppedOffer): boolean {
+	return drop.reason === REVEALS || drop.reason.startsWith(FILLS_NONE);
+}
+
 // What `selectOffers` keeps, plus everyone in `ordered` it drops, each with the reason.
-// With `teamVersion`, everyone is offered that version instead, before there's a team.
+// With `teamVersion`, everyone is offered that version instead, before there's a team. With
+// `extraBelowMinimum` (for people the owner's model chose), someone whose roles are all taken by people kept
+// before them is kept anyway while the team, without them, would be smaller than someone's smallest size.
 export function explainOffers(
 	world: World,
 	owner: string,
 	ordered: readonly string[],
-	teamVersion?: Terms,
+	{
+		teamVersion,
+		extraBelowMinimum = false,
+	}: { teamVersion?: Terms | undefined; extraBelowMinimum?: boolean } = {},
 ): { kept: string[]; dropped: DroppedOffer[] } {
-	const size = membersOf(world, owner).length;
+	const members = membersOf(world, owner);
+	const size = members.length;
 	let version = teamOf(world, owner)
 		? versionFor(world, owner, owner)
 		: teamVersion;
-	let needed = version ? stillNeeded(world, owner, version) : undefined;
+	let open = version ? stillNeeded(world, owner, version) : undefined;
 	let limit = size + placesLeft(world, owner);
-	// Who covers each role already: a team member, or someone kept before.
-	const coveredBy = new Map<string, string>();
-	for (const id of membersOf(world, owner).slice(1)) {
+	// Who on the team covers each role already.
+	const onTeam = new Map<string, string>();
+	for (const id of members.slice(1)) {
 		for (const role of rolesOf(world, owner, id)) {
-			coveredBy.set(role, coveredBy.get(role) ?? id);
+			onTeam.set(role, onTeam.get(role) ?? id);
 		}
 	}
+	// Everyone kept so far who needs a role of their own, with the roles they could take.
+	const assigned: Taker[] = [];
 	const kept: string[] = [];
 	const dropped: DroppedOffer[] = [];
 	for (const id of ordered) {
@@ -294,13 +321,10 @@ export function explainOffers(
 			continue;
 		}
 		if (!safeToOffer(world, owner, id, theirs)) {
-			dropped.push({
-				id,
-				reason: "the version would reveal something learned from someone else",
-			});
+			dropped.push({ id, reason: REVEALS });
 			continue;
 		}
-		const stillOpen = needed ?? stillNeeded(world, owner, theirs);
+		const stillOpen = open ?? stillNeeded(world, owner, theirs);
 		const filled = fills(world, owner, id, stillOpen);
 		const theirMax = maxSizeFor(world, owner, id);
 		const newLimit = Math.min(limit, theirMax);
@@ -309,23 +333,45 @@ export function explainOffers(
 			kept.length === 0 &&
 			!version &&
 			wroteTheirVersion(world, owner, id);
-		if (filled.length === 0 && !ownPlace) {
-			const theirRoles = [...rolesOf(world, owner, id)].filter((role) =>
-				theirs.rolesNeeded.includes(role),
-			);
-			dropped.push({
-				id,
-				reason:
-					theirRoles.length === 0
-						? `fills none of the roles needed (${stillOpen.join(", ") || "none left"})`
-						: `every needed role they could fill is already covered: ${theirRoles
-								.map(
-									(role) =>
-										`${role} by ${coveredBy.get(role) ?? "the team"}`,
-								)
-								.join(", ")}`,
-			});
-			continue;
+		let extra = false;
+		if (!ownPlace) {
+			if (filled.length === 0) {
+				const theirRoles = [...rolesOf(world, owner, id)].filter(
+					(role) => theirs.rolesNeeded.includes(role),
+				);
+				dropped.push({
+					id,
+					reason:
+						theirRoles.length === 0
+							? `${FILLS_NONE} (${stillOpen.join(", ") || "none left"})`
+							: `every needed role they could fill is already covered: ${theirRoles
+									.map(
+										(role) =>
+											`${role} by ${onTeam.get(role) ?? "the team"}`,
+									)
+									.join(", ")}`,
+				});
+				continue;
+			}
+			if (!assignRoles([...assigned, { id, roles: filled }])) {
+				const smallest = Math.max(
+					...[...members, ...kept, id].map((m) =>
+						minSizeFor(world, owner, m),
+					),
+				);
+				if (extraBelowMinimum && size + kept.length < smallest) {
+					extra = true;
+				} else {
+					const holders = assignRoles(assigned)!;
+					dropped.push({
+						id,
+						reason: `every needed role they could fill is already taken: ${filled
+							.map((role) => `${role} by ${holders.get(role)}`)
+							.join(", ")}`,
+					});
+					continue;
+				}
+			}
 		}
 		if (size + kept.length + 1 > newLimit) {
 			dropped.push({
@@ -340,12 +386,44 @@ export function explainOffers(
 		kept.push(id);
 		limit = newLimit;
 		version = theirs;
-		for (const role of filled) {
-			coveredBy.set(role, coveredBy.get(role) ?? id);
+		open = stillOpen;
+		if (!ownPlace && !extra) {
+			assigned.push({ id, roles: filled });
 		}
-		needed = stillOpen.filter((role) => !filled.includes(role));
 	}
 	return { kept, dropped };
+}
+
+// Someone who needs a role of their own, and the roles they could take.
+type Taker = { id: string; roles: readonly string[] };
+
+// A different role for each of `takers`, as role to id, or undefined if there's no way to give everyone one
+// (augmenting paths: someone may move to another of their roles to free one up).
+function assignRoles(
+	takers: readonly Taker[],
+): Map<string, string> | undefined {
+	const holder = new Map<string, string>();
+	const rolesOfTaker = new Map(takers.map((t) => [t.id, t.roles]));
+	const place = (id: string, seen: Set<string>): boolean => {
+		for (const role of rolesOfTaker.get(id) ?? []) {
+			if (seen.has(role)) {
+				continue;
+			}
+			seen.add(role);
+			const current = holder.get(role);
+			if (current === undefined || place(current, seen)) {
+				holder.set(role, id);
+				return true;
+			}
+		}
+		return false;
+	};
+	for (const taker of takers) {
+		if (!place(taker.id, new Set())) {
+			return undefined;
+		}
+	}
+	return holder;
 }
 
 // The version every offer in a pass carries: the team's, or the one agreed with the first person offered.
@@ -519,7 +597,7 @@ export function offerMessages(
 						: `Your human has no team yet, and it has ${places} place${plural}. Each person below shows the version of the project you agreed with them: the team builds the version agreed with whoever you put first, and anyone after them joins that version.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
-					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; people who only duplicate a role already offered won't get one.`,
+					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; someone who only duplicates a role already offered won't get one, unless the team would otherwise be smaller than someone's smallest size.`,
 					"Prefer people whose skills cover different roles the project needs. leftTeams, where shown, is how many committed teams that person has left before; weigh their reliability. Your rationale is private.",
 					CITE_FACTS,
 				].join("\n"),
@@ -1031,7 +1109,9 @@ export async function runCommitment(
 				},
 			);
 			const ranked = [...new Set(data.offer)];
-			let { kept, dropped } = explainOffers(current(), owner, ranked);
+			let { kept, dropped } = explainOffers(current(), owner, ranked, {
+				extraBelowMinimum: true,
+			});
 			// Before there's a team, the checks may cut people the model chose only because each agreed a
 			// different version; one version written for all of them may let more of them in.
 			const wanted = ranked.slice(0, places);
@@ -1039,11 +1119,16 @@ export async function runCommitment(
 			if (
 				!teamOf(current(), owner) &&
 				wanted.length >= 2 &&
-				kept.length < wanted.length
+				kept.length < wanted.length &&
+				dropped.some(versionBound)
 			) {
 				const version = await writeTeamVersion(owner, wanted);
 				const merged =
-					version && explainOffers(current(), owner, ranked, version);
+					version &&
+					explainOffers(current(), owner, ranked, {
+						teamVersion: version,
+						extraBelowMinimum: true,
+					});
 				if (merged && merged.kept.length > kept.length) {
 					({ kept, dropped } = merged);
 					teamVersion = version;
