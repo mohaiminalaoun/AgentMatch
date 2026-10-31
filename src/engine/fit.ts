@@ -126,6 +126,13 @@ const skillList = (skills: Profile["skills"]) =>
 	skills.map((s) => `${s.name} (${s.level})`).join(", ");
 const range = ([min, max]: readonly [number, number]) =>
 	min === max ? `${min}` : `${min} to ${max}`;
+// A time of day as HH:MM, wrapped onto the clock, for offsets like +5.75.
+const clock = (hour: number) => {
+	const minutes = Math.round((((hour % 24) + 24) % 24) * 60);
+	return `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+};
+// The evening hour the clock line compares, when side projects often happen.
+const EVENING = 19;
 const hours = (n: number) =>
 	`${Number.isInteger(n) ? n : n.toFixed(2).replace(/0+$/, "")} hour${n === 1 ? "" : "s"}`;
 
@@ -134,8 +141,10 @@ const hours = (n: number) =>
 export function factsText(f: FitFacts): string {
 	const facts: string[] = [];
 	if (f.them.utcOffset !== undefined) {
+		const ahead = f.them.utcOffset - f.you.utcOffset;
 		facts.push(
 			`Time zones: your human ${utc(f.you.utcOffset)}, ${f.other} ${utc(f.them.utcOffset)} (${hours(f.timeZoneGap!)} apart).`,
+			`On the clock: when it's ${clock(EVENING)} for your human, it's ${clock(EVENING + ahead)} for ${f.other}; when it's ${clock(EVENING)} for ${f.other}, it's ${clock(EVENING - ahead)} for your human. That holds whatever hours anyone keeps.`,
 		);
 	}
 	if (f.them.hoursPerWeek !== undefined) {
@@ -164,7 +173,7 @@ export function factsText(f: FitFacts): string {
 		f.workdayOverlap === undefined
 			? []
 			: [
-					`If both worked ${WORKDAY_START}:00 to ${WORKDAY_END}:00 in their own time zone, their working days would overlap about ${hours(f.workdayOverlap)} a day. That is an assumption, not a fact: nobody has said when they work, and side projects often happen outside working hours.`,
+					`If both worked ${WORKDAY_START}:00 to ${WORKDAY_END}:00 in their own time zone, their working days would overlap about ${hours(f.workdayOverlap)} a day. That is an assumption, not a fact: nobody has said when they work. The time zones and the clock above are facts.`,
 				];
 
 	const unknowns = [
@@ -178,7 +187,7 @@ export function factsText(f: FitFacts): string {
 					`${f.other}'s skills and team size: not shared yet (they come at level 2). Don't assume they have any skill or would fill any role.`,
 				]
 			: []),
-		"When anyone actually works or can meet: time zones and weekly hours don't say.",
+		"Exactly when anyone works or can meet: not shared. That doesn't make a time-zone gap matter less: whatever hours they keep, the clock above holds.",
 		"Roles a pitch doesn't list: unknown. Its author may cover them, so they aren't necessarily open.",
 		"One person may cover several roles, so the number of roles isn't the number of people. Whether someone's weekly hours stretch to all their roles is a judgment, not a fact.",
 	];

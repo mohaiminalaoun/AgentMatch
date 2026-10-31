@@ -7,7 +7,7 @@ export const GOOD_TEAM = [
 	"A good team for your human is one where, weighed together:",
 	"- the project is something your human would want to build;",
 	"- their interests overlap in meaning (similar topics count, not just identical words);",
-	"- the logistics work going by the facts: time zones and weekly hours that leave room to collaborate, and a team size that suits everyone;",
+	"- the logistics work going by the facts: time zones and weekly hours that leave room to collaborate, and a team size that suits everyone. A wide time-zone gap is a real cost even though nobody's working hours are known: one side's evening is the other's night;",
 	"- every role the project needs has someone who can do it and has the time for it, your human included;",
 	"- your human gets to use skills they're good at.",
 	"No match is perfect: weigh these against each other, and against the other options your human actually has.",

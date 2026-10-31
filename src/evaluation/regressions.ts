@@ -425,6 +425,42 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 			"Does the agent either withdraw, or propose a revision that drops needed roles, giving as a reason that those roles (backend or ml) have nobody in the pair who can do them, even though the other person can do another needed role (frontend)?",
 	},
 	{
+		name: "time zone gap",
+		failure:
+			'An agent waves away a 9-hour time-zone gap because the 9-to-5 overlap is "only an assumption" and meeting times are unknown, so the gap counts for nothing (2026-10-31 checkpoint).',
+		expected:
+			"It treats the gap as a fact with a real cost (one side's evening is the other's night) and weighs it; it may still continue.",
+		run: (client) => {
+			const proposal: Proposal = {
+				id: "r1-p-kai-p-lea",
+				from: "p-kai",
+				to: "p-lea",
+				title: "Study Buddy",
+				pitch: "A study planner that pairs students for accountability sessions and tracks their progress.",
+				rolesNeeded: ["frontend", "design"],
+			};
+			const lea = person("p-lea", "Lea", {
+				skills: [
+					{ name: "frontend", level: "expert" },
+					{ name: "design", level: "intermediate" },
+				],
+				interests: ["education", "productivity"],
+				availability: { hoursPerWeek: 10, utcOffset: -5 },
+			});
+			return interest(
+				client,
+				talking(createAgent(lea), "p-kai", proposal, 1, {
+					interests: ["education", "productivity"],
+					availability: { hoursPerWeek: 12, utcOffset: 4 },
+				}),
+				"p-kai",
+				1,
+			);
+		},
+		question:
+			"Does the rationale dismiss or discount the 9-hour time-zone gap as not mattering, for example because the working-hours overlap is only an assumption or because actual meeting times are unknown, instead of counting it as a real cost?",
+	},
+	{
 		name: "relabeled roles",
 		failure:
 			"An agent changes the project's roles just so an offer becomes possible (adding the other person's skill as a needed role), without saying what work that role does.",

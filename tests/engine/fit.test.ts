@@ -91,6 +91,23 @@ describe("fitFacts", () => {
 		expect(text).not.toContain("p-leo's interests, time zone");
 	});
 
+	test("the clock line is a fact: each side's evening on the other's clock, past midnight and in fractional zones", () => {
+		const text = factsText(fitFacts(atLevel(1), "p-leo"));
+		// Riya UTC-5, Leo UTC+2: Leo is 7 hours ahead.
+		expect(text).toContain(
+			"On the clock: when it's 19:00 for your human, it's 02:00 for p-leo; when it's 19:00 for p-leo, it's 12:00 for your human.",
+		);
+		expect(text).not.toContain("side projects often happen");
+		let agent = raiseLevel(createAgent(riya), "p-leo", 1);
+		agent = learn(agent, "p-leo", {
+			interests: [],
+			availability: { hoursPerWeek: 5, utcOffset: 5.75 },
+		});
+		expect(factsText(fitFacts(agent, "p-leo"))).toContain(
+			"when it's 19:00 for your human, it's 05:45 for p-leo; when it's 19:00 for p-leo, it's 08:15 for your human.",
+		);
+	});
+
 	test("at level 2, skills and the sizes that suit both are facts", () => {
 		const facts = fitFacts(atLevel(2), "p-leo");
 		expect(facts.sizesForBoth).toEqual([3, 4]);
@@ -104,7 +121,9 @@ describe("fitFacts", () => {
 
 	test("always says what a profile can't tell: meeting times, unlisted roles, and role count versus headcount", () => {
 		const text = factsText(fitFacts(atLevel(2), "p-leo"));
-		expect(text).toContain("When anyone actually works or can meet");
+		expect(text).toContain(
+			"Exactly when anyone works or can meet: not shared. That doesn't make a time-zone gap matter less",
+		);
 		expect(text).toContain("Roles a pitch doesn't list: unknown.");
 		expect(text).toContain(
 			"the number of roles isn't the number of people",
