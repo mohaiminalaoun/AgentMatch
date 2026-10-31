@@ -197,6 +197,7 @@ export async function discover(
 					AgentPicks,
 					{
 						...llmOptions,
+						about: { kind: "discovery", level: 0 },
 						check: ({ approach }) =>
 							approach.flatMap((id) =>
 								id === agent.id
@@ -386,6 +387,7 @@ export async function brainstorm(
 					AgentPicks,
 					{
 						...llmOptions,
+						about: { kind: "brainstorm", level: 0 },
 						check: ({ approach }) =>
 							approach.flatMap((other) =>
 								other !== id &&

@@ -78,6 +78,9 @@ export type ChatOptions = {
 	fetch?: typeof fetch;
 	// Called after every successful call, e.g. to print or log the conversation.
 	onExchange?: (exchange: Exchange) => void;
+	// What is being decided, and at what disclosure level, for brains that show it: an outside agent sees it
+	// next to the prompt. A model ignores it.
+	about?: { kind: string; level: number };
 };
 
 const DEFAULT_TIMEOUT_MS = 60_000;

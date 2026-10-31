@@ -250,6 +250,7 @@ export async function decideOnProposal(
 			AgentDecision,
 			{
 				...options,
+				about: { kind: "decision", level },
 				check: ({ decision }) => {
 					if (join && decision.decision === "counter") {
 						return [

@@ -105,7 +105,7 @@ export async function getHunch(
 		const { data } = await brainOf(client, agent.id).chatJson(
 			hunchMessages(agent, otherId, situation),
 			AgentHunch,
-			options,
+			{ ...options, about: { kind: "hunch", level: 0 } },
 		);
 		// A steer other than neutral needs a real note behind it; without one, code makes it neutral.
 		const evidence =

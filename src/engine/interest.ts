@@ -282,6 +282,7 @@ export async function checkInterest(
 			AgentInterest,
 			{
 				...options,
+				about: { kind: "interest", level },
 				check: ({ interest, revision }) => {
 					if (!revision) {
 						return [];
@@ -418,7 +419,7 @@ export async function considerRevision(
 		const { data } = await brainOf(client, agent.id).chatJson(
 			revisionMessages(agent, revision),
 			AgentAdopt,
-			options,
+			{ ...options, about: { kind: "revision", level: revision.level } },
 		);
 		return {
 			adopt: data.adopt,

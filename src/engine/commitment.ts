@@ -1097,6 +1097,7 @@ export async function runCommitment(
 				AgentOffers,
 				{
 					...llmOptions,
+					about: { kind: "offers", level: 2 },
 					check: ({ offer }) =>
 						offer.flatMap((id) =>
 							candidates.includes(id)
@@ -1180,6 +1181,7 @@ export async function runCommitment(
 				AgentTeamVersion,
 				{
 					...llmOptions,
+					about: { kind: "team-version", level: 2 },
 					check: (version) => [
 						...version.rolesNeeded
 							.filter(
@@ -1252,6 +1254,7 @@ export async function runCommitment(
 				AgentCommitment,
 				{
 					...llmOptions,
+					about: { kind: "commit", level: 2 },
 					check: ({ commit }) =>
 						commit === null || owners.includes(commit)
 							? []

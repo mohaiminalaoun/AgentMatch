@@ -226,7 +226,7 @@ export async function runLock(
 					ask,
 				),
 				AgentConfidence,
-				llmOptions,
+				{ ...llmOptions, about: { kind: "deadline", level: 2 } },
 			);
 			return {
 				confident: data.confident,

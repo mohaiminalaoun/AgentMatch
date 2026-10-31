@@ -79,6 +79,7 @@ export async function writeListings(
 					AgentListing,
 					{
 						...llmOptions,
+						about: { kind: "listing", level: 0 },
 						check: (listing) => {
 							const { rolesNeeded } = listing;
 							const leaks = checkDisclosure(
