@@ -245,6 +245,43 @@ export function placesLeft(world: World, owner: string): number {
 	);
 }
 
+// What an owner whose team is still open shows in public: the team's version, if it's safe to show anyone
+// (it reveals nothing about the owner beyond level 0, and nothing the owner learned from anyone), otherwise its
+// original listing's title and pitch; the roles the team still needs; and its size. Undefined for anyone not
+// owning a team. Saying which roles are still needed implies the rest are covered by someone, not by whom:
+// committing to a team means its open roles may be advertised.
+export function teamListing(
+	world: World,
+	owner: string,
+): (Terms & { teamSize: number }) | undefined {
+	const team = teamOf(world, owner);
+	if (!team || team.members[0] !== owner) {
+		return undefined;
+	}
+	const agent = world.agents[owner]!;
+	const version = teamTerms(team);
+	const texts = {
+		...(version.title !== undefined && { title: version.title }),
+		pitch: version.pitch,
+	};
+	const listing = publicPitch(agent);
+	const safe =
+		checkDisclosure(agent.profile, 0, { texts }).length === 0 &&
+		checkThirdParty(
+			texts,
+			Object.values(agent.contacts).map((contact) => contact.learned),
+			JSON.stringify([listing?.title, listing?.pitch]),
+		).length === 0;
+	const shown = safe ? version : (listing ?? version);
+	const needed = stillNeeded(world, owner);
+	return {
+		...(shown.title !== undefined && { title: shown.title }),
+		pitch: shown.pitch,
+		rolesNeeded: needed.length > 0 ? needed : version.rolesNeeded,
+		teamSize: team.members.length,
+	};
+}
+
 // Whether `id` still takes part in discovery: on no team, or owning one with places left and roles still needed.
 export function isOpen(world: World, id: string): boolean {
 	const team = teamOf(world, id);

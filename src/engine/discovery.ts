@@ -2,7 +2,7 @@ import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import { brainstormedWith, contactOf, type AgentState } from "./agent.js";
 import type { LlmClient } from "./client.js";
-import { isOpen, teamOf } from "./commitment.js";
+import { isOpen, teamListing, teamOf } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import {
 	StructuredOutputError,
@@ -22,7 +22,14 @@ export type BoardEntry = {
 	pitch: string;
 	rolesNeeded: string[];
 	leftTeams?: number;
+	// Set when the person already leads a committed team: its size, them included.
+	teamSize?: number;
 };
+
+// What `agent` pitches in public: its team's listing if it leads an open team, otherwise its own listing.
+function pitchOf(world: World, agent: AgentState) {
+	return teamListing(world, agent.id) ?? publicPitch(agent);
+}
 
 // What the model returns: private reasoning, then the ids it wants to approach, best first.
 export const AgentPicks = z.object({
@@ -56,12 +63,13 @@ export type DiscoveryOptions = {
 const DEFAULT_PER_AGENT = 3;
 
 // The public board: every agent with a project idea, showing only its level-0 pitch and roles needed.
-// People already on a team are off it, except owners whose team still has places.
+// People already on a team are off it, except owners whose team still has places and needs; they show the
+// team's listing instead (`teamListing`): its version, what it still needs, and its size.
 export function buildBoard(world: World): BoardEntry[] {
 	return Object.values(world.agents)
 		.filter((agent) => isOpen(world, agent.id))
 		.flatMap((agent) => {
-			const terms = publicPitch(agent);
+			const terms = pitchOf(world, agent);
 			return terms
 				? [
 						{
@@ -121,6 +129,11 @@ export function discoveryMessages(
 					...(joiners.length > 0
 						? [
 								"People looking to join have no project of their own, and only their ids are public. You may approach them with your human's project.",
+							]
+						: []),
+					...(others.some((entry) => entry.teamSize)
+						? [
+								"teamSize on an entry means that person already leads a committed team of that many people, building the version shown; its roles are what that team still needs.",
 							]
 						: []),
 					...([...others, ...joiners].some((entry) => entry.leftTeams)
@@ -240,7 +253,7 @@ export async function discover(
 			}
 			paired.add(pair);
 			const id = `r${round}-${pick.agent}-${to}`;
-			const own = publicPitch(agent);
+			const own = pitchOf(world, agent);
 			const target = listed.get(to)!;
 			// The proposer's own record travels with every proposal, set here rather than by any model.
 			const record =

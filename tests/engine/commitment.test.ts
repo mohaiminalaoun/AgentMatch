@@ -18,6 +18,7 @@ import {
 	offerMessages,
 	runCommitment,
 	safeToOffer,
+	teamListing,
 	teamOf,
 	commitmentMessages,
 	explainOffers,
@@ -534,6 +535,37 @@ describe("after commitment", () => {
 		expect(isOpen(after, "b")).toBe(false);
 		expect(isOpen(after, "full")).toBe(false);
 		expect(buildBoard(after).map((e) => e.id)).toEqual(["a"]);
+		// a's entry is its team's: the version it builds, what it still needs, and its size.
+		expect(buildBoard(after)[0]).toEqual({
+			id: "a",
+			title: "a's project",
+			pitch: "a's project",
+			rolesNeeded: ["design"],
+			teamSize: 2,
+		});
+	});
+
+	test("a team version that mentions what the owner learned from a member isn't shown in public: the listing's pitch is", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false, 4, "zzphysio"),
+		]);
+		ready(world, "a", "j");
+		world.teams = [
+			{
+				id: "team-a",
+				members: ["a", "j"],
+				project: { title: "Physio", description: "A zzphysio tutor." },
+				rolesNeeded: ["zzphysio", "design"],
+				status: "committed",
+			},
+		];
+		expect(teamListing(world, "a")).toEqual({
+			pitch: "a's project",
+			rolesNeeded: ["design"],
+			teamSize: 2,
+		});
+		expect(teamListing(world, "j")).toBeUndefined();
 	});
 });
 

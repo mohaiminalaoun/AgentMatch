@@ -261,6 +261,16 @@ describe("decideOnProposal", () => {
 		expect(system!.content).not.toContain("interests overlap only loosely");
 	});
 
+	test("a proposal from someone who already leads a team says so, with its size", () => {
+		const [, user] = decisionMessages(ada, { ...proposal, teamSize: 2 });
+		expect(user!.content).toContain(
+			"Their human already leads a committed team of 2 people building this version; the roles are what that team still needs.",
+		);
+		expect(decisionMessages(ada, proposal)[1]!.content).not.toContain(
+			"already leads",
+		);
+	});
+
 	test("the prompt says roles needed are for others to fill", () => {
 		const [system] = decisionMessages(ada, proposal);
 		expect(system!.content).toContain(

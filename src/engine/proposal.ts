@@ -35,6 +35,9 @@ export const Proposal = Terms.extend({
 	// How many committed teams the proposer's human has left, if any. Filled in by code from the
 	// proposer's state, never by a model, so the recipient can weigh reliability.
 	leftTeams: z.number().int().min(1).optional(),
+	// Set by code when the proposer already leads a committed team: its size, the owner included. The terms
+	// are then the team's version as its public listing shows it, and the roles are what the team still needs.
+	teamSize: z.number().int().min(2).optional(),
 	// Set by code when the proposer has no project and asks to join the recipient's: the terms are then the
 	// recipient's own listing, and its roles are what the recipient's project needs, not what the proposer offers.
 	join: z.literal(true).optional(),

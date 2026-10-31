@@ -124,6 +124,11 @@ export function decisionMessages(
 				`Agent ${proposal.from} proposes:`,
 				`Pitch: ${proposal.pitch}`,
 				`Roles needed: ${proposal.rolesNeeded.join(", ")}`,
+				...(proposal.teamSize
+					? [
+							`Their human already leads a committed team of ${proposal.teamSize} people building this version; the roles are what that team still needs. Joining means joining that team.`,
+						]
+					: []),
 				...(proposal.leftTeams
 					? [
 							`Reliability: their human has left ${proposal.leftTeams} committed team${proposal.leftTeams === 1 ? "" : "s"} before, so they may leave again.`,
