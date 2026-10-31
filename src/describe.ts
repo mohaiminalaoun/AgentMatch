@@ -83,7 +83,7 @@ export function formatEvent(
 		case "recheck":
 			return `  ${event.agent} rechecks ${event.team} after it grew → ${event.decision}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "lock":
-			return `  ${event.agent} at the deadline${event.ask === 2 ? " (asked again)" : ""}: ${event.confident ? "confident, stays" : "drops out"} of ${event.team}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+			return `  ${event.agent} at the deadline${event.ask === 2 ? " (asked again)" : ""}: ${event.confident ? "confident, stays in" : "drops out of"} ${event.team}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "brainstorm":
 			return `\nbrainstorm · ${event.agents.length} people still without a team: ${event.agents.join(", ")}`;
 		case "stopped":

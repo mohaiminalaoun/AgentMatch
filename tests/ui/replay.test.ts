@@ -66,6 +66,83 @@ describe("browser replay", () => {
 			["ana", "ben"],
 		]);
 	});
+	it("at the deadline, whoever drops out leaves their group, which dissolves below two, with no mark against them", () => {
+		const tentative = (id: string, members: string[]): Event => ({
+			type: "team",
+			team: {
+				id,
+				members,
+				project: { title: "T", description: "D" },
+				rolesNeeded: [],
+				status: "tentative",
+			},
+		});
+		const answer = (
+			agent: string,
+			team: string,
+			confident: boolean,
+		): Event => ({
+			type: "lock",
+			agent,
+			team,
+			ask: 1,
+			confident,
+			rationale: "Weighed it.",
+			fellBack: false,
+		});
+		const events = parseLog(
+			[
+				{
+					type: "round",
+					time: "",
+					model: "",
+					agents: ["ana", "ben", "cy", "dee", "eli"],
+				},
+				tentative("t-ana", ["ana", "ben", "cy"]),
+				tentative("t-dee", ["dee", "eli"]),
+				answer("ana", "t-ana", true),
+				answer("cy", "t-ana", false),
+				answer("eli", "t-dee", false),
+				{
+					type: "team",
+					team: {
+						id: "t-ana",
+						members: ["ana", "ben"],
+						project: { title: "T", description: "D" },
+						rolesNeeded: [],
+						status: "committed",
+					},
+				},
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		expect(project(events).teams).toEqual([
+			expect.objectContaining({
+				members: ["ana", "ben"],
+				status: "committed",
+			}),
+		]);
+		const entries = Object.fromEntries(board(events).map((b) => [b.id, b]));
+		expect(entries.cy).toMatchObject({ status: "exploring", leftTeams: 0 });
+		expect(describeEvent(events[4]!)).toBe(
+			"cy dropped out of their group at the deadline",
+		);
+		expect(describeEvent(events[3]!)).toBe(
+			"ana confirmed their group at the deadline",
+		);
+		const story = teamStory(events, {
+			id: "t-ana",
+			members: ["ana", "ben"],
+			project: { title: "T", description: "D" },
+			rolesNeeded: [],
+			status: "committed",
+		});
+		expect(story.steps.map((s) => `${s.who} ${s.what}`)).toEqual([
+			"ana confirmed",
+			"cy dropped",
+		]);
+	});
 	it("accepts additional fields and future event types", () => {
 		expect(parseLog('{"type":"future-event","extra":true}')).toHaveLength(
 			1,

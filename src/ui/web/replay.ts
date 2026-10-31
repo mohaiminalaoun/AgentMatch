@@ -307,6 +307,15 @@ const schemas: Record<string, z.ZodType> = {
 			...rationale,
 		})
 		.passthrough(),
+	lock: z
+		.object({
+			agent: id,
+			team: id,
+			ask: z.union([z.literal(1), z.literal(2)]),
+			confident: z.boolean(),
+			...rationale,
+		})
+		.passthrough(),
 	team: z
 		.object({
 			team: z
@@ -423,6 +432,10 @@ export function describe(e: Event): string {
 				: `${e.agent} is keeping their options open`;
 		case "recheck":
 			return `${e.agent} decided to ${e.decision}`;
+		case "lock":
+			return e.confident
+				? `${e.agent} confirmed their group at the deadline${e.ask === 2 ? ", asked again" : ""}`
+				: `${e.agent} dropped out of their group at the deadline${e.ask === 2 ? ", asked again" : ""}`;
 		case "tick":
 			return `Negotiation step ${e.n}`;
 		case "round":
@@ -673,7 +686,15 @@ type Team = Extract<Event, { type: "team" }>["team"];
 export type TeamStep = {
 	who: string;
 	what:
-		"offered" | "joined" | "declined" | "busy" | "led" | "stayed" | "left";
+		| "offered"
+		| "joined"
+		| "declined"
+		| "busy"
+		| "led"
+		| "stayed"
+		| "left"
+		| "confirmed"
+		| "dropped";
 	// Whom it offered places to; whose offer it answered; or, for "led", whose offers it passed up.
 	others: string[];
 	why?: string | undefined;
@@ -727,6 +748,13 @@ export function teamStory(
 			steps.push({
 				who: e.agent,
 				what: e.decision === "leave" ? "left" : "stayed",
+				others: [],
+				why: e.rationale,
+			});
+		if (e.type === "lock" && e.team === team.id)
+			steps.push({
+				who: e.agent,
+				what: e.confident ? "confirmed" : "dropped",
 				others: [],
 				why: e.rationale,
 			});
@@ -831,9 +859,14 @@ export function board(events: Event[]): BoardEntry[] {
 			teams.set(e.team.id, e.team.members);
 			changed.set(e.team.id, i);
 		}
-		// A team left with only its owner dissolves without a team event, so drop the leaver here.
-		if (e.type === "recheck" && e.decision === "leave") {
-			left.set(e.agent, (left.get(e.agent) ?? 0) + 1);
+		// A team left with only its owner dissolves without a team event, so drop the leaver here. Dropping
+		// out at the deadline doesn't count as leaving a team: nothing was final yet.
+		if (
+			(e.type === "recheck" && e.decision === "leave") ||
+			(e.type === "lock" && !e.confident)
+		) {
+			if (e.type === "recheck")
+				left.set(e.agent, (left.get(e.agent) ?? 0) + 1);
 			const members = (teams.get(e.team) ?? []).filter(
 				(id) => id !== e.agent,
 			);
@@ -911,7 +944,10 @@ export function project(events: Event[]) {
 		if (e.type === "tick") tick = e.n;
 		if (e.type === "team") teams.set(e.team.id, e.team);
 		// A team left with only its owner dissolves without a team event, so drop it here.
-		if (e.type === "recheck" && e.decision === "leave") {
+		if (
+			(e.type === "recheck" && e.decision === "leave") ||
+			(e.type === "lock" && !e.confident)
+		) {
 			const team = teams.get(e.team);
 			const members = team?.members.filter((id) => id !== e.agent) ?? [];
 			if (team && members.length >= 2)

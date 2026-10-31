@@ -22,9 +22,13 @@ function sentence(step: TeamStep): string {
 			return `${who} stayed after the team grew`;
 		case "left":
 			return `${who} left the team`;
+		case "confirmed":
+			return `${who} confirmed the group at the deadline`;
+		case "dropped":
+			return `${who} dropped out at the deadline`;
 	}
 }
-const good = new Set<TeamStep["what"]>(["joined", "stayed"]);
+const good = new Set<TeamStep["what"]>(["joined", "stayed", "confirmed"]);
 
 // How a team came about, under its card: the idea as it changed in the conversation that founded the team,
 // with each side's private reasoning folded away, then each offer, answer, and re-check. Follows the replay.
