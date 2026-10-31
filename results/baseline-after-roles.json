@@ -1,0 +1,1275 @@
+{
+	"label": "after-roles",
+	"date": "2026-10-31T05:01:19.552Z",
+	"eval": {
+		"date": "2026-10-31T04:57:16.437Z",
+		"model": "muse-spark-1.3-contributor",
+		"reasoningEffort": "minimal",
+		"people": 20,
+		"seeds": [
+			1,
+			2,
+			3,
+			4,
+			5
+		],
+		"maxRounds": 6,
+		"teamSize": 3,
+		"rows": [
+			{
+				"method": "random",
+				"score": 0.34004629629629635,
+				"scoreStdDev": 0.044724474676809796,
+				"worst": 0.1597222222222222,
+				"coverage": 0.5125,
+				"interest": 0.38888888888888884,
+				"overlap": 0.11875,
+				"placed": 1,
+				"overall": 0.34326388888888887,
+				"leakage": 0,
+				"central": true
+			},
+			{
+				"method": "greedy",
+				"score": 0.5462962962962963,
+				"scoreStdDev": 0.06671929185802003,
+				"worst": 0.34444444444444444,
+				"coverage": 0.5458333333333334,
+				"interest": 0.6555555555555556,
+				"overlap": 0.4375,
+				"placed": 1,
+				"overall": 0.5315972222222222,
+				"leakage": 0,
+				"central": true
+			},
+			{
+				"method": "local search",
+				"score": 0.6,
+				"scoreStdDev": 0.04299266115157763,
+				"worst": 0.4041666666666666,
+				"coverage": 0.55625,
+				"interest": 0.6666666666666666,
+				"overlap": 0.5770833333333333,
+				"placed": 1,
+				"overall": 0.5885416666666667,
+				"leakage": 0,
+				"central": true
+			},
+			{
+				"method": "broadcast",
+				"score": 0.6,
+				"scoreStdDev": 0.04299266115157763,
+				"worst": 0.4041666666666666,
+				"coverage": 0.55625,
+				"interest": 0.6666666666666666,
+				"overlap": 0.5770833333333333,
+				"placed": 1,
+				"overall": 0.5885416666666667,
+				"leakage": 0.8736842105263157,
+				"central": false
+			},
+			{
+				"method": "agents",
+				"score": 0.5253554894179895,
+				"scoreStdDev": 0.027042144576399647,
+				"worst": 0.24166666666666664,
+				"coverage": 0.4318452380952381,
+				"interest": 0.8019841269841269,
+				"overlap": 0.34223710317460315,
+				"placed": 0.8799999999999999,
+				"overall": 0.4670833333333334,
+				"leakage": 0.10400000000000001,
+				"central": false
+			}
+		],
+		"perSeed": [
+			{
+				"seed": 1,
+				"summary": {
+					"score": 0.5598958333333333,
+					"worst": 0.4375,
+					"coverage": 0.3515625,
+					"interest": 0.875,
+					"overlap": 0.453125,
+					"placed": 0.95,
+					"overall": 0.5406250000000001
+				},
+				"leakage": 0.06736842105263158,
+				"teams": [
+					[
+						"p10",
+						"p17"
+					],
+					[
+						"p13",
+						"p5"
+					],
+					[
+						"p18",
+						"p2",
+						"p4"
+					],
+					[
+						"p19",
+						"p7",
+						"p8"
+					],
+					[
+						"p9",
+						"p1",
+						"p11"
+					],
+					[
+						"p3",
+						"p15"
+					],
+					[
+						"p14",
+						"p20"
+					],
+					[
+						"p16",
+						"p6"
+					]
+				]
+			},
+			{
+				"seed": 2,
+				"summary": {
+					"score": 0.5130208333333334,
+					"worst": 0.1875,
+					"coverage": 0.3984375,
+					"interest": 0.625,
+					"overlap": 0.515625,
+					"placed": 0.85,
+					"overall": 0.4395833333333334
+				},
+				"leakage": 0.10526315789473684,
+				"teams": [
+					[
+						"p11",
+						"p4",
+						"p7"
+					],
+					[
+						"p13",
+						"p3"
+					],
+					[
+						"p14",
+						"p19"
+					],
+					[
+						"p6",
+						"p8"
+					],
+					[
+						"p10",
+						"p1"
+					],
+					[
+						"p16",
+						"p9"
+					],
+					[
+						"p12",
+						"p5"
+					],
+					[
+						"p18",
+						"p2"
+					]
+				]
+			},
+			{
+				"seed": 3,
+				"summary": {
+					"score": 0.5185185185185186,
+					"worst": 0.16666666666666666,
+					"coverage": 0.5208333333333334,
+					"interest": 0.7777777777777778,
+					"overlap": 0.2569444444444444,
+					"placed": 0.95,
+					"overall": 0.5041666666666667
+				},
+				"leakage": 0.11578947368421053,
+				"teams": [
+					[
+						"p1",
+						"p13"
+					],
+					[
+						"p12",
+						"p14"
+					],
+					[
+						"p15",
+						"p10"
+					],
+					[
+						"p17",
+						"p5",
+						"p6"
+					],
+					[
+						"p19",
+						"p3"
+					],
+					[
+						"p18",
+						"p11"
+					],
+					[
+						"p4",
+						"p8"
+					],
+					[
+						"p2",
+						"p7"
+					],
+					[
+						"p16",
+						"p20"
+					]
+				]
+			},
+			{
+				"seed": 4,
+				"summary": {
+					"score": 0.49107142857142866,
+					"worst": 0.375,
+					"coverage": 0.5446428571428571,
+					"interest": 0.8571428571428571,
+					"overlap": 0.07142857142857142,
+					"placed": 0.8,
+					"overall": 0.38645833333333335
+				},
+				"leakage": 0.11578947368421053,
+				"teams": [
+					[
+						"p1",
+						"p3",
+						"p9"
+					],
+					[
+						"p12",
+						"p20"
+					],
+					[
+						"p4",
+						"p15"
+					],
+					[
+						"p6",
+						"p7"
+					],
+					[
+						"p8",
+						"p16",
+						"p18"
+					],
+					[
+						"p11",
+						"p19"
+					],
+					[
+						"p2",
+						"p13"
+					]
+				]
+			},
+			{
+				"seed": 5,
+				"summary": {
+					"score": 0.5442708333333334,
+					"worst": 0.041666666666666664,
+					"coverage": 0.34375,
+					"interest": 0.875,
+					"overlap": 0.4140625,
+					"placed": 0.85,
+					"overall": 0.4645833333333334
+				},
+				"leakage": 0.11578947368421053,
+				"teams": [
+					[
+						"p1",
+						"p19"
+					],
+					[
+						"p10",
+						"p13"
+					],
+					[
+						"p11",
+						"p16",
+						"p17"
+					],
+					[
+						"p14",
+						"p9"
+					],
+					[
+						"p4",
+						"p18"
+					],
+					[
+						"p5",
+						"p2"
+					],
+					[
+						"p7",
+						"p8"
+					],
+					[
+						"p3",
+						"p12"
+					]
+				]
+			}
+		]
+	},
+	"explain": {
+		"judge": "muse-spark-1.3-contributor",
+		"all": [
+			{
+				"kind": "brainstorm pick",
+				"calls": 23,
+				"claims": 126,
+				"supported": 119,
+				"unsupported": 2,
+				"contradicted": 5,
+				"assertedUnsupported": 2,
+				"assertedContradicted": 5,
+				"callsWithContradiction": 3,
+				"categories": {
+					"misdescribes an option": 3,
+					"other": 4
+				}
+			},
+			{
+				"kind": "commitment",
+				"calls": 25,
+				"claims": 279,
+				"supported": 271,
+				"unsupported": 7,
+				"contradicted": 1,
+				"assertedUnsupported": 2,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 1,
+				"categories": {
+					"other": 6,
+					"invented scheduling": 2
+				}
+			},
+			{
+				"kind": "decision",
+				"calls": 25,
+				"claims": 162,
+				"supported": 159,
+				"unsupported": 3,
+				"contradicted": 0,
+				"assertedUnsupported": 1,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {
+					"role omission read as availability": 2,
+					"other": 1
+				}
+			},
+			{
+				"kind": "discovery",
+				"calls": 25,
+				"claims": 175,
+				"supported": 165,
+				"unsupported": 8,
+				"contradicted": 2,
+				"assertedUnsupported": 8,
+				"assertedContradicted": 2,
+				"callsWithContradiction": 2,
+				"categories": {
+					"other": 5,
+					"misdescribes an option": 5
+				}
+			},
+			{
+				"kind": "interest check",
+				"calls": 25,
+				"claims": 223,
+				"supported": 223,
+				"unsupported": 0,
+				"contradicted": 0,
+				"assertedUnsupported": 0,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {}
+			},
+			{
+				"kind": "join request",
+				"calls": 25,
+				"claims": 143,
+				"supported": 142,
+				"unsupported": 1,
+				"contradicted": 0,
+				"assertedUnsupported": 1,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {
+					"other": 1
+				}
+			},
+			{
+				"kind": "listing",
+				"calls": 25,
+				"claims": 48,
+				"supported": 45,
+				"unsupported": 3,
+				"contradicted": 0,
+				"assertedUnsupported": 3,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {
+					"other": 3
+				}
+			},
+			{
+				"kind": "offers",
+				"calls": 25,
+				"claims": 345,
+				"supported": 337,
+				"unsupported": 5,
+				"contradicted": 3,
+				"assertedUnsupported": 1,
+				"assertedContradicted": 2,
+				"callsWithContradiction": 2,
+				"categories": {
+					"misdescribes an option": 5,
+					"other": 2,
+					"invented scheduling": 1
+				}
+			},
+			{
+				"kind": "revision answer",
+				"calls": 25,
+				"claims": 239,
+				"supported": 235,
+				"unsupported": 4,
+				"contradicted": 0,
+				"assertedUnsupported": 1,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {
+					"other": 4
+				}
+			},
+			{
+				"kind": "team version",
+				"calls": 10,
+				"claims": 111,
+				"supported": 111,
+				"unsupported": 0,
+				"contradicted": 0,
+				"assertedUnsupported": 0,
+				"assertedContradicted": 0,
+				"callsWithContradiction": 0,
+				"categories": {}
+			}
+		],
+		"perLog": [
+			{
+				"log": "2026-10-31T04-34-11-849Z-eval-seed1.jsonl",
+				"summary": [
+					{
+						"kind": "brainstorm pick",
+						"calls": 5,
+						"claims": 29,
+						"supported": 28,
+						"unsupported": 0,
+						"contradicted": 1,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 1,
+						"callsWithContradiction": 1,
+						"categories": {
+							"misdescribes an option": 1
+						}
+					},
+					{
+						"kind": "commitment",
+						"calls": 5,
+						"claims": 58,
+						"supported": 56,
+						"unsupported": 1,
+						"contradicted": 1,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 1,
+						"categories": {
+							"other": 2
+						}
+					},
+					{
+						"kind": "decision",
+						"calls": 5,
+						"claims": 35,
+						"supported": 35,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "discovery",
+						"calls": 5,
+						"claims": 36,
+						"supported": 33,
+						"unsupported": 3,
+						"contradicted": 0,
+						"assertedUnsupported": 3,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 2,
+							"misdescribes an option": 1
+						}
+					},
+					{
+						"kind": "interest check",
+						"calls": 5,
+						"claims": 46,
+						"supported": 46,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "join request",
+						"calls": 5,
+						"claims": 31,
+						"supported": 31,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "listing",
+						"calls": 5,
+						"claims": 8,
+						"supported": 7,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "offers",
+						"calls": 5,
+						"claims": 72,
+						"supported": 71,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"misdescribes an option": 1
+						}
+					},
+					{
+						"kind": "revision answer",
+						"calls": 5,
+						"claims": 49,
+						"supported": 47,
+						"unsupported": 2,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 2
+						}
+					},
+					{
+						"kind": "team version",
+						"calls": 3,
+						"claims": 33,
+						"supported": 33,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					}
+				]
+			},
+			{
+				"log": "2026-10-31T04-34-11-873Z-eval-seed2.jsonl",
+				"summary": [
+					{
+						"kind": "brainstorm pick",
+						"calls": 5,
+						"claims": 29,
+						"supported": 27,
+						"unsupported": 0,
+						"contradicted": 2,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 2,
+						"callsWithContradiction": 1,
+						"categories": {
+							"misdescribes an option": 2
+						}
+					},
+					{
+						"kind": "commitment",
+						"calls": 5,
+						"claims": 55,
+						"supported": 55,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "decision",
+						"calls": 5,
+						"claims": 37,
+						"supported": 35,
+						"unsupported": 2,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"role omission read as availability": 2
+						}
+					},
+					{
+						"kind": "discovery",
+						"calls": 5,
+						"claims": 40,
+						"supported": 37,
+						"unsupported": 2,
+						"contradicted": 1,
+						"assertedUnsupported": 2,
+						"assertedContradicted": 1,
+						"callsWithContradiction": 1,
+						"categories": {
+							"misdescribes an option": 3
+						}
+					},
+					{
+						"kind": "interest check",
+						"calls": 5,
+						"claims": 43,
+						"supported": 43,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "join request",
+						"calls": 5,
+						"claims": 25,
+						"supported": 25,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "listing",
+						"calls": 5,
+						"claims": 10,
+						"supported": 9,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "offers",
+						"calls": 5,
+						"claims": 66,
+						"supported": 62,
+						"unsupported": 2,
+						"contradicted": 2,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 1,
+						"callsWithContradiction": 1,
+						"categories": {
+							"other": 2,
+							"misdescribes an option": 2
+						}
+					},
+					{
+						"kind": "revision answer",
+						"calls": 5,
+						"claims": 41,
+						"supported": 40,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					}
+				]
+			},
+			{
+				"log": "2026-10-31T04-34-11-876Z-eval-seed3.jsonl",
+				"summary": [
+					{
+						"kind": "brainstorm pick",
+						"calls": 3,
+						"claims": 18,
+						"supported": 18,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "commitment",
+						"calls": 5,
+						"claims": 59,
+						"supported": 56,
+						"unsupported": 3,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"invented scheduling": 1,
+							"other": 2
+						}
+					},
+					{
+						"kind": "decision",
+						"calls": 5,
+						"claims": 31,
+						"supported": 30,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "discovery",
+						"calls": 5,
+						"claims": 36,
+						"supported": 36,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "interest check",
+						"calls": 5,
+						"claims": 44,
+						"supported": 44,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "join request",
+						"calls": 5,
+						"claims": 29,
+						"supported": 28,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "listing",
+						"calls": 5,
+						"claims": 9,
+						"supported": 8,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "offers",
+						"calls": 5,
+						"claims": 76,
+						"supported": 76,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "revision answer",
+						"calls": 5,
+						"claims": 49,
+						"supported": 48,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "team version",
+						"calls": 2,
+						"claims": 24,
+						"supported": 24,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					}
+				]
+			},
+			{
+				"log": "2026-10-31T04-34-11-877Z-eval-seed4.jsonl",
+				"summary": [
+					{
+						"kind": "brainstorm pick",
+						"calls": 5,
+						"claims": 25,
+						"supported": 24,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "commitment",
+						"calls": 5,
+						"claims": 60,
+						"supported": 59,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"invented scheduling": 1
+						}
+					},
+					{
+						"kind": "decision",
+						"calls": 5,
+						"claims": 23,
+						"supported": 23,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "discovery",
+						"calls": 5,
+						"claims": 36,
+						"supported": 35,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 1
+						}
+					},
+					{
+						"kind": "interest check",
+						"calls": 5,
+						"claims": 41,
+						"supported": 41,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "join request",
+						"calls": 5,
+						"claims": 29,
+						"supported": 29,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "listing",
+						"calls": 5,
+						"claims": 10,
+						"supported": 10,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "offers",
+						"calls": 5,
+						"claims": 60,
+						"supported": 59,
+						"unsupported": 1,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"invented scheduling": 1
+						}
+					},
+					{
+						"kind": "revision answer",
+						"calls": 5,
+						"claims": 44,
+						"supported": 44,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "team version",
+						"calls": 2,
+						"claims": 23,
+						"supported": 23,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					}
+				]
+			},
+			{
+				"log": "2026-10-31T04-34-11-878Z-eval-seed5.jsonl",
+				"summary": [
+					{
+						"kind": "brainstorm pick",
+						"calls": 5,
+						"claims": 25,
+						"supported": 22,
+						"unsupported": 1,
+						"contradicted": 2,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 2,
+						"callsWithContradiction": 1,
+						"categories": {
+							"other": 3
+						}
+					},
+					{
+						"kind": "commitment",
+						"calls": 5,
+						"claims": 47,
+						"supported": 45,
+						"unsupported": 2,
+						"contradicted": 0,
+						"assertedUnsupported": 1,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {
+							"other": 2
+						}
+					},
+					{
+						"kind": "decision",
+						"calls": 5,
+						"claims": 36,
+						"supported": 36,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "discovery",
+						"calls": 5,
+						"claims": 27,
+						"supported": 24,
+						"unsupported": 2,
+						"contradicted": 1,
+						"assertedUnsupported": 2,
+						"assertedContradicted": 1,
+						"callsWithContradiction": 1,
+						"categories": {
+							"other": 2,
+							"misdescribes an option": 1
+						}
+					},
+					{
+						"kind": "interest check",
+						"calls": 5,
+						"claims": 49,
+						"supported": 49,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "join request",
+						"calls": 5,
+						"claims": 29,
+						"supported": 29,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "listing",
+						"calls": 5,
+						"claims": 11,
+						"supported": 11,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "offers",
+						"calls": 5,
+						"claims": 71,
+						"supported": 69,
+						"unsupported": 1,
+						"contradicted": 1,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 1,
+						"callsWithContradiction": 1,
+						"categories": {
+							"misdescribes an option": 2
+						}
+					},
+					{
+						"kind": "revision answer",
+						"calls": 5,
+						"claims": 56,
+						"supported": 56,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					},
+					{
+						"kind": "team version",
+						"calls": 3,
+						"claims": 31,
+						"supported": 31,
+						"unsupported": 0,
+						"contradicted": 0,
+						"assertedUnsupported": 0,
+						"assertedContradicted": 0,
+						"callsWithContradiction": 0,
+						"categories": {}
+					}
+				]
+			}
+		]
+	},
+	"regressions": {
+		"file": "2026-10-31T05-01-08-929Z-regressions.json",
+		"model": "muse-spark-1.3-contributor",
+		"runs": 10,
+		"cases": [
+			{
+				"name": "role omission",
+				"runs": 10,
+				"failed": 3,
+				"errors": 0
+			},
+			{
+				"name": "join request",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "invented scheduling",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "headcount",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "misdescribed option",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "unfinished team",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "pair coverage",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			},
+			{
+				"name": "relabeled roles",
+				"runs": 10,
+				"failed": 0,
+				"errors": 0
+			}
+		]
+	},
+	"decisions": {
+		"totals": {
+			"offers differ from the model's choice": 4,
+			"team too small": 38,
+			"role nobody can do": 45,
+			"role only a beginner can do": 4
+		},
+		"perLog": [
+			{
+				"log": "2026-10-31T04-34-11-849Z-eval-seed1.jsonl",
+				"teams": 8,
+				"placed": 19,
+				"people": 20,
+				"fellBack": 0,
+				"findings": {
+					"offers differ from the model's choice": 1,
+					"team too small": 5,
+					"role nobody can do": 5,
+					"role only a beginner can do": 1
+				}
+			},
+			{
+				"log": "2026-10-31T04-34-11-873Z-eval-seed2.jsonl",
+				"teams": 8,
+				"placed": 17,
+				"people": 20,
+				"fellBack": 0,
+				"findings": {
+					"role nobody can do": 11,
+					"role only a beginner can do": 1,
+					"team too small": 9
+				}
+			},
+			{
+				"log": "2026-10-31T04-34-11-876Z-eval-seed3.jsonl",
+				"teams": 9,
+				"placed": 19,
+				"people": 20,
+				"fellBack": 0,
+				"findings": {
+					"offers differ from the model's choice": 1,
+					"team too small": 10,
+					"role nobody can do": 10
+				}
+			},
+			{
+				"log": "2026-10-31T04-34-11-877Z-eval-seed4.jsonl",
+				"teams": 7,
+				"placed": 16,
+				"people": 20,
+				"fellBack": 0,
+				"findings": {
+					"offers differ from the model's choice": 1,
+					"role nobody can do": 7,
+					"team too small": 6,
+					"role only a beginner can do": 1
+				}
+			},
+			{
+				"log": "2026-10-31T04-34-11-878Z-eval-seed5.jsonl",
+				"teams": 8,
+				"placed": 17,
+				"people": 20,
+				"fellBack": 0,
+				"findings": {
+					"offers differ from the model's choice": 1,
+					"team too small": 8,
+					"role nobody can do": 12,
+					"role only a beginner can do": 1
+				}
+			}
+		]
+	}
+}

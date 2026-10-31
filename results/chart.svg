@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 500" width="780" height="500" role="img" aria-labelledby="chart-title chart-desc">
 <title id="chart-title">Team quality vs. privacy leakage</title>
-<desc id="chart-desc">random: per-person quality 0.343, leakage 0.0%, needs a trusted party; greedy: per-person quality 0.532, leakage 0.0%, needs a trusted party; local search: per-person quality 0.589, leakage 0.0%, needs a trusted party; broadcast: per-person quality 0.589, leakage 87.4%, no trusted party; agents: per-person quality 0.499, leakage 12.3%, no trusted party.</desc>
+<desc id="chart-desc">random: per-person quality 0.343, leakage 0.0%, needs a trusted party; greedy: per-person quality 0.532, leakage 0.0%, needs a trusted party; local search: per-person quality 0.589, leakage 0.0%, needs a trusted party; broadcast: per-person quality 0.589, leakage 87.4%, no trusted party; agents: per-person quality 0.467, leakage 10.4%, no trusted party.</desc>
 <style>
 	svg { --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7; --agents: #2a78d6; --context: #898781; }
 	@media (prefers-color-scheme: dark) {
@@ -57,17 +57,17 @@
 <text class="label" x="199.75000000000003" y="168.1755952380952" text-anchor="end" dy="0.35em">local search <tspan class="dim">0.59</tspan></text>
 <g><circle cx="656.0526315789473" cy="168.1755952380952" r="8" fill="var(--surface)"/><circle cx="656.0526315789473" cy="168.1755952380952" r="6" fill="var(--context)"/><circle cx="656.0526315789473" cy="168.1755952380952" r="14" fill="transparent"><title>broadcast: quality 0.589 per person · leakage 87.4% · no trusted party</title></circle></g>
 <text class="label" x="642.0526315789473" y="168.1755952380952" text-anchor="end" dy="0.35em">broadcast <tspan class="dim">0.59</tspan></text>
-<circle cx="293.68421052631584" cy="189.32142857142856" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 1: quality 0.537 per person · leakage 15.8%</title></circle>
-<circle cx="279.82894736842104" cy="235.9285714285714" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 2: quality 0.425 per person · leakage 13.1%</title></circle>
-<circle cx="265.97368421052636" cy="152.20833333333331" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 3: quality 0.627 per person · leakage 10.3%</title></circle>
-<circle cx="274.5" cy="214.78273809523805" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 4: quality 0.476 per person · leakage 12.0%</title></circle>
-<circle cx="264.9078947368421" cy="234.20238095238093" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 5: quality 0.429 per person · leakage 10.1%</title></circle>
-<line x1="275.7789473684211" x2="275.7789473684211" y1="190.75925925925924" y2="196.28869047619042" stroke="var(--agents)" stroke-width="2" stroke-dasharray="4 4"/>
-<g><circle cx="275.7789473684211" cy="183.75925925925924" r="6" fill="var(--surface)" stroke="var(--agents)" stroke-width="2.5" stroke-dasharray="3 2"/><circle cx="275.7789473684211" cy="183.75925925925924" r="14" fill="transparent"><title>agents, teams that formed: quality 0.551</title></circle></g>
-<text class="label-2" x="289.7789473684211" y="183.75925925925924" dy="0.35em">teams that formed 0.55</text>
-<text class="label-2" x="289.7789473684211" y="194.52397486772483" dy="0.35em">9% of people left without a team</text>
-<g><circle cx="275.7789473684211" cy="205.28869047619042" r="9" fill="var(--surface)"/><circle cx="275.7789473684211" cy="205.28869047619042" r="7" fill="var(--agents)"/><circle cx="275.7789473684211" cy="205.28869047619042" r="15" fill="transparent"><title>agents: quality 0.499 per person · leakage 12.3% · 91% placed · no trusted party</title></circle></g>
-<text class="label" x="291.7789473684211" y="205.28869047619042" dy="0.35em" font-weight="600">agents <tspan class="dim" font-weight="400">0.50 · 12.3% leaked</tspan></text>
+<circle cx="247.85526315789474" cy="188.02678571428564" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 1: quality 0.541 per person · leakage 6.7%</title></circle>
+<circle cx="267.0394736842105" cy="229.88690476190473" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 2: quality 0.440 per person · leakage 10.5%</title></circle>
+<circle cx="272.36842105263156" cy="203.13095238095238" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 3: quality 0.504 per person · leakage 11.6%</title></circle>
+<circle cx="272.36842105263156" cy="251.89583333333331" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 4: quality 0.386 per person · leakage 11.6%</title></circle>
+<circle cx="272.36842105263156" cy="219.52976190476184" r="4" fill="var(--agents)" fill-opacity="0.3"><title>agents, seed 5: quality 0.465 per person · leakage 11.6%</title></circle>
+<line x1="266.4" x2="266.4" y1="201.3527258125472" y2="209.49404761904756" stroke="var(--agents)" stroke-width="2" stroke-dasharray="4 4"/>
+<g><circle cx="266.4" cy="194.3527258125472" r="6" fill="var(--surface)" stroke="var(--agents)" stroke-width="2.5" stroke-dasharray="3 2"/><circle cx="266.4" cy="194.3527258125472" r="14" fill="transparent"><title>agents, teams that formed: quality 0.525</title></circle></g>
+<text class="label-2" x="280.4" y="194.3527258125472" dy="0.35em">teams that formed 0.53</text>
+<text class="label-2" x="280.4" y="206.4233867157974" dy="0.35em">12% of people left without a team</text>
+<g><circle cx="266.4" cy="218.49404761904756" r="9" fill="var(--surface)"/><circle cx="266.4" cy="218.49404761904756" r="7" fill="var(--agents)"/><circle cx="266.4" cy="218.49404761904756" r="15" fill="transparent"><title>agents: quality 0.467 per person · leakage 10.4% · 88% placed · no trusted party</title></circle></g>
+<text class="label" x="282.4" y="218.49404761904756" dy="0.35em" font-weight="600">agents <tspan class="dim" font-weight="400">0.47 · 10.4% leaked</tspan></text>
 <g transform="translate(30 86)"><circle r="6" fill="var(--agents)"/></g><text class="label-2" x="42" y="86" dy="0.35em">Agents</text>
 <g transform="translate(116 86)"><circle r="6" fill="var(--context)"/></g><text class="label-2" x="128" y="86" dy="0.35em">Baselines</text>
 <g transform="translate(216 86)"><circle r="6" fill="var(--ink-2)"/></g><text class="label-2" x="228" y="86" dy="0.35em">No trusted party</text>
