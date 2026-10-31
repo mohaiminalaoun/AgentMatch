@@ -631,7 +631,7 @@ export function offerMessages(
 				[
 					"team" in versions
 						? `Your human's team is building this version of the project: ${JSON.stringify(versions.team)}. It has ${places} place${plural} left.`
-						: `Your human has no team yet, and it has ${places} place${plural}. Each person below shows the version of the project you agreed with them: the team builds the version agreed with whoever you put first, and anyone after them joins that version.`,
+						: `Your human has no team yet, and it has ${places} place${plural}. Each person below shows the version of the project you agreed with them: the team builds the version agreed with whoever you put first, and anyone after them joins that version. A version's roles are what it needs from people other than whoever wrote it (writtenBy): your human never has to fill a role in a version your human wrote; the person offered should fill one.`,
 					"The people below are ready to join: you and each of them chose to keep going after sharing skills and preferences.",
 					`Choose who gets an offer, at most ${places}, best first, by their id. An offer is binding: anyone who commits joins your human's team, and names are exchanged.`,
 					`Roles the team still needs: ${needed.join(", ") || "any"}. Each offer should fill a different one; someone who only duplicates a role already offered won't get one, unless the team would otherwise be smaller than someone's smallest size.`,
@@ -642,7 +642,27 @@ export function offerMessages(
 		},
 		{
 			role: "user",
-			content: `Ready to join: ${JSON.stringify(candidates.map((id) => ({ id, shared: contactOf(owner, id).learned, ...(agreed[id] && { version: agreed[id] }), ...(leftTeams[id] && { leftTeams: leftTeams[id] }) })))}`,
+			content: `Ready to join: ${JSON.stringify(
+				candidates.map((id) => {
+					const author = agreedVersion(owner, id)?.author;
+					return {
+						id,
+						shared: contactOf(owner, id).learned,
+						...(agreed[id] && {
+							version: {
+								...agreed[id],
+								...(author && {
+									writtenBy:
+										author === owner.id
+											? "your human"
+											: author,
+								}),
+							},
+						}),
+						...(leftTeams[id] && { leftTeams: leftTeams[id] }),
+					};
+				}),
+			)}`,
 		},
 	];
 }

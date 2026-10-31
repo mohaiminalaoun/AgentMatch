@@ -841,7 +841,7 @@ describe("team size and skills", () => {
 		expect(system!.content).not.toContain('"description":"A project."');
 		expect(user!.content).toContain('"id":"x","shared":');
 		expect(user!.content).toContain(
-			'"version":{"title":"Reshaped","pitch":"The reshaped project.","rolesNeeded":["ml"]}',
+			'"version":{"title":"Reshaped","pitch":"The reshaped project.","rolesNeeded":["ml"],"writtenBy":"x"}',
 		);
 	});
 
