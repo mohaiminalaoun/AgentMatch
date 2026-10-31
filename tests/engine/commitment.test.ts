@@ -18,6 +18,7 @@ import {
 	offerMessages,
 	runCommitment,
 	safeToOffer,
+	teamOf,
 	commitmentMessages,
 	explainOffers,
 	selectOffers,
@@ -143,6 +144,7 @@ function fakeClient(
 	offers: Record<string, unknown[]> = {},
 	commits: Record<string, unknown> = {},
 	stays: Record<string, unknown> = {},
+	teamVersions: Record<string, unknown> = {},
 ) {
 	const prompts: Record<string, string> = {};
 	const calls: string[] = [];
@@ -154,15 +156,23 @@ function fakeClient(
 		prompts[who] = JSON.stringify(messages);
 		const reply = last.startsWith("Ready to join:")
 			? { rationale: "Best fits.", offer: offers[who] ?? [] }
-			: last.startsWith("Your teammates")
-				? { rationale: "Weighed it.", decision: stays[who] ?? "stay" }
-				: {
-						rationale: "Best team.",
-						commit:
-							(Array.isArray(commits[who])
-								? commits[who].shift()
-								: commits[who]) ?? null,
-					};
+			: last.startsWith("Versions agreed with each:")
+				? {
+						rationale: "One for all.",
+						...(teamVersions[who] as object),
+					}
+				: last.startsWith("Your teammates")
+					? {
+							rationale: "Weighed it.",
+							decision: stays[who] ?? "stay",
+						}
+					: {
+							rationale: "Best team.",
+							commit:
+								(Array.isArray(commits[who])
+									? commits[who].shift()
+									: commits[who]) ?? null,
+						};
 		return new Response(
 			JSON.stringify({
 				choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -1000,6 +1010,86 @@ describe("the agreed project", () => {
 			"frontend",
 		]);
 		expect(selectOffers(world, "a", ["j", "k"])).toEqual(["j"]);
+	});
+
+	// a agreed an ML version with j, which can't go to k, who never learned j's skill; a's model wants both.
+	function twoVersionsCase() {
+		const world = createWorld([
+			human("a"),
+			human("j", false, 4, "ml"),
+			human("k", false),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		counterAccepted(world, "a", "j", "An ML tutor for clinics.", [
+			"ml",
+			"frontend",
+		]);
+		return world;
+	}
+
+	test("when the versions agreed with each would keep someone out, the owner writes one version for all, and every offer carries it", async () => {
+		const world = twoVersionsCase();
+		expect(selectOffers(world, "a", ["j", "k"])).toEqual(["j"]);
+		const teamVersion = {
+			title: "Clinic Tutor",
+			pitch: "A tutor for clinics.",
+			rolesNeeded: ["ml", "frontend"],
+		};
+		const { events, world: after } = await commit(
+			world,
+			fakeClient(
+				{ a: ["j", "k"] },
+				{ j: "a", k: "a" },
+				{},
+				{ a: teamVersion },
+			).client,
+		);
+		expect(events.find((e) => e.type === "offers")).toMatchObject({
+			to: ["j", "k"],
+			ranked: ["j", "k"],
+			teamVersion,
+		});
+		const pitches = events.flatMap((e) =>
+			e.type === "bus" &&
+			e.event.type === "sent" &&
+			"kind" in e.event.message &&
+			e.event.message.kind === "offer"
+				? [e.event.message.pitch]
+				: [],
+		);
+		expect(pitches).toEqual([
+			"A tutor for clinics.",
+			"A tutor for clinics.",
+		]);
+		expect(teamOf(after, "a")).toMatchObject({
+			members: ["a", "j", "k"],
+			project: {
+				title: "Clinic Tutor",
+				description: "A tutor for clinics.",
+			},
+		});
+	});
+
+	test("a team version that still reveals what one person shared is refused, and the offers stay as the checks left them", async () => {
+		const world = twoVersionsCase();
+		const { events } = await commit(
+			world,
+			fakeClient(
+				{ a: ["j", "k"] },
+				{ j: "a" },
+				{},
+				{
+					a: {
+						pitch: "An ML tutor for everyone.",
+						rolesNeeded: ["ml", "frontend"],
+					},
+				},
+			).client,
+		);
+		const offers = events.find((e) => e.type === "offers");
+		expect(offers).toMatchObject({ to: ["j"] });
+		expect(offers).not.toHaveProperty("teamVersion");
 	});
 
 	test("the project belongs to whoever wrote the agreed version, so an adopted revision can move it", () => {

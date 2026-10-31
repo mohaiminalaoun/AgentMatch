@@ -20,6 +20,7 @@ export const CALL_KINDS: readonly (readonly [phrase: string, kind: string])[] =
 		["brainstorm with", "brainstorm pick"],
 		["Below is the public board", "discovery"],
 		["Choose who gets an offer", "offers"],
+		["Write one version for the whole team", "team version"],
 		["offered your human a place", "commitment"],
 		["stays or leaves", "recheck"],
 		["Adopt the revision", "revision answer"],

@@ -16,7 +16,7 @@ import type { LlmClient } from "./client.js";
 import type { ProfileField } from "./disclosure.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
-import { checkDisclosure, checkThirdParty } from "./gate.js";
+import { checkDisclosure, checkThirdParty, draftOf } from "./gate.js";
 import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import {
 	StructuredOutputError,
@@ -24,7 +24,7 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import type { Profile } from "./profile.js";
+import { ROLES, type Profile } from "./profile.js";
 import {
 	BRAINSTORM_PITCH,
 	isJoinRequest,
@@ -33,10 +33,11 @@ import {
 	type Offer,
 	type OfferAnswer,
 	type Share,
-	type Terms,
+	Terms,
 } from "./proposal.js";
 import { continued, publicPitch, type World } from "./round.js";
 import type { Team } from "./team.js";
+import { describeViolation } from "./decision.js";
 
 // Both sides must have continued at this level before an offer: the highest level runRound opens.
 const READY_LEVEL = 2;
@@ -51,6 +52,14 @@ export const AgentOffers = z.object({
 });
 
 export type AgentOffers = z.infer<typeof AgentOffers>;
+
+// What an owner's model returns when the people it chose agreed on different versions of its project: one
+// version for the whole team, which every offer carries.
+export const AgentTeamVersion = Terms.extend({
+	rationale: z.string().min(1),
+});
+
+export type AgentTeamVersion = z.infer<typeof AgentTeamVersion>;
 
 // What a model returns about the offers its human holds: the owner whose team to join, or null for none.
 export const AgentCommitment = z.object({
@@ -253,15 +262,17 @@ export function selectOffers(
 export type DroppedOffer = { id: string; reason: string };
 
 // What `selectOffers` keeps, plus everyone in `ordered` it drops, each with the reason.
+// With `teamVersion`, everyone is offered that version instead, before there's a team.
 export function explainOffers(
 	world: World,
 	owner: string,
 	ordered: readonly string[],
+	teamVersion?: Terms,
 ): { kept: string[]; dropped: DroppedOffer[] } {
 	const size = membersOf(world, owner).length;
 	let version = teamOf(world, owner)
 		? versionFor(world, owner, owner)
-		: undefined;
+		: teamVersion;
 	let needed = version ? stillNeeded(world, owner, version) : undefined;
 	let limit = size + placesLeft(world, owner);
 	// Who covers each role already: a team member, or someone kept before.
@@ -522,6 +533,37 @@ export function offerMessages(
 }
 
 // The computed facts about each of `ids`, as `agent` knows them, one block each.
+// The prompt asking `owner`, who has no team yet and wants to offer places to `ids`, to write one version of
+// its project for all of them, since the version agreed with each can carry what only that person said: its own
+// profile, the version agreed with each, and the facts about each.
+export function teamVersionMessages(
+	owner: AgentState,
+	ids: readonly string[],
+	agreed: Record<string, Terms>,
+): Message[] {
+	return [
+		{
+			role: "system",
+			content: [
+				INTRO,
+				aboutHuman(owner, 2),
+				factsAbout(owner, ids),
+				[
+					`Your human has no team yet and wants to offer places to ${ids.join(", ")}. You agreed a different version of the project with each, and a version can carry what only that person told you, so one person's version can't be sent to the others. Write one version for the whole team instead; every offer will carry it, and each of them can commit or decline.`,
+					"Build it from your human's own idea and what the versions share. Its title and pitch must not mention anything you learned from only one of them: their skills, interests, time zones, hours, or anything else they shared. The pitch describes the project itself, as it would appear on the team's page.",
+					`Its roles are what the project needs from people other than your human, from: ${ROLES.join(", ")}. Include a role each of them can do, so each has a place, and any role the work needs that nobody covers yet. Don't add a role the work doesn't need.`,
+					"Your rationale is private.",
+					CITE_FACTS,
+				].join("\n"),
+			].join("\n\n"),
+		},
+		{
+			role: "user",
+			content: `Versions agreed with each: ${JSON.stringify(ids.map((id) => ({ id, ...(agreed[id] && { version: agreed[id] }) })))}`,
+		},
+	];
+}
+
 function factsAbout(agent: AgentState, ids: readonly string[]): string {
 	return ids.map((id) => factsText(fitFacts(agent, id))).join("\n\n");
 }
@@ -793,7 +835,10 @@ export async function runCommitment(
 		);
 		// The offers each owner plans to make. None is sent until owners being offered a place have decided.
 		const planned = choices.flatMap((choice) => {
-			const version = offerVersion(current(), choice.agent, choice.to);
+			const version =
+				"teamVersion" in choice && choice.teamVersion
+					? choice.teamVersion
+					: offerVersion(current(), choice.agent, choice.to);
 			return (version ? choice.to : []).map((to): Offer => ({
 				kind: "offer",
 				from: choice.agent,
@@ -826,6 +871,7 @@ export async function runCommitment(
 								planned
 									.filter((offer) => offer.from === owner)
 									.map((offer) => offer.to),
+								planned.find((offer) => offer.from === owner),
 							),
 						] as const,
 				),
@@ -985,7 +1031,24 @@ export async function runCommitment(
 				},
 			);
 			const ranked = [...new Set(data.offer)];
-			const { kept, dropped } = explainOffers(current(), owner, ranked);
+			let { kept, dropped } = explainOffers(current(), owner, ranked);
+			// Before there's a team, the checks may cut people the model chose only because each agreed a
+			// different version; one version written for all of them may let more of them in.
+			const wanted = ranked.slice(0, places);
+			let teamVersion: Terms | undefined;
+			if (
+				!teamOf(current(), owner) &&
+				wanted.length >= 2 &&
+				kept.length < wanted.length
+			) {
+				const version = await writeTeamVersion(owner, wanted);
+				const merged =
+					version && explainOffers(current(), owner, ranked, version);
+				if (merged && merged.kept.length > kept.length) {
+					({ kept, dropped } = merged);
+					teamVersion = version;
+				}
+			}
 			return {
 				agent: owner,
 				to: kept,
@@ -995,6 +1058,7 @@ export async function runCommitment(
 				ranked,
 				...(dropped.length > 0 && { dropped }),
 				...notConsidered,
+				...(teamVersion && { teamVersion }),
 			};
 		} catch (error) {
 			if (!(error instanceof StructuredOutputError)) {
@@ -1013,12 +1077,76 @@ export async function runCommitment(
 		}
 	}
 
+	// One version of `owner`'s project for everyone in `ids`, written by its model: it must pass the gate at
+	// level 2, use only known roles, and reveal to each of them nothing learned from anyone else. Undefined if
+	// no such version comes back, so the owner's offers stay as the checks left them.
+	async function writeTeamVersion(
+		owner: string,
+		ids: readonly string[],
+	): Promise<Terms | undefined> {
+		const agreed = Object.fromEntries(
+			ids.flatMap((id) => {
+				const version = versionFor(current(), owner, id);
+				return version ? [[id, version]] : [];
+			}),
+		);
+		try {
+			const { data } = await client.chatJson(
+				teamVersionMessages(agents[owner]!, ids, agreed),
+				AgentTeamVersion,
+				{
+					...llmOptions,
+					check: (version) => [
+						...version.rolesNeeded
+							.filter(
+								(role) =>
+									!(ROLES as readonly string[]).includes(
+										role,
+									),
+							)
+							.map(
+								(role) =>
+									`rolesNeeded: "${role}" isn't a known role; use only ${ROLES.join(", ")}`,
+							),
+						...checkDisclosure(
+							agents[owner]!.profile,
+							2,
+							draftOf(version),
+						).map((violation) => describeViolation(violation, 2)),
+						...ids
+							.filter(
+								(id) =>
+									!safeToOffer(
+										current(),
+										owner,
+										id,
+										termsOf(version),
+									),
+							)
+							.map(
+								(id) =>
+									`the version mentions something learned from someone other than ${id}; leave out anything only one of them told you`,
+							),
+					],
+				},
+			);
+			return termsOf(data);
+		} catch (error) {
+			if (!(error instanceof StructuredOutputError)) {
+				throw error;
+			}
+			return undefined;
+		}
+	}
+
 	// Which offer `agent` commits to. If no valid answer comes back, it declines them all: a commitment
 	// can't be undone, so not making one is the safe default.
 	async function choosePlace(
 		agent: string,
 		held: Offer[],
 		offeringTo: string[] = [],
+		// One of the offers `agent` would send if it leads, whose version its team would build.
+		ownOffer?: Offer,
 	) {
 		const owners = held.map((offer) => offer.from);
 		try {
@@ -1032,7 +1160,9 @@ export async function runCommitment(
 					),
 					ownVersion:
 						offeringTo.length > 0
-							? offerVersion(current(), agent, offeringTo)
+							? ownOffer
+								? termsOf(ownOffer)
+								: offerVersion(current(), agent, offeringTo)
 							: undefined,
 				}),
 				AgentCommitment,

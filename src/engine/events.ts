@@ -138,6 +138,9 @@ export const RunEvent = z.discriminatedUnion("type", [
 		excluded: z
 			.array(z.object({ id: z.string(), reason: z.string() }))
 			.optional(),
+		// Before there was a team: the one version the owner's model wrote for everyone offered, when the
+		// versions agreed with each would have kept some of them out. Every offer carried it.
+		teamVersion: Terms.optional(),
 	}),
 	// An agent holding offers committed to one owner's team, or to none (`chose` null). `busy` when it had
 	// offers of its own out and answered busy without a model call.
