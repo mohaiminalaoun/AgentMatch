@@ -222,16 +222,19 @@ describe("level 2 and the roles a team needs", () => {
 			},
 		);
 
-	test("at level 2, the check says a team only forms if someone fills a needed role", () => {
+	test("at level 2, the check says an offer needs whoever didn't write the version to fill one of its roles, not all", () => {
 		const [, user] = interestMessages(agreedAt(2), "p9", 2);
 		expect(user!.content).toContain(
-			"A team only forms if someone fills a role the version you've agreed on needs (mobile, backend",
+			"The version you've agreed on was written by agent p9, and its roles (mobile, backend",
+		);
+		expect(user!.content).toContain(
+			"An offer can follow if your human can do at least one of them. One is enough: roles neither of you can do don't block the team",
 		);
 	});
 
 	test("at level 1, skills aren't known yet, so it isn't said", () => {
 		const [, user] = interestMessages(agreedAt(1), "p9", 1);
-		expect(user!.content).not.toContain("A team only forms");
+		expect(user!.content).not.toContain("An offer can follow");
 	});
 });
 

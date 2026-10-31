@@ -369,6 +369,62 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 			"Does the agent decline, and does its rationale give as a reason that the team is currently smaller than the human's minimum size, or that a needed role isn't covered yet, without considering that the owner can still add people?",
 	},
 	{
+		name: "pair coverage",
+		failure:
+			"At level 2, an agent whose human wrote the agreed version withdraws, or shrinks the project to drop them, because some of its roles have nobody in the pair who can do them, though the other person fills one, so an offer could follow and the team could find the rest later (2026-10-30 eval).",
+		expected:
+			"It doesn't count roles the pair can't cover against the project when the other person fills one; it may still withdraw or revise for other reasons.",
+		run: (client) => {
+			const proposal: Proposal = {
+				id: "r1-p-lea-p-kai",
+				from: "p-lea",
+				to: "p-kai",
+				title: "Finance Coach",
+				pitch: "A budgeting app that explains spending patterns in plain language and suggests savings goals.",
+				rolesNeeded: ["frontend", "backend", "ml"],
+			};
+			const lea = person("p-lea", "Lea", {
+				skills: [
+					{ name: "product", level: "expert" },
+					{ name: "design", level: "intermediate" },
+				],
+				interests: ["finance", "education"],
+				projectIdeas: [
+					{
+						title: "Finance Coach",
+						description:
+							"A budgeting app that explains spending patterns in plain language.",
+					},
+				],
+				preferences: {
+					minTeamSize: 3,
+					maxTeamSize: 4,
+					preferredRoles: ["product"],
+				},
+			});
+			return interest(
+				client,
+				talking(createAgent(lea), "p-kai", proposal, 2, {
+					interests: ["finance", "music"],
+					availability: { hoursPerWeek: 12, utcOffset: -4 },
+					skills: [
+						{ name: "frontend", level: "expert" },
+						{ name: "mobile", level: "intermediate" },
+					],
+					preferences: {
+						minTeamSize: 2,
+						maxTeamSize: 5,
+						preferredRoles: ["frontend"],
+					},
+				}),
+				"p-kai",
+				2,
+			);
+		},
+		question:
+			"Does the agent either withdraw, or propose a revision that drops needed roles, giving as a reason that those roles (backend or ml) have nobody in the pair who can do them, even though the other person can do another needed role (frontend)?",
+	},
+	{
 		name: "relabeled roles",
 		failure:
 			"An agent changes the project's roles just so an offer becomes possible (adding the other person's skill as a needed role), without saying what work that role does.",

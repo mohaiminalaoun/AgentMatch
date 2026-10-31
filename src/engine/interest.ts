@@ -2,6 +2,7 @@ import { z } from "zod";
 import { aboutHuman } from "./notes.js";
 import {
 	agreedTerms,
+	agreedVersion,
 	brainstormedWith,
 	contactOf,
 	MAX_REVISIONS,
@@ -186,6 +187,7 @@ export function interestMessages(
 	const revise = mayRevise(agent, otherId, level);
 	const steer = steerText(hunch, "interest");
 	const agreed = agreedTerms(agent, otherId);
+	const author = agreedVersion(agent, otherId)?.author;
 	const reshape = reshaping(agent, otherId, level);
 	const strong = strongRoles(agent, otherId);
 	return [
@@ -241,7 +243,7 @@ export function interestMessages(
 						]
 					: level === 2 && agreed && agreed.pitch !== BRAINSTORM_PITCH
 						? [
-								`A team only forms if someone fills a role the version you've agreed on needs (${agreed.rolesNeeded.join(", ")}, from people other than whoever proposed it). If neither of you can do one of those roles, a revision may change them only when the work itself changes, and its pitch must say how; don't relabel roles just so an offer becomes possible. Otherwise withdraw: no offer can follow, however well you get along.`,
+								`The version you've agreed on was written by ${author === agent.id ? "your human" : `agent ${otherId}`}, and its roles (${agreed.rolesNeeded.join(", ")}) are what it needs from other people. An offer can follow if ${author === agent.id ? `agent ${otherId}` : "your human"} can do at least one of them. One is enough: roles neither of you can do don't block the team, since its owner can offer them to other people later. If ${author === agent.id ? `agent ${otherId}` : "your human"} can do none of them, a revision may change the roles only when the work itself changes, and its pitch must say how; don't relabel roles just so an offer becomes possible. Otherwise withdraw: no offer can follow, however well you get along.`,
 							]
 						: []),
 				...(steer ? [steer] : []),
