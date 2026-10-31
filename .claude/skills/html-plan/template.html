@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan Name</title>
+<style>
+	:root {
+		--bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #5d6470; --line: #e3e0d8;
+		--accent: #2f6f5e; --accent-soft: #e6f1ed; --warn: #9a5b13; --warn-soft: #fbf0e1; --code: #f2efe8;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #16181b; --surface: #1d2024; --text: #e6e6e3; --muted: #a3a8b0; --line: #30343a;
+			--accent: #7cc4ad; --accent-soft: #1f312b; --warn: #e3b06d; --warn-soft: #33281a; --code: #26292e;
+		}
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+	main { max-width: 820px; margin: 0 auto; padding: 48px 16px 80px; }
+	h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; }
+	.lede { color: var(--muted); font-size: 18px; margin: 0 0 32px; }
+	h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+	h3 { font-size: 17px; margin: 0 0 6px; }
+	p { margin: 8px 0; }
+	ul { margin: 8px 0; padding-left: 22px; }
+	li { margin: 4px 0; }
+	code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; overflow-wrap: anywhere; }
+	.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin: 14px 0; }
+	.result { background: var(--accent-soft); border-color: transparent; }
+	.result li::marker { color: var(--accent); }
+	.step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; }
+	.num { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-weight: 700; }
+	.why { color: var(--muted); font-size: 15px; }
+	.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; vertical-align: 2px; }
+	.check { border-left: 3px solid var(--accent); background: var(--surface); padding: 10px 16px; margin: 14px 0; border-radius: 0 8px 8px 0; }
+	.table-wrap { overflow-x: auto; }
+	table { width: 100%; border-collapse: collapse; font-size: 15px; }
+	th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+	th { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+	<h1>Plan title</h1>
+	<p class="lede">One sentence: what this plan does and for whom.</p>
+
+	<h2>Why we're doing this</h2>
+	<ul>
+		<li><strong>Problem in a phrase.</strong> Plain-language detail with the concrete evidence.</li>
+	</ul>
+
+	<h2>The aimed result</h2>
+	<div class="card result">
+		<ul>
+			<li><strong>Outcome.</strong> What will be true, stated so it can be checked.</li>
+		</ul>
+	</div>
+
+	<h2>Ground rules</h2>
+	<div class="table-wrap">
+	<table>
+		<tr><th>Rule</th><th>What it means</th></tr>
+		<tr><td>Rule name</td><td>What it means in practice.</td></tr>
+	</table>
+	</div>
+
+	<h2>The steps</h2>
+	<div class="card step"><div class="num">1</div><div>
+		<h3>Step title <span class="tag">checkpoint</span></h3>
+		<ul>
+			<li><strong>What changes.</strong> Detail, with <code>file/paths.ts</code> explained on first use.</li>
+		</ul>
+		<p class="why">Why here: the reason this step comes at this point.</p>
+	</div></div>
+
+	<h2>How we'll know it worked</h2>
+	<div class="check"><strong>When:</strong> what gets checked and how.</div>
+
+	<h2>Parked until later</h2>
+	<ul>
+		<li><strong>Deferred item:</strong> why it waits.</li>
+	</ul>
+</main>
+</body>
+</html>

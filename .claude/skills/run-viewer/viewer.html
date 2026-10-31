@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+	:root {
+		--bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #5d6470; --line: #e3e0d8;
+		--accent: #2f6f5e; --accent-soft: #e6f1ed; --private: #f6f0ff; --private-line: #8a63d2;
+		--warn: #9a5b13; --warn-soft: #fbf0e1; --code: #f2efe8;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #16181b; --surface: #1d2024; --text: #e6e6e3; --muted: #a3a8b0; --line: #30343a;
+			--accent: #7cc4ad; --accent-soft: #1f312b; --private: #261f33; --private-line: #b394f0;
+			--warn: #e3b06d; --warn-soft: #33281a; --code: #26292e;
+		}
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+	header { padding: 20px 16px 12px; max-width: 1100px; margin: 0 auto; }
+	h1 { font-size: 20px; margin: 0; overflow-wrap: anywhere; }
+	.sub { color: var(--muted); margin: 4px 0 0; }
+	nav { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+	nav button { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 6px 14px; border-radius: 99px; cursor: pointer; font: inherit; }
+	nav button[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+	.filters { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+	.filters-inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+	.filters label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+	select, input[type="search"] { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+	input[type="search"] { min-width: 200px; flex: 1; }
+	.types { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+	.chip { border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px; font-size: 13px; cursor: pointer; user-select: none; background: var(--surface); }
+	.chip input { display: none; }
+	.chip.on { background: var(--accent-soft); border-color: var(--accent); }
+	main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 80px; }
+	.count { color: var(--muted); font-size: 14px; margin: 4px 0 10px; }
+	.row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+	.row.marker { background: var(--accent-soft); font-weight: 600; border-radius: 6px; border-bottom: none; margin: 8px 0 4px; }
+	.meta { color: var(--muted); font-size: 12px; line-height: 1.4; }
+	.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--code); margin-bottom: 2px; }
+	.text { overflow-wrap: anywhere; white-space: pre-wrap; }
+	.flag { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; }
+	.rationale { margin-top: 6px; padding: 6px 10px; background: var(--private); border-left: 3px solid var(--private-line); border-radius: 0 6px 6px 0; font-size: 14px; overflow-wrap: anywhere; }
+	.rationale b { color: var(--private-line); font-size: 12px; font-weight: 600; margin-right: 6px; }
+	details { margin-top: 6px; }
+	summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+	pre { background: var(--code); padding: 10px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; margin: 6px 0; max-height: 420px; overflow-y: auto; }
+	.role { font-size: 12px; font-weight: 600; color: var(--muted); }
+	.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+	.card h3 { margin: 0 0 4px; font-size: 16px; }
+	.table-wrap { overflow-x: auto; }
+	table { width: 100%; border-collapse: collapse; font-size: 14px; }
+	th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+	th { color: var(--muted); font-weight: 600; }
+	td button { font: inherit; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; }
+	.yes { color: var(--accent); font-weight: 600; }
+	.empty { color: var(--muted); padding: 30px 0; text-align: center; }
+	@media (max-width: 600px) { .row { grid-template-columns: 1fr; gap: 2px; } }
+</style>
+</head>
+<body>
+<header>
+	<h1 id="title"></h1>
+	<p class="sub" id="sub"></p>
+	<nav>
+		<button data-tab="timeline" aria-pressed="true">Timeline</button>
+		<button data-tab="conversations" aria-pressed="false">Conversations</button>
+		<button data-tab="teams" aria-pressed="false">Teams</button>
+	</nav>
+</header>
+<div class="filters" id="filters">
+	<div class="filters-inner">
+		<label>Agent <select id="agent"><option value="">anyone</option></select></label>
+		<label>with <select id="other"><option value="">anyone</option></select></label>
+		<label>Round <select id="round"><option value="">all</option></select></label>
+		<label>Level <select id="level"><option value="">any</option><option>0</option><option>1</option><option>2</option><option>3</option></select></label>
+		<input type="search" id="search" placeholder="Search text and reasoning…">
+		<label><input type="checkbox" id="showRationale" checked> private reasoning</label>
+		<label><input type="checkbox" id="onlyRationale"> only rows with reasoning</label>
+		<div class="types" id="types"></div>
+	</div>
+</div>
+<main>
+	<section id="timeline"><p class="count" id="count"></p><div id="rows"></div></section>
+	<section id="conversations" hidden></section>
+	<section id="teams" hidden></section>
+</main>
+<script type="application/json" id="data">__DATA__</script>
+<script>
+const data = JSON.parse(document.getElementById("data").textContent);
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...children) => {
+	const node = Object.assign(document.createElement(tag), props);
+	for (const c of children) if (c != null) node.append(c);
+	return node;
+};
+
+$("title").textContent = data.file;
+$("sub").textContent = `${data.model} · ${data.agents.length} agents · ${data.teams.length} teams · ${data.unplaced.length} without a team · ${data.rows.length} rows${data.prompts ? "" : " · model calls left out"}`;
+
+// Filters
+for (const a of data.agents) { $("agent").append(el("option", { value: a, textContent: a })); $("other").append(el("option", { value: a, textContent: a })); }
+const rounds = [...new Set(data.rows.map((r) => r.round))].filter((r) => r > 0);
+for (const r of rounds) $("round").append(el("option", { value: r, textContent: r }));
+const typeCounts = {};
+for (const r of data.rows) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+const hiddenByDefault = new Set(["model call", "tick", "level"]);
+const activeTypes = new Set(Object.keys(typeCounts).filter((t) => !hiddenByDefault.has(t)));
+for (const t of Object.keys(typeCounts).sort()) {
+	const chip = el("label", { className: "chip" + (activeTypes.has(t) ? " on" : "") });
+	const box = el("input", { type: "checkbox", checked: activeTypes.has(t) });
+	box.addEventListener("change", () => { box.checked ? activeTypes.add(t) : activeTypes.delete(t); chip.classList.toggle("on", box.checked); render(); });
+	chip.append(box, `${t} ${typeCounts[t]}`);
+	$("types").append(chip);
+}
+for (const id of ["agent", "other", "round", "level", "showRationale", "onlyRationale"]) $(id).addEventListener("change", render);
+let searchTimer;
+$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 150); });
+
+function matches(r) {
+	if (!activeTypes.has(r.type)) return false;
+	const a = $("agent").value, b = $("other").value;
+	if (a && !r.agents.includes(a)) return false;
+	if (b && !r.agents.includes(b)) return false;
+	if ($("round").value && r.round !== Number($("round").value)) return false;
+	if ($("level").value && r.level !== Number($("level").value)) return false;
+	if ($("onlyRationale").checked && !r.rationale) return false;
+	const q = $("search").value.trim().toLowerCase();
+	if (q) {
+		const hay = (r.text + " " + (r.rationale || "") + (r.call ? " " + r.call.reply : "")).toLowerCase();
+		if (!hay.includes(q)) return false;
+	}
+	return true;
+}
+
+function rowNode(r) {
+	const marker = r.type === "round" || r.type === "brainstorm" || r.type === "stopped";
+	const meta = el("div", { className: "meta" },
+		el("span", { className: "badge", textContent: r.type }), el("br"),
+		`${r.round === 0 ? "setup" : `round ${r.round}`}${r.tick ? ` · tick ${r.tick}` : ""}${r.phase === "brainstorm" ? " · brainstorm" : ""}`,
+		r.level !== undefined ? el("div", { textContent: `level ${r.level}` }) : null);
+	const body = el("div", {}, el("span", { className: "text", textContent: r.text }));
+	for (const f of r.flags) body.append(el("span", { className: "flag", textContent: f }));
+	if (r.rationale && $("showRationale").checked) {
+		body.append(el("div", { className: "rationale" }, el("b", { textContent: "private" }), r.rationale));
+	}
+	if (r.call) {
+		const details = el("details", {}, el("summary", { textContent: "prompt and reply" }));
+		details.addEventListener("toggle", () => {
+			if (!details.open || details.dataset.filled) return;
+			details.dataset.filled = "1";
+			for (const m of r.call.messages) details.append(el("div", { className: "role", textContent: m.role }), el("pre", { textContent: m.content }));
+			details.append(el("div", { className: "role", textContent: "reply" }), el("pre", { textContent: r.call.reply }));
+			if (r.call.usage) details.append(el("div", { className: "meta", textContent: "tokens: " + JSON.stringify(r.call.usage) }));
+		});
+		body.append(details);
+	}
+	return el("div", { className: "row" + (marker ? " marker" : "") }, meta, body);
+}
+
+const PAGE = 400;
+let shown = [];
+function render() {
+	shown = data.rows.filter(matches);
+	$("count").textContent = `${shown.length} of ${data.rows.length} rows`;
+	$("rows").replaceChildren();
+	if (shown.length === 0) { $("rows").append(el("p", { className: "empty", textContent: "Nothing matches these filters." })); return; }
+	appendPage(0);
+}
+function appendPage(start) {
+	const frag = document.createDocumentFragment();
+	for (const r of shown.slice(start, start + PAGE)) frag.append(rowNode(r));
+	$("rows").append(frag);
+	if (start + PAGE < shown.length) {
+		const more = el("button", { textContent: `Show ${Math.min(PAGE, shown.length - start - PAGE)} more`, className: "chip" });
+		more.addEventListener("click", () => { more.remove(); appendPage(start + PAGE); });
+		$("rows").append(el("p", {}, more));
+	}
+}
+
+// Tabs
+function showTab(tab) {
+	for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-pressed", String(b.dataset.tab === tab));
+	for (const id of ["timeline", "conversations", "teams"]) $(id).hidden = id !== tab;
+	$("filters").hidden = tab !== "timeline";
+}
+for (const b of document.querySelectorAll("nav button")) b.addEventListener("click", () => showTab(b.dataset.tab));
+function openPair(a, b) {
+	$("agent").value = a; $("other").value = b;
+	for (const t of ["message", "decision", "interest", "hunch", "revisionAnswer", "level", "offers", "commitment"]) {
+		if (typeCounts[t] && !activeTypes.has(t)) activeTypes.add(t);
+	}
+	for (const chip of document.querySelectorAll(".chip")) {
+		const box = chip.querySelector("input"); if (!box) continue;
+		const t = chip.textContent.replace(/ \d+$/, "");
+		box.checked = activeTypes.has(t); chip.classList.toggle("on", box.checked);
+	}
+	showTab("timeline"); render(); window.scrollTo(0, 0);
+}
+
+// Conversations
+{
+	const convs = [...data.conversations].sort((x, y) => y.level - x.level || y.messages - x.messages);
+	const table = el("table", {}, el("tr", {}, ...["Pair", "Messages", "Furthest level", "Withdrew", "Same team"].map((h) => el("th", { textContent: h }))));
+	for (const c of convs) {
+		const open = el("button", { textContent: `${c.a} ↔ ${c.b}` });
+		open.addEventListener("click", () => openPair(c.a, c.b));
+		table.append(el("tr", {},
+			el("td", {}, open), el("td", { textContent: c.messages }), el("td", { textContent: c.level }),
+			el("td", { textContent: c.withdrew.join(", ") || "—" }),
+			el("td", { className: c.together ? "yes" : "", textContent: c.together ? "yes" : "—" })));
+	}
+	$("conversations").append(el("p", { className: "count", textContent: `${convs.length} conversations. Click a pair to see everything between them in the timeline.` }), el("div", { className: "table-wrap" }, table));
+}
+
+// Teams
+{
+	for (const t of data.teams) {
+		const card = el("div", { className: "card" },
+			el("h3", { textContent: t.project.title }),
+			el("p", { textContent: t.project.description }),
+			el("p", { className: "meta", textContent: `${t.id} · ${t.status} · roles still needed: ${(t.rolesNeeded || []).join(", ") || "none"}` }));
+		const members = el("p", {});
+		t.members.forEach((m, i) => {
+			const b = el("button", { className: "chip", textContent: i === 0 ? `${m} (owner)` : m });
+			b.addEventListener("click", () => { $("agent").value = m; $("other").value = ""; showTab("timeline"); render(); });
+			members.append(b, " ");
+		});
+		card.append(members);
+		$("teams").append(card);
+	}
+	if (data.teams.length === 0) $("teams").append(el("p", { className: "empty", textContent: "No teams formed." }));
+	$("teams").append(el("p", { className: "count", textContent: `Without a team: ${data.unplaced.join(", ") || "nobody"}` }));
+}
+
+render();
+</script>
+</body>
+</html>
