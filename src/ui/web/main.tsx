@@ -33,8 +33,10 @@ import {
 } from "lucide-react";
 import {
 	board,
+	codeNotes,
 	demoEvents,
 	describe,
+	factsFor,
 	ideaVersions,
 	pairEvents,
 	parseLog,
@@ -202,6 +204,7 @@ function App() {
 		current && partner
 			? ideaVersions(visibleEvents, current.id, partner)
 			: undefined;
+	const facts = useMemo(() => factsFor(events), [events]);
 	const activity =
 		current && partner
 			? pairEvents(visibleEvents, current.id, partner)
@@ -1714,6 +1717,53 @@ function App() {
 																		e.rationale
 																	}
 																</blockquote>
+															)}
+														{privateView &&
+															codeNotes(e)
+																.length > 0 && (
+																<ul className="code-notes">
+																	{codeNotes(
+																		e,
+																	).map(
+																		(n) => (
+																			<li
+																				key={
+																					n
+																				}
+																			>
+																				{
+																					n
+																				}
+																			</li>
+																		),
+																	)}
+																</ul>
+															)}
+														{privateView &&
+															facts.get(e) && (
+																<details className="agent-facts">
+																	<summary>
+																		What it
+																		knew
+																	</summary>
+																	{facts
+																		.get(e)!
+																		.map(
+																			(
+																				block,
+																			) => (
+																				<pre
+																					key={
+																						block
+																					}
+																				>
+																					{
+																						block
+																					}
+																				</pre>
+																			),
+																		)}
+																</details>
 															)}
 													</div>
 												))}

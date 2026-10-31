@@ -450,6 +450,69 @@ export function describe(e: Event): string {
 			return "Run activity";
 	}
 }
+// For every event carrying a private rationale, the facts blocks its model call was given ("Facts about …", as
+// code computed them): found by matching the rationale to the reply of the call that wrote it. The operator sees
+// them next to the reasoning, to check it against what the agent actually knew.
+export function factsFor(events: Event[]): Map<Event, string[]> {
+	const byRationale = new Map<string, string[]>();
+	const facts = new Map<Event, string[]>();
+	for (const e of events) {
+		if (e.type === "exchange") {
+			let rationale: unknown;
+			try {
+				rationale = (JSON.parse(e.reply) as { rationale?: unknown })
+					.rationale;
+			} catch {
+				continue;
+			}
+			if (typeof rationale !== "string") continue;
+			const blocks = e.messages
+				.filter((m) => m.role === "system")
+				.flatMap((m) => m.content.split("\n\n"))
+				.filter((block) => block.startsWith("Facts about"));
+			byRationale.set(rationale, blocks);
+		} else if ("rationale" in e && typeof e.rationale === "string") {
+			const blocks = byRationale.get(e.rationale);
+			if (blocks?.length) facts.set(e, blocks);
+		}
+	}
+	return facts;
+}
+// What code decided around one event, in words: whom the owner's model ranked and whom the checks dropped or never
+// considered, a team version, a hunch's evidence or lack of it, gate blocks, and fallbacks. Empty if nothing.
+export function codeNotes(e: Event): string[] {
+	const notes: string[] = [];
+	if (e.type === "offers") {
+		if (e.ranked)
+			notes.push(`Its model chose ${e.ranked.join(", ") || "nobody"}`);
+		for (const d of e.dropped ?? [])
+			notes.push(`Code dropped ${d.id}: ${d.reason}`);
+		for (const d of e.excluded ?? [])
+			notes.push(`Not considered ${d.id}: ${d.reason}`);
+		if (e.teamVersion)
+			notes.push(
+				`One version for everyone offered: “${e.teamVersion.pitch}”`,
+			);
+	}
+	if (e.type === "hunch") {
+		if (e.evidence) notes.push(`Rests on note ${e.evidence}`);
+		if (e.unfounded)
+			notes.push("Cited no note, so code made the steer neutral");
+	}
+	if (e.type === "lock" && e.ask === 2)
+		notes.push("Asked again: someone dropped out of the group");
+	if (
+		"gateBlocks" in e &&
+		typeof e.gateBlocks === "number" &&
+		e.gateBlocks > 0
+	)
+		notes.push(
+			`The gate blocked ${e.gateBlocks} draft${e.gateBlocks === 1 ? "" : "s"} that revealed too much`,
+		);
+	if ("fellBack" in e && e.fellBack)
+		notes.push("No valid answer came back; code used the safe default");
+	return notes;
+}
 // Shared profile fields in words, e.g. "skills backend (expert), design (beginner) · preferences team of 2–3,
 // prefers backend".
 function describeShared(

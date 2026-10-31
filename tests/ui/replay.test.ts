@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	board,
+	codeNotes,
 	demoEvents,
 	describe as describeEvent,
 	describeMessage,
+	factsFor,
 	ideaVersions,
 	pairEvents,
 	parseLog,
@@ -142,6 +144,84 @@ describe("browser replay", () => {
 			"ana confirmed",
 			"cy dropped",
 		]);
+	});
+	it("pairs each private rationale with the facts its model call was given", () => {
+		const exchange: Event = {
+			type: "exchange",
+			time: "t",
+			messages: [
+				{ role: "system", content: "Reply with one JSON object." },
+				{
+					role: "system",
+					content:
+						"You are an agent.\n\nFacts about you and p9 (computed by code):\n- Time zones: 2 hours apart.\n\nRules.",
+				},
+				{ role: "user", content: "Keep going, or withdraw?" },
+			],
+			reply: JSON.stringify({
+				rationale: "Close time zones.",
+				interest: "continue",
+			}),
+		};
+		const interest: Event = {
+			type: "interest",
+			agent: "a",
+			other: "p9",
+			level: 1,
+			interest: "continue",
+			rationale: "Close time zones.",
+			fellBack: false,
+		};
+		const other: Event = { ...interest, rationale: "Something else." };
+		const facts = factsFor([exchange, interest, other]);
+		expect(facts.get(interest)).toEqual([
+			"Facts about you and p9 (computed by code):\n- Time zones: 2 hours apart.",
+		]);
+		expect(facts.has(other)).toBe(false);
+	});
+	it("says what code decided: rankings, drops, exclusions, a hunch's evidence, fallbacks", () => {
+		expect(
+			codeNotes({
+				type: "offers",
+				agent: "a",
+				to: ["j"],
+				places: 2,
+				fellBack: false,
+				ranked: ["j", "k"],
+				dropped: [
+					{
+						id: "k",
+						reason: "the team would pass its size limit of 2",
+					},
+				],
+				excluded: [{ id: "x", reason: "already on a team" }],
+			}),
+		).toEqual([
+			"Its model chose j, k",
+			"Code dropped k: the team would pass its size limit of 2",
+			"Not considered x: already on a team",
+		]);
+		expect(
+			codeNotes({
+				type: "hunch",
+				agent: "a",
+				other: "b",
+				steer: "neutral",
+				riskArea: null,
+				fellBack: false,
+				unfounded: true,
+			}),
+		).toEqual(["Cited no note, so code made the steer neutral"]);
+		expect(
+			codeNotes({
+				type: "lock",
+				agent: "a",
+				team: "t",
+				ask: 1,
+				confident: false,
+				fellBack: true,
+			}),
+		).toEqual(["No valid answer came back; code used the safe default"]);
 	});
 	it("accepts additional fields and future event types", () => {
 		expect(parseLog('{"type":"future-event","extra":true}')).toHaveLength(

@@ -1462,6 +1462,31 @@ h1 > span {
 	padding: 9px;
 	color: #75667d;
 }
+.agent-activity .code-notes {
+	margin: 5px 0 0;
+	padding-left: 16px;
+	font-size: 9px;
+	line-height: 1.7;
+	color: #75667d;
+}
+.agent-activity .agent-facts {
+	margin: 5px 0;
+	font-size: 9px;
+	color: #75667d;
+}
+.agent-activity .agent-facts summary {
+	cursor: pointer;
+}
+.agent-activity .agent-facts pre {
+	white-space: pre-wrap;
+	font: inherit;
+	line-height: 1.7;
+	margin: 5px 0 0;
+	padding: 9px;
+	background: #faf7fd;
+	border: 1px solid #efe7f5;
+	border-radius: 6px;
+}
 .error {
 	display: flex;
 	justify-content: space-between;
