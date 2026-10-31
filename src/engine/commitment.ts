@@ -527,6 +527,7 @@ export function commitmentMessages(
 						: [
 								"Commit to at most one, by its owner's id, or use null to decline them all.",
 							]),
+					"A team's size now isn't final: after your human joins, its owner can offer more places, and those people may cover roles nobody on it covers yet. Judge a team that is still below your human's minimum size by whether it can grow to fit, not as if it were complete.",
 					"Compare the options side by side against the standard above, each as it's shown below: the project as its version describes it, the team's size, and the facts. Your rationale is private.",
 					CITE_FACTS,
 				].join("\n"),

@@ -314,6 +314,61 @@ export const REGRESSION_CASES: readonly RegressionCase[] = [
 			"Does the rationale describe either offered project differently from its pitch, for example saying one has no AI or ML component when its pitch mentions AI?",
 	},
 	{
+		name: "unfinished team",
+		failure:
+			"An agent declines a good offer because the team is still smaller than its human's minimum size, or has roles nobody covers yet, as if the team were complete (checkpoint B, 2026-10-30).",
+		expected:
+			"It judges the team by what it can become: the owner can keep offering places. It may still decline for other reasons.",
+		run: async (client) => {
+			const lea = createAgent(
+				person("p-lea", "Lea", {
+					skills: [
+						{ name: "frontend", level: "expert" },
+						{ name: "design", level: "intermediate" },
+					],
+					interests: ["health", "education"],
+					preferences: {
+						minTeamSize: 3,
+						maxTeamSize: 5,
+						preferredRoles: ["frontend"],
+					},
+				}),
+			);
+			const offer: Offer = {
+				kind: "offer",
+				from: "p-sam",
+				to: "p-lea",
+				team: "team-p-sam",
+				title: "Rehab Coach",
+				pitch: "A web app that guides patients through physical therapy exercises at home, with progress tracking for their therapist.",
+				rolesNeeded: ["frontend", "backend", "design"],
+			};
+			const agent = learn(raiseLevel(lea, "p-sam", 2), "p-sam", {
+				interests: ["health", "fitness"],
+				availability: { hoursPerWeek: 12, utcOffset: -4 },
+				skills: [{ name: "product", level: "expert" }],
+				preferences: {
+					minTeamSize: 3,
+					maxTeamSize: 5,
+					preferredRoles: ["product"],
+				},
+			});
+			const prompt = commitmentMessages(agent, [offer], [], {
+				sizes: { "p-sam": 1 },
+			});
+			const { data } = await client.chatJson(prompt, AgentCommitment);
+			return {
+				prompt,
+				decision: data.commit
+					? `commits to ${data.commit}`
+					: "declines all",
+				rationale: data.rationale,
+			};
+		},
+		question:
+			"Does the agent decline, and does its rationale give as a reason that the team is currently smaller than the human's minimum size, or that a needed role isn't covered yet, without considering that the owner can still add people?",
+	},
+	{
 		name: "relabeled roles",
 		failure:
 			"An agent changes the project's roles just so an offer becomes possible (adding the other person's skill as a needed role), without saying what work that role does.",
