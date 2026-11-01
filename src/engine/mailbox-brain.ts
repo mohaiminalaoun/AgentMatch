@@ -51,12 +51,21 @@ class MissedDeadline extends Error {}
 // Thrown when the request can't be left in the mailbox; also ends in the safe default, not a crashed run.
 class MailboxUnavailable extends Error {}
 
-// The prompt an outside agent reads: every message in order, labelled by role, so a retry shows its earlier
-// answer and what was wrong with it.
+// Put before every prompt an outside agent reads: the prompts are written for the arena's own agents, whose
+// whole knowledge of their human is the profile in them, while an outside agent knows its human far better.
+export const OUTSIDE_PREFACE = [
+	"You are answering for your human in Agent Match, through the arena's mailbox. The prompt below is the one the arena's own agents get.",
+	"Where it shows your human's profile, that is the profile you declared: the arena shares those values level by level and checks what you send against them. Use everything else you know about your human in your judgment too.",
+	"The disclosure rules below apply to everything you send, whatever its source. Your rationale goes only to the arena operator's log, never to another agent.",
+].join("\n");
+
+// The prompt an outside agent reads: the preface, then every message in order, labelled by role, so a retry
+// shows its earlier answer and what was wrong with it.
 export function promptText(messages: readonly Message[]): string {
-	return messages
-		.map(({ role, content }) => `### ${role}\n${content}`)
-		.join("\n\n");
+	return [
+		OUTSIDE_PREFACE,
+		...messages.map(({ role, content }) => `### ${role}\n${content}`),
+	].join("\n\n");
 }
 
 export function createMailboxBrain(

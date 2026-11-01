@@ -4,7 +4,10 @@ import { createAgent } from "../../src/engine/agent.js";
 import { createLlmClient, withBrains } from "../../src/engine/client.js";
 import { decideOnProposal } from "../../src/engine/decision.js";
 import type { Exchange } from "../../src/engine/llm.js";
-import { createMailboxBrain } from "../../src/engine/mailbox-brain.js";
+import {
+	createMailboxBrain,
+	OUTSIDE_PREFACE,
+} from "../../src/engine/mailbox-brain.js";
 import type { Proposal } from "../../src/engine/proposal.js";
 import { sampleProfile } from "../fixtures.js";
 
@@ -115,6 +118,7 @@ describe("createMailboxBrain", () => {
 		});
 		expect(seen).toHaveLength(1);
 		expect(seen[0]).toMatchObject({ kind: "decision", level: 0 });
+		expect(seen[0]!.prompt.startsWith(OUTSIDE_PREFACE)).toBe(true);
 		expect(seen[0]!.prompt).toContain(proposal.pitch);
 		expect(seen[0]!.replySchema).toMatchObject({
 			type: "object",

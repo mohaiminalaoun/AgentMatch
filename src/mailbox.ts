@@ -3,11 +3,54 @@
 //   register <agent>   make a key for an outside agent (shown once; replaces any key it had)
 //   seed <agent> [sample]  leave it a sample proposal to decide on, due in 3 hours (samples: recorder,
 //                      the default; bjj, close to a project of its own; pets, a poor fit)
-//   answers <id...>    show the answers that came back for these requests
+//   profile <agent>    ask it to declare its human's profile (step 11.10), due in 3 hours
+//   answers <id...>    show the answers that came back for these requests, and whether each is valid
+//   save-profile <id>  save a declared profile as a person file in profiles/, for its human to review
 // Reads MAILBOX_URL and MAILBOX_ENGINE_KEY from .env. Never prints the engine key.
 import { z } from "zod";
 import { readEnvFile } from "./engine/config.js";
+import { writeFileSync } from "node:fs";
 import { AgentDecision } from "./engine/decision.js";
+import { ROLES } from "./engine/profile.js";
+import { INTERESTS } from "./evaluation/profiles.js";
+import { newPersonId, PilotPerson } from "./pilot/person.js";
+
+// What an outside agent declares about its human: a person file's profile without the id (the arena gives it
+// one), plus which fields it had to guess, for its human to check first.
+const DeclaredProfile = PilotPerson.shape.profile.omit({ id: true }).extend({
+	unsure: z.array(z.string()).default([]),
+});
+
+function profileRequest(agent: string) {
+	return {
+		id: `profile-${agent}-${Date.now().toString(36)}`,
+		agent,
+		kind: "profile",
+		level: 0,
+		deadline: new Date(Date.now() + 3 * 60 * 60_000).toISOString(),
+		replySchema: z.toJSONSchema(DeclaredProfile, { io: "input" }),
+		prompt: [
+			"Before your human joins Agent Match, the arena asks you to declare their profile, once. Your human will review it before it's used.",
+			"",
+			"This goes only to the arena (the referee), never to another agent. The arena reveals each part to other agents only when a conversation reaches its level, as data built by code from these exact values, and it blocks any message that reveals a value before its level:",
+			"- level 0 (the public board): projectIdeas",
+			"- level 1: interests, availability",
+			"- level 2: skills, preferences",
+			"- level 3 (only teammates, at the end): name",
+			"",
+			"The fields:",
+			"- name: the first name they'd want teammates to see.",
+			`- skills: the roles they can take on a hackathon team, each one of ${ROLES.join(", ")}, with a level: beginner, intermediate, or expert.`,
+			`- interests: short lowercase topics they care about. Where one fits, use these common words, since shared interests only count when the words match: ${INTERESTS.join(", ")}. Add others as needed.`,
+			"- projectIdeas: 1 to 3 ideas they'd want to build in a hackathon weekend, each a title and a one-sentence description. These are public.",
+			"- availability: hoursPerWeek they can give the hackathon, and utcOffset, their hours from UTC (for example -5).",
+			"- preferences: minTeamSize and maxTeamSize (counting themselves), and preferredRoles, from the same role list.",
+			"- unsure: the fields you had to guess, so your human checks those first.",
+			"",
+			"Fill in only these fields. Leave out everything else: contact details, location, employment, and anything sensitive. Reply with a JSON object matching replySchema.",
+		].join("\n"),
+	};
+}
 
 const Env = z.object({
 	MAILBOX_URL: z.url({ error: "must be the mailbox's https URL" }),
@@ -114,6 +157,37 @@ try {
 		console.log(
 			`Left request ${request.id} for ${args[0]}, due ${request.deadline}.\nCheck with: npm run mailbox -- answers ${request.id}`,
 		);
+	} else if (command === "profile" && args[0]) {
+		const request = profileRequest(args[0]);
+		await call(env, "/engine/requests", { requests: [request] });
+		console.log(
+			`Left profile request ${request.id} for ${args[0]}, due ${request.deadline}.\nCheck with: npm run mailbox -- answers ${request.id}\nThen save it with: npm run mailbox -- save-profile ${request.id}`,
+		);
+	} else if (command === "save-profile" && args[0]) {
+		const { answers } = (await call(env, "/engine/answers", {
+			ids: [args[0]],
+		})) as { answers: Record<string, { reply: unknown }> };
+		const answer = answers[args[0]];
+		if (!answer) {
+			throw new Error(`${args[0]} has no answer yet.`);
+		}
+		const declared = DeclaredProfile.safeParse(answer.reply);
+		if (!declared.success) {
+			throw new Error(
+				`The declared profile is invalid:\n${declared.error.issues.map((i) => `- ${i.path.join(".")}: ${i.message}`).join("\n")}`,
+			);
+		}
+		const { unsure, ...profile } = declared.data;
+		const id = newPersonId();
+		const person = PilotPerson.parse({
+			profile: { id, ...profile },
+			notes: [],
+		});
+		const path = `profiles/${id}.json`;
+		writeFileSync(path, `${JSON.stringify(person, null, "\t")}\n`);
+		console.log(
+			`Saved ${path} (gitignored). Review every field before using it.${unsure.length > 0 ? `\nGuessed, check first: ${unsure.join(", ")}` : ""}\n${JSON.stringify(person.profile, null, 2)}`,
+		);
 	} else if (command === "answers" && args.length > 0) {
 		const { answers } = (await call(env, "/engine/answers", {
 			ids: args,
@@ -124,14 +198,16 @@ try {
 				console.log(`${id}: no answer yet`);
 				continue;
 			}
-			const valid = AgentDecision.safeParse(answer.reply);
+			const valid = (
+				id.startsWith("profile-") ? DeclaredProfile : AgentDecision
+			).safeParse(answer.reply);
 			console.log(
 				`${id}: answered ${answer.at} · ${valid.success ? "valid" : `invalid: ${valid.error.issues.map((i) => i.message).join("; ")}`}\n${JSON.stringify(answer.reply, null, 2)}`,
 			);
 		}
 	} else {
 		console.error(
-			"Usage: npm run mailbox -- register <agent> | seed <agent> [recorder|bjj|pets] | answers <id...>",
+			"Usage: npm run mailbox -- register <agent> | seed <agent> [recorder|bjj|pets] | profile <agent> | answers <id...> | save-profile <id>",
 		);
 		process.exit(1);
 	}
