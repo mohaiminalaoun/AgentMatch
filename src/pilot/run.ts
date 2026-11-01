@@ -2,6 +2,7 @@ import type { LlmClient } from "../engine/client.js";
 import type { RunEvent } from "../engine/events.js";
 import type { World } from "../engine/round.js";
 import { runSimulation } from "../engine/simulation.js";
+import { castProfiles } from "../evaluation/cast.js";
 import { generateProfiles } from "../evaluation/profiles.js";
 import type { PilotPerson } from "./person.js";
 
@@ -11,6 +12,9 @@ export type PilotOptions = {
 	fill?: number;
 	// Seed for the generated people.
 	seed?: number;
+	// People from the fixed cast (`src/evaluation/cast.ts`) added to the board, built from real hackathon ideas,
+	// so a run can be judged against the cast's expected groups. Their ids are "c1", ….
+	cast?: number;
 	maxRounds?: number;
 	onEvent?: (event: RunEvent) => void;
 	onPhase?: (line: string) => void;
@@ -28,11 +32,22 @@ export type PilotOutcome = {
 export async function runPilot(
 	client: LlmClient,
 	people: readonly PilotPerson[],
-	{ fill = 0, seed = 1, maxRounds, onEvent, onPhase }: PilotOptions = {},
+	{
+		fill = 0,
+		seed = 1,
+		cast = 0,
+		maxRounds,
+		onEvent,
+		onPhase,
+	}: PilotOptions = {},
 ): Promise<World> {
 	return runSimulation(
 		client,
-		[...people.map((p) => p.profile), ...generateProfiles(fill, seed)],
+		[
+			...people.map((p) => p.profile),
+			...castProfiles(cast),
+			...generateProfiles(fill, seed),
+		],
 		{
 			notes: Object.fromEntries(
 				people.map((p) => [p.profile.id, p.notes]),

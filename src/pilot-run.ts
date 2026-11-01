@@ -1,4 +1,4 @@
-// Entry point for `npm run pilot:run -- <dir> [--fill N --seed S --rounds R --outside ID=AGENT --answer-minutes M]`:
+// Entry point for `npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M]`:
 // the whole system on real people,
 // one .json file each in <dir> (copy profiles/example.json), plus N generated people so the board isn't too
 // thin. Refuses a model the provider trains on. Prints a live status line, then where each real person ended
@@ -16,6 +16,7 @@ import { createRunLog } from "./engine/runlog.js";
 import { summarize } from "./engine/simulation.js";
 import { assertRealDataModel } from "./pilot/model.js";
 import { loadPeople } from "./pilot/people.js";
+import { judgeTeam } from "./evaluation/cast.js";
 import { pilotOutcomes, runPilot } from "./pilot/run.js";
 import { createStatus } from "./status.js";
 
@@ -33,11 +34,13 @@ function flag(name: string, fallback: number, min = 1): number {
 const dir = process.argv[2];
 if (!dir || dir.startsWith("--")) {
 	console.error(
-		"Usage: npm run pilot:run -- <dir> [--fill N --seed S --rounds R --outside ID=AGENT --answer-minutes M]",
+		"Usage: npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M]",
 	);
 	process.exit(1);
 }
 const fill = flag("fill", 0, 0);
+// People from the fixed cast built from real hackathon ideas, up to 30.
+const cast = flag("cast", 0, 0);
 const seed = flag("seed", 1);
 const maxRounds = flag("rounds", 6);
 const answerMinutes = flag("answer-minutes", 25);
@@ -95,10 +98,11 @@ try {
 	const status = createStatus(started);
 
 	console.log(
-		`${people.length} people from ${dir}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request)` : ""}\n`,
+		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request)` : ""}\n`,
 	);
 	const world = await runPilot(client, people, {
 		fill,
+		cast,
 		seed,
 		maxRounds,
 		onEvent: (event) => {
@@ -121,6 +125,17 @@ try {
 				? `  ${name} (${id}): team with ${team.members.filter((m) => m !== id).join(", ")} · “${team.project}”`
 				: `  ${name} (${id}): no team`,
 		);
+	}
+	if (cast > 0) {
+		console.log(
+			"\nAgainst the cast's expected groups (cast members only):",
+		);
+		for (const team of world.teams) {
+			const { verdict, clusters } = judgeTeam(team.members);
+			console.log(
+				`  ${team.members.join(" + ")}: ${verdict} (${clusters.join(", ")})`,
+			);
+		}
 	}
 	const seconds = ((performance.now() - started) / 1000).toFixed(0);
 	console.log(`\n${formatSummary(summarize(world, events), config.prices)}`);

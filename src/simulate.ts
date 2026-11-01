@@ -1,9 +1,11 @@
-// Entry point for `npm run simulate [-- --agents N --rounds R --seed S --private --brain-model M]`: the whole system on
+// Entry point for `npm run simulate [-- --agents N --rounds R --seed S --private --brain-model M --cast]`: the whole system on
 // generated people, for up to R rounds (default 6), stopping sooner once a round changes nothing. Agents write listings, then each round pick whom to approach and negotiate, all at once.
 // Prints every event as it happens (with private rationales only under --private), a live status line while
 // model calls are out, and a report at the end; the full timeline is in the run log (`npm run show-run`).
 // With --brain-model, the first agent thinks with model M on the same provider instead, while everyone else
-// uses LLM_MODEL: the engine referees it exactly the same way.
+// uses LLM_MODEL: the engine referees it exactly the same way. With --cast, the people are the first N of the
+// fixed cast built from real hackathon ideas instead of generated ones, and each team is judged against the
+// cast's expected groups.
 import { formatEvent, formatSummary } from "./describe.js";
 import { createLlmClient, withBrains } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
@@ -11,6 +13,7 @@ import type { RunEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
 import { runSimulation, summarize } from "./engine/simulation.js";
 import { measureLeakage } from "./evaluation/leakage.js";
+import { castProfiles, judgeTeam } from "./evaluation/cast.js";
 import { generateProfiles } from "./evaluation/profiles.js";
 import { createStatus } from "./status.js";
 
@@ -30,6 +33,7 @@ const agents = flag("agents", 10);
 const maxRounds = flag("rounds", 6);
 const seed = flag("seed", 1);
 const showPrivate = process.argv.includes("--private");
+const useCast = process.argv.includes("--cast");
 // Another model for the first agent, to try an agent with a brain of its own.
 const brainIndex = process.argv.indexOf("--brain-model");
 const brainModel = brainIndex === -1 ? undefined : process.argv[brainIndex + 1];
@@ -42,7 +46,9 @@ try {
 	readEnvFile();
 	const config = loadConfig(process.env);
 	const log = createRunLog("simulate");
-	const profiles = generateProfiles(agents, seed);
+	const profiles = useCast
+		? castProfiles(agents)
+		: generateProfiles(agents, seed);
 	const brainAgent = profiles[0]!.id;
 	const shared = createLlmClient(config);
 	const client = brainModel
@@ -84,6 +90,15 @@ try {
 			.map(([field, n]) => `${field} ${n}`)
 			.join(", ")})`,
 	);
+	if (useCast) {
+		console.log("Against the cast's expected groups:");
+		for (const team of world.teams) {
+			const { verdict, clusters } = judgeTeam(team.members);
+			console.log(
+				`  ${team.members.join(" + ")}: ${verdict} (${clusters.join(", ")})`,
+			);
+		}
+	}
 	if (brainModel) {
 		const byModel: Record<string, number> = {};
 		for (const e of events) {
