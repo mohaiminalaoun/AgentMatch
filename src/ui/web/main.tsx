@@ -112,6 +112,9 @@ function App() {
 	const file = useRef<HTMLInputElement>(null);
 	// The network panel and inspector go full screen together, so an open conversation stays visible.
 	const studio = useRef<HTMLDivElement>(null);
+	// Chart units per screen pixel, for drawing the speech bubble at a fixed size.
+	const chart = useRef<SVGSVGElement>(null);
+	const [unitsPerPx, setUnitsPerPx] = useState(1);
 	const [fullscreen, setFullscreen] = useState(false);
 	useEffect(() => {
 		const onChange = () => setFullscreen(!!document.fullscreenElement);
@@ -262,6 +265,20 @@ function App() {
 			),
 		[people, state.teams, current?.id],
 	);
+	// The chart fits its box (in full screen, by its smaller side), so one pixel is this many chart units.
+	useEffect(() => {
+		const svg = chart.current;
+		if (!svg) return;
+		const measure = () => {
+			const { width, height } = svg.getBoundingClientRect();
+			const pxPerUnit = Math.min(width / 860, height / canvasHeight);
+			if (pxPerUnit > 0) setUnitsPerPx(1 / pxPerUnit);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(svg);
+		return () => observer.disconnect();
+	}, [view, canvasHeight]);
 	const points = people.map((p) => placements[p.id]!);
 	const point = (id: string) => placements[id];
 	const palette = [
@@ -303,9 +320,10 @@ function App() {
 		return "idle";
 	};
 	// The selected agent's bubble: its original idea (the listing's title, or its pitch in older logs with no
-	// titles), or, with no project of its own, that it's looking around. The text wraps at about 28
-	// characters over up to 3 lines (about 8.4 units a character at its 14px size), and the bubble shifts
-	// sideways, its pointer staying on the agent, so it stays inside the 860-wide chart.
+	// titles), or, with no project of its own, that it's looking around. It's drawn in screen pixels, not
+	// chart units, so its 13px text stays the same size however the chart and its agents are scaled: the text
+	// wraps at about 30 characters (about 7.1px each) over up to 3 lines, and the bubble shifts sideways, its
+	// pointer staying on the agent, so it stays inside the 860-wide chart.
 	const speechFor = (p: Person) => {
 		const text = p.listed
 			? (p.title ?? p.pitch)
@@ -313,7 +331,7 @@ function App() {
 		const lines: string[] = [];
 		for (const word of text.split(/\s+/)) {
 			const last = lines.at(-1);
-			if (last !== undefined && `${last} ${word}`.length <= 28)
+			if (last !== undefined && `${last} ${word}`.length <= 30)
 				lines[lines.length - 1] = `${last} ${word}`;
 			else lines.push(word);
 		}
@@ -323,17 +341,17 @@ function App() {
 		}
 		return lines;
 	};
-	const bubbleFor = (p: Person, x: number, scale: number) => {
+	const bubbleFor = (p: Person, x: number) => {
 		const lines = speechFor(p);
 		const width = Math.max(
-			110,
-			Math.round(Math.max(...lines.map((l) => l.length)) * 8.4 + 32),
+			90,
+			Math.round(Math.max(...lines.map((l) => l.length)) * 7.1 + 28),
 		);
-		const height = lines.length * 18 + 16;
-		const min = (6 - x) / scale + width / 2;
-		const max = (854 - x) / scale - width / 2;
+		const height = lines.length * 17 + 14;
+		const min = (6 - x) / unitsPerPx + width / 2;
+		const max = (854 - x) / unitsPerPx - width / 2;
 		const dx = Math.min(Math.max(0, min), max);
-		return { lines, width, height, dx, top: -67 - height };
+		return { lines, width, height, dx, top: -7 - height };
 	};
 
 	async function load(f: File) {
@@ -691,6 +709,7 @@ function App() {
 											</span>
 										</div>
 										<svg
+											ref={chart}
 											viewBox={`0 0 860 ${canvasHeight}`}
 											style={{
 												aspectRatio: `860 / ${canvasHeight}`,
@@ -973,10 +992,12 @@ function App() {
 																		bubbleFor(
 																			p,
 																			pos.x,
-																			pos.scale,
 																		);
 																	return (
-																		<g className="network-speech">
+																		<g
+																			className="network-speech"
+																			transform={`translate(0 -60) scale(${unitsPerPx / pos.scale})`}
+																		>
 																			<rect
 																				x={
 																					b.dx -
@@ -992,12 +1013,12 @@ function App() {
 																				height={
 																					b.height
 																				}
-																				rx="12"
+																				rx="10"
 																				fill="white"
 																				stroke="#e7e1ef"
 																			/>
 																			<path
-																				d="M-6 -67 L0 -60 L6 -67"
+																				d="M-6 -7 L0 0 L6 -7"
 																				fill="white"
 																			/>
 																			<text
@@ -1006,7 +1027,7 @@ function App() {
 																				}
 																				y={
 																					b.top +
-																					23
+																					18
 																				}
 																				textAnchor="middle"
 																			>
@@ -1024,7 +1045,7 @@ function App() {
 																							}
 																							dy={
 																								i
-																									? 18
+																									? 17
 																									: 0
 																							}
 																						>
