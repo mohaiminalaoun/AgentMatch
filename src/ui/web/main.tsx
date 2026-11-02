@@ -13,7 +13,6 @@ import {
 	Fingerprint,
 	FlaskConical,
 	GitBranch,
-	Globe2,
 	Layers3,
 	LockKeyhole,
 	Maximize2,
@@ -31,6 +30,7 @@ import {
 	Upload,
 	UserPlus,
 	Users,
+	Lightbulb,
 	X,
 } from "lucide-react";
 import {
@@ -54,7 +54,7 @@ import {
 import "./style.css";
 import { groupAgents } from "./layout.js";
 import { AgentCharacter, type Mood } from "./AgentCharacter.js";
-import { CardDetails, IdeaCard } from "./IdeaCard.js";
+import { CardDetails, IdeaCard, RoleCards } from "./IdeaCard.js";
 import { TeamStory } from "./TeamStory.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
 // "a03" → "3", "p4" → "4", and a pilot id like "p-c41e" → "c41e".
@@ -1637,33 +1637,30 @@ function App() {
 									<div className="inspector-body">
 										{tab === "Overview" ? (
 											<>
-												<div className="detail-label">
-													<Globe2 size={13} /> PUBLIC
-													LISTING <span>LEVEL 0</span>
-												</div>
-												<p className="pitch">
-													“{current.pitch}”
-												</p>
-												<CardDetails
-													card={current}
-													roles={current.roles}
-												/>
-												<div className="detail-label">
-													LOOKING FOR
-												</div>
-												<div className="role-tags">
+												<div className="idea-block">
+													<div className="detail-label">
+														<Lightbulb size={13} />{" "}
+														THE IDEA{" "}
+														<span>L0 · PUBLIC</span>
+													</div>
+													<p className="pitch">
+														“{current.pitch}”
+													</p>
+													<CardDetails
+														card={current}
+														roles={[]}
+													/>
 													{current.roles.length ? (
-														current.roles.map(
-															(r) => (
-																<span key={r}>
-																	{r}
-																</span>
-															),
-														)
+														<RoleCards
+															roles={
+																current.roles
+															}
+															card={current}
+														/>
 													) : (
-														<span>
+														<p className="role-open">
 															Open to a great idea
-														</span>
+														</p>
 													)}
 												</div>
 												<div className="disclosure-card">

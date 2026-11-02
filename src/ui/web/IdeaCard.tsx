@@ -1,4 +1,15 @@
 import React from "react";
+import {
+	Brain,
+	ClipboardList,
+	Cloud,
+	CodeXml,
+	Database,
+	PencilLine,
+	Server,
+	Smartphone,
+	Users,
+} from "lucide-react";
 import type { Card, IdeaVersion, OfferStep } from "./replay.js";
 
 // "a03" → "Agent 03", "p4" → "Agent 04", and a pilot id like "p-c41e" → "Agent c41e".
@@ -36,6 +47,73 @@ function outcome(v: IdeaVersion): string {
 }
 const good = new Set(["accepted", "adopted", "committed"]);
 
+// An icon for each role a project can need.
+const roleIcons: Record<string, typeof CodeXml> = {
+	frontend: CodeXml,
+	backend: Server,
+	mobile: Smartphone,
+	ml: Brain,
+	data: Database,
+	design: PencilLine,
+	devops: Cloud,
+	product: ClipboardList,
+};
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// A card for each role a project needs, with what that role would do when the card says. Given `before`,
+// roles added since are marked, and dropped ones struck.
+export function RoleCards({
+	roles,
+	card,
+	before,
+}: {
+	roles: readonly string[];
+	card: Card;
+	before?: IdeaVersion | undefined;
+}) {
+	const dropped = before
+		? before.rolesNeeded.filter((r) => !roles.includes(r))
+		: [];
+	const cardFor = (role: string, cls: string, work: string | undefined) => {
+		const Icon = roleIcons[role] ?? Users;
+		return (
+			<div className={`role-card ${cls}`} key={`${cls}-${role}`}>
+				<span className="role-icon">
+					<Icon size={15} />
+				</span>
+				<div>
+					<strong>
+						{cls === "added" && "+"}
+						{cls === "dropped" && "−"}
+						{titleCase(role)}
+					</strong>
+					{work && <p>{work}</p>}
+				</div>
+			</div>
+		);
+	};
+	return (
+		<>
+			<div className="detail-label roles-label">
+				<Users size={13} /> ROLES THEY’RE LOOKING FOR{" "}
+				<span>{roles.length}</span>
+			</div>
+			<div className="role-cards">
+				{roles.map((r) =>
+					cardFor(
+						r,
+						before && !before.rolesNeeded.includes(r)
+							? "added"
+							: "",
+						card.roleWork?.[r],
+					),
+				)}
+				{dropped.map((r) => cardFor(r, "dropped", undefined))}
+			</div>
+		</>
+	);
+}
+
 // A version's pitch and its full roles; roles added since `before` are marked, and dropped ones struck.
 function Version({
 	v,
@@ -44,9 +122,6 @@ function Version({
 	v: IdeaVersion;
 	before?: IdeaVersion | undefined;
 }) {
-	const dropped = before
-		? before.rolesNeeded.filter((r) => !v.rolesNeeded.includes(r))
-		: [];
 	const renamed = v.title && v.title !== before?.title;
 	return (
 		<>
@@ -56,31 +131,8 @@ function Version({
 			) : (
 				<p className="idea-pitch">“{v.pitch}”</p>
 			)}
-			<div className="idea-roles">
-				{v.rolesNeeded.map((r) => (
-					<span
-						key={r}
-						className={
-							before && !before.rolesNeeded.includes(r)
-								? "added"
-								: ""
-						}
-					>
-						{before && !before.rolesNeeded.includes(r) ? "+" : ""}
-						{r}
-					</span>
-				))}
-				{dropped.map((r) => (
-					<span key={r} className="dropped">
-						−{r}
-					</span>
-				))}
-			</div>
-			<CardDetails
-				card={v.card}
-				roles={v.rolesNeeded}
-				before={before?.card}
-			/>
+			<CardDetails card={v.card} roles={[]} before={before?.card} />
+			<RoleCards roles={v.rolesNeeded} card={v.card} before={before} />
 		</>
 	);
 }
@@ -225,7 +277,7 @@ export function IdeaCard({
 				? "ENDS AS THE TEAM’S PROJECT"
 				: "AGREED NOW";
 	return (
-		<div className="idea-card">
+		<div className="idea-card idea-block">
 			<div className="detail-label">STARTED AS</div>
 			<Version v={first} />
 			<p className="idea-meta">

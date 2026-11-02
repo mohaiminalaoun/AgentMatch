@@ -1008,30 +1008,6 @@ h1 > span {
 	color: #716979;
 	margin: 6px 0 0;
 }
-.idea-roles {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	margin: 6px 0 0;
-}
-.idea-roles > span {
-	font-size: 12px;
-	border: 1px solid #ece6f1;
-	border-radius: 4px;
-	padding: 2px 6px;
-	color: #73677e;
-	background: #fff;
-}
-.idea-roles > span.added {
-	color: #3c7767;
-	border-color: #cde6de;
-	background: #f0f8f5;
-}
-.idea-roles > span.dropped {
-	color: #75686c;
-	text-decoration: line-through;
-	border-style: dashed;
-}
 /* A version's project card: problem, weekend build, and each needed role's work. */
 .card-details {
 	margin: 7px 0 0;
@@ -2561,4 +2537,107 @@ h1 > span {
 }
 .profile-header .brain-badge {
 	margin-top: 6px;
+}
+
+/* The inspector's Overview: the idea, then a card for each role the project needs. */
+.idea-block .detail-label {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 1.2px;
+}
+.idea-block .pitch {
+	font-size: 16px;
+	font-weight: 500;
+	line-height: 1.5;
+	color: #3f3548;
+	margin: 14px 0 18px;
+}
+.idea-block .card-details {
+	gap: 14px;
+	margin: 0 0 22px;
+}
+.idea-block .card-details > div {
+	grid-template-columns: 1fr;
+	gap: 4px;
+}
+.idea-block .card-details dt {
+	font-size: 10px;
+	letter-spacing: 1px;
+	color: #6f6579;
+}
+.idea-block .card-details dd {
+	font-size: 13px;
+	line-height: 1.45;
+	color: #3f3548;
+}
+.roles-label {
+	margin-top: 4px;
+}
+.role-cards {
+	display: grid;
+	gap: 10px;
+	margin: 12px 0 23px;
+}
+.role-card {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	background: #fff;
+	border: 1px solid #e9e4ef;
+	border-radius: 10px;
+}
+.role-icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 8px;
+	background: #f1edf7;
+	color: #6a5d84;
+}
+.role-card strong {
+	display: block;
+	font-size: 13px;
+	font-weight: 650;
+	color: #3f3548;
+}
+.role-card p {
+	margin: 2px 0 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: #5a5163;
+}
+.role-open {
+	margin: 12px 0 23px;
+	font-size: 13px;
+	color: #716a78;
+}
+.role-card.added {
+	border-color: #cde6de;
+	background: #f0f8f5;
+}
+.role-card.dropped {
+	border-style: dashed;
+	opacity: 0.7;
+}
+.role-card.dropped strong {
+	text-decoration: line-through;
+}
+/* Inside the conversation's idea card, the same layout with tighter spacing. */
+.idea-card .idea-pitch {
+	font-size: 15px;
+	font-weight: 500;
+	color: #3f3548;
+	margin: 10px 0 14px;
+}
+.idea-card .card-details {
+	margin: 0 0 14px;
+}
+.idea-card .roles-label {
+	margin-top: 0;
+}
+.idea-card .role-cards {
+	margin: 10px 0 12px;
 }
