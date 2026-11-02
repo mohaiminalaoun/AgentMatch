@@ -2680,3 +2680,31 @@ h1 > span {
 	opacity: 0.7;
 	font-variant-numeric: tabular-nums;
 }
+
+/* Collapsing the idea card to what it started as and what it ends as. */
+.idea-collapse {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	margin-left: auto;
+	padding: 2px 4px;
+	font-size: 11px;
+	letter-spacing: 0;
+	color: #766686;
+	border-radius: 5px;
+	cursor: pointer;
+}
+.idea-collapse:hover {
+	background: #f1eff6;
+}
+.idea-summary .idea-pitch {
+	font-size: 13px;
+	font-weight: 400;
+	margin: 3px 0 0;
+	color: #5a5163;
+}
+.idea-end-label {
+	border-top: 1px solid #ece6f1;
+	margin-top: 12px;
+	padding-top: 12px;
+}

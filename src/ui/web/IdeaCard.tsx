@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import {
 	Brain,
 	ClipboardList,
+	ChevronDown,
+	ChevronUp,
 	Cloud,
 	CodeXml,
 	Database,
@@ -251,6 +253,22 @@ function Why({ v, show }: { v: IdeaVersion; show: boolean }) {
 	);
 }
 
+// A version folded to its name and one line about it, for the collapsed idea card.
+function Summary({
+	title,
+	pitch,
+}: {
+	title: string | undefined;
+	pitch: string;
+}) {
+	return (
+		<div className="idea-summary">
+			{title && <p className="idea-title">{title}</p>}
+			<p className="idea-pitch">“{pitch}”</p>
+		</div>
+	);
+}
+
 // The project idea two agents are discussing, read top to bottom: how it started, each change and what
 // the other side did with it, and how it stands now. Updates as the replay plays.
 // With `showWhy`, each version can be opened to show the private reasoning behind it.
@@ -263,10 +281,17 @@ export function IdeaCard({
 	agreed: number | undefined;
 	showWhy?: boolean;
 }) {
+	const [collapsed, setCollapsed] = useState(false);
 	const first = versions[0];
 	if (!first) return null;
 	const end = agreed ?? versions.length - 1;
 	const last = versions[end]!;
+	// A version only carries its title when it renamed the project, so look back for the latest one.
+	const titleAt = (i: number) =>
+		versions
+			.slice(0, i + 1)
+			.reverse()
+			.find((v) => v.title)?.title;
 	const joined =
 		last.status === "committed" ||
 		(last.offers ?? []).some((o) => o.status === "committed");
@@ -278,50 +303,83 @@ export function IdeaCard({
 				: "AGREED NOW";
 	return (
 		<div className="idea-card idea-block">
-			<div className="detail-label">STARTED AS</div>
-			<Version v={first} />
-			<p className="idea-meta">
-				{name(first.author)}’s idea
-				{first.how === "join" &&
-					` · ${name(first.from)} ${did.join}`} ·{" "}
-				<span className={good.has(first.status) ? "good" : ""}>
-					{outcome(first)}
-				</span>
-			</p>
-			<Why v={first} show={showWhy} />
-			<Offers v={first} show={showWhy} />
-			{versions.length > 1 && (
-				<ol className="idea-history">
-					{versions.slice(1).map((v, i) => (
-						<li key={i}>
-							<div className="idea-step">
-								v{i + 2} · {name(v.from)} {did[v.how]}
-							</div>
-							<Version v={v} before={versions[i]} />
-							<p className="idea-meta">
-								<span
-									className={good.has(v.status) ? "good" : ""}
-								>
-									{outcome(v)}
-								</span>
-							</p>
-							<Why v={v} show={showWhy} />
-							<Offers v={v} show={showWhy} />
-						</li>
-					))}
-				</ol>
-			)}
-			<div className="idea-end">
-				<div className="detail-label">
-					{label} <span>v{end + 1}</span>
-				</div>
-				{versions.length === 1 ? (
-					<p className="idea-same">Unchanged since it was proposed</p>
-				) : (
-					<Version v={last} />
-				)}
-				<p className="idea-meta">{name(last.author)}’s idea</p>
+			<div className="detail-label">
+				STARTED AS
+				<button
+					type="button"
+					className="idea-collapse"
+					aria-expanded={!collapsed}
+					onClick={() => setCollapsed((c) => !c)}
+				>
+					{collapsed ? "Expand" : "Collapse"}
+					{collapsed ? (
+						<ChevronDown size={12} />
+					) : (
+						<ChevronUp size={12} />
+					)}
+				</button>
 			</div>
+			{collapsed && (
+				<>
+					<Summary title={titleAt(0)} pitch={first.pitch} />
+					<div className="detail-label idea-end-label">
+						{label} <span>v{end + 1}</span>
+					</div>
+					<Summary title={titleAt(end)} pitch={last.pitch} />
+				</>
+			)}
+			{!collapsed && (
+				<>
+					<Version v={first} />
+					<p className="idea-meta">
+						{name(first.author)}’s idea
+						{first.how === "join" &&
+							` · ${name(first.from)} ${did.join}`}{" "}
+						·{" "}
+						<span className={good.has(first.status) ? "good" : ""}>
+							{outcome(first)}
+						</span>
+					</p>
+					<Why v={first} show={showWhy} />
+					<Offers v={first} show={showWhy} />
+					{versions.length > 1 && (
+						<ol className="idea-history">
+							{versions.slice(1).map((v, i) => (
+								<li key={i}>
+									<div className="idea-step">
+										v{i + 2} · {name(v.from)} {did[v.how]}
+									</div>
+									<Version v={v} before={versions[i]} />
+									<p className="idea-meta">
+										<span
+											className={
+												good.has(v.status) ? "good" : ""
+											}
+										>
+											{outcome(v)}
+										</span>
+									</p>
+									<Why v={v} show={showWhy} />
+									<Offers v={v} show={showWhy} />
+								</li>
+							))}
+						</ol>
+					)}
+					<div className="idea-end">
+						<div className="detail-label">
+							{label} <span>v{end + 1}</span>
+						</div>
+						{versions.length === 1 ? (
+							<p className="idea-same">
+								Unchanged since it was proposed
+							</p>
+						) : (
+							<Version v={last} />
+						)}
+						<p className="idea-meta">{name(last.author)}’s idea</p>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }
