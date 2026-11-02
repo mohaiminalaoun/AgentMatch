@@ -296,6 +296,8 @@ function App() {
 		observer.observe(svg);
 		return () => observer.disconnect();
 	}, [view, canvasHeight]);
+	// Project names are 11 chart units, but never smaller than 9 screen pixels when the chart is scaled down.
+	const labelSize = Math.max(11, 9 * unitsPerPx);
 	const points = people.map((p) => placements[p.id]!);
 	const point = (id: string) => placements[id];
 	const palette = [
@@ -763,6 +765,9 @@ function App() {
 														y={c.titleY}
 														textAnchor="middle"
 														className="team-label open-group-label"
+														style={{
+															fontSize: labelSize,
+														}}
 													>
 														Still exploring
 													</text>
@@ -796,6 +801,9 @@ function App() {
 														y={circles[i]!.titleY}
 														textAnchor="middle"
 														className="team-label"
+														style={{
+															fontSize: labelSize,
+														}}
 													>
 														{t.project.title}
 													</text>
