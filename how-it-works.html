@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Agent Match Works</title>
+<meta name="description" content="A walkthrough of Agent Match: personal AI agents that negotiate hackathon teams with staged disclosure and a deterministic privacy gate.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root {
+	--bg: #f6f5f1;
+	--surface: #ffffff;
+	--surface-2: #efede7;
+	--ink: #1c1c1a;
+	--ink-2: #45443f;
+	--muted: #6d6b64;
+	--rule: #dcd9d0;
+	--rule-strong: #b9b5aa;
+	--accent: #1d6a66;
+	--accent-soft: #dcebe9;
+	--gate: #a8471f;
+	--gate-soft: #f6e3d9;
+	--ok: #2d7444;
+	--ok-soft: #dfeee3;
+	--private: #6a4c9c;
+	--private-soft: #ebe5f4;
+	--code-bg: #eeece5;
+	--font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+	--font-head: "Source Serif 4", Georgia, "Times New Roman", serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #141513;
+		--surface: #1c1e1b;
+		--surface-2: #232521;
+		--ink: #eae8e2;
+		--ink-2: #c9c6be;
+		--muted: #9a978e;
+		--rule: #33352f;
+		--rule-strong: #4c4e47;
+		--accent: #6cc2bb;
+		--accent-soft: #1d3634;
+		--gate: #e8946b;
+		--gate-soft: #3a261c;
+		--ok: #7fc795;
+		--ok-soft: #1c3223;
+		--private: #b9a2e6;
+		--private-soft: #2b2539;
+		--code-bg: #23251f;
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #141513;
+	--surface: #1c1e1b;
+	--surface-2: #232521;
+	--ink: #eae8e2;
+	--ink-2: #c9c6be;
+	--muted: #9a978e;
+	--rule: #33352f;
+	--rule-strong: #4c4e47;
+	--accent: #6cc2bb;
+	--accent-soft: #1d3634;
+	--gate: #e8946b;
+	--gate-soft: #3a261c;
+	--ok: #7fc795;
+	--ok-soft: #1c3223;
+	--private: #b9a2e6;
+	--private-soft: #2b2539;
+	--code-bg: #23251f;
+	color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-body);
+	font-size: 16.5px;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-head); font-weight: 600; line-height: 1.2; color: var(--ink); }
+h1 { font-size: clamp(2rem, 4.5vw, 2.8rem); margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.65rem; margin: 0 0 0.9rem; }
+h3 { font-size: 1.18rem; margin: 1.8rem 0 0.6rem; }
+p { margin: 0 0 1rem; }
+ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+li { margin: 0.25rem 0; }
+strong { font-weight: 600; }
+
+.layout {
+	display: grid;
+	grid-template-columns: 230px minmax(0, 1fr);
+	gap: 48px;
+	max-width: 1220px;
+	margin: 0 auto;
+	padding: 40px 32px 80px;
+}
+nav.toc {
+	position: sticky;
+	top: 24px;
+	align-self: start;
+	font-size: 0.88rem;
+	max-height: calc(100vh - 48px);
+	overflow-y: auto;
+}
+.toc .toc-title {
+	font-size: 0.74rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+	margin: 0 0 0.6rem;
+}
+.toc ol { list-style: none; padding: 0; margin: 0; counter-reset: toc; }
+.toc li { margin: 0; counter-increment: toc; }
+.toc a {
+	display: block;
+	padding: 5px 10px;
+	color: var(--ink-2);
+	text-decoration: none;
+	border-left: 2px solid var(--rule);
+}
+.toc a::before { content: counter(toc) ". "; color: var(--muted); font-variant-numeric: tabular-nums; }
+.toc a:hover { color: var(--ink); border-left-color: var(--rule-strong); }
+.toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+.toc .toc-toggle { display: none; }
+.toc-meta { margin-top: 1.2rem; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+
+main { min-width: 0; max-width: 860px; }
+header.top { margin-bottom: 2.6rem; padding-bottom: 1.6rem; border-bottom: 1px solid var(--rule); }
+.kicker { font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem; }
+.lede { font-size: 1.14rem; color: var(--ink-2); max-width: 46em; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 1.2rem; font-size: 0.86rem; color: var(--muted); }
+.facts span strong { color: var(--ink); font-weight: 500; }
+
+section { padding-top: 0.6rem; margin-bottom: 3.4rem; }
+.sec-num { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 0.2rem; }
+.say {
+	border-left: 3px solid var(--accent);
+	background: var(--accent-soft);
+	padding: 0.8rem 1rem;
+	border-radius: 0 6px 6px 0;
+	margin: 0 0 1.2rem;
+	color: var(--ink);
+}
+.say .label { display: block; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 0.2rem; }
+.note {
+	font-size: 0.9rem;
+	color: var(--muted);
+	border-top: 1px dashed var(--rule-strong);
+	padding-top: 0.6rem;
+	margin-top: 0.8rem;
+}
+
+figure { margin: 1.4rem 0 1.6rem; }
+figure .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); padding: 10px; }
+figcaption { font-size: 0.86rem; color: var(--muted); margin-top: 0.6rem; }
+.wide { margin-right: -40px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); margin: 1rem 0 1.4rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 0.84rem; }
+tr.hl td { background: var(--accent-soft); }
+
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.tag.gate { background: var(--gate-soft); color: var(--gate); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.priv { background: var(--private-soft); color: var(--private); }
+.tag.code { background: var(--accent-soft); color: var(--accent); }
+.tag.none { background: var(--surface-2); color: var(--muted); }
+
+details {
+	border: 1px solid var(--rule);
+	border-radius: 8px;
+	background: var(--surface);
+	margin: 0.6rem 0;
+}
+details > summary {
+	cursor: pointer;
+	padding: 0.7rem 1rem;
+	font-weight: 500;
+	list-style: none;
+	position: relative;
+	padding-right: 2.4rem;
+}
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after {
+	content: "+";
+	position: absolute;
+	right: 1rem;
+	top: 0.6rem;
+	font-family: var(--font-mono);
+	color: var(--muted);
+	font-size: 1.05rem;
+}
+details[open] > summary::after { content: "–"; }
+details[open] > summary { border-bottom: 1px solid var(--rule); }
+details .body { padding: 0.9rem 1rem 0.4rem; }
+details .body p:last-child { margin-bottom: 0.6rem; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 1rem 0 1.4rem; }
+.card { border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); padding: 0.9rem 1rem; }
+.card h4 { margin: 0 0 0.4rem; font-size: 0.95rem; font-weight: 600; }
+.card p, .card ul { font-size: 0.92rem; margin-bottom: 0.4rem; }
+.card.priv { border-color: color-mix(in srgb, var(--private) 40%, var(--rule)); }
+.card.pub { border-color: color-mix(in srgb, var(--accent) 40%, var(--rule)); }
+
+/* Worked example timeline */
+.trace { list-style: none; padding: 0; margin: 1rem 0 1.4rem; border-left: 2px solid var(--rule); }
+.trace > li { position: relative; padding: 0 0 1.1rem 1.3rem; margin: 0; }
+.trace > li::before {
+	content: "";
+	position: absolute;
+	left: -7px;
+	top: 0.45rem;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--bg);
+	border: 2px solid var(--rule-strong);
+}
+.trace > li.lvl::before { border-color: var(--accent); background: var(--accent); }
+.trace > li.blocked::before { border-color: var(--gate); background: var(--gate); }
+.trace .when { font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); }
+.trace .who { font-weight: 600; }
+.msg {
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	background: var(--code-bg);
+	border-radius: 6px;
+	padding: 0.5rem 0.7rem;
+	margin: 0.35rem 0 0.3rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--ink-2);
+}
+.msg.blocked { background: var(--gate-soft); color: var(--ink); text-decoration: line-through; text-decoration-color: var(--gate); }
+.trace .aside { font-size: 0.88rem; color: var(--muted); }
+.trace .aside.private { color: var(--private); }
+
+.knows th:first-child, .knows td:first-child { white-space: nowrap; }
+
+/* Q&A */
+.qa details > summary { font-weight: 500; }
+.qa .body p { font-size: 0.96rem; }
+
+/* SVG styling */
+svg { display: block; font-family: var(--font-body); }
+svg .bx { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+svg .bx-soft { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+svg .bx-acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+svg .bx-priv { fill: var(--private-soft); stroke: var(--private); stroke-width: 1; stroke-dasharray: 4 3; }
+svg .bx-note { fill: none; stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 5 4; }
+svg .container { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 6 4; }
+svg .t { fill: var(--ink); font-size: 13.5px; font-weight: 600; }
+svg .ts { fill: var(--muted); font-size: 11.5px; }
+svg .tp { fill: var(--private); font-size: 11.5px; }
+svg .tpt { fill: var(--private); font-size: 13px; font-weight: 600; }
+svg .ta { fill: var(--accent); font-size: 11.5px; font-weight: 600; }
+svg .band { fill: var(--muted); font-size: 11px; letter-spacing: 0.12em; font-weight: 600; }
+svg .ln { stroke: var(--rule-strong); stroke-width: 1.4; fill: none; }
+svg .ln-acc { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+svg .ln-dash { stroke: var(--rule-strong); stroke-width: 1.1; fill: none; stroke-dasharray: 3 3; }
+svg .ln-priv { stroke: var(--private); stroke-width: 1.2; fill: none; stroke-dasharray: 3 3; }
+svg .ah { fill: var(--rule-strong); }
+svg .ah-acc { fill: var(--accent); }
+svg .ah-priv { fill: var(--private); }
+svg .pill { fill: var(--gate-soft); stroke: var(--gate); stroke-width: 0.8; }
+svg .pill-t { fill: var(--gate); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; }
+svg .stream { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+svg .axis { stroke: var(--rule-strong); stroke-width: 1; }
+svg .grid { stroke: var(--rule); stroke-width: 1; }
+svg .tick { fill: var(--muted); font-size: 11px; }
+svg .pt-base { fill: var(--muted); }
+svg .pt-agent { fill: var(--accent); }
+svg .pt-hollow { fill: var(--bg); stroke: var(--accent); stroke-width: 1.6; }
+svg .ring { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+svg .lab { fill: var(--ink-2); font-size: 12px; }
+svg .lab-acc { fill: var(--accent); font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 980px) {
+	.layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px 60px; }
+	nav.toc {
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		background: var(--bg);
+		border-bottom: 1px solid var(--rule);
+		margin: 0 -16px 24px;
+		padding: 10px 16px;
+		max-height: none;
+	}
+	.toc .toc-title { display: none; }
+	.toc .toc-toggle {
+		display: flex;
+		width: 100%;
+		justify-content: space-between;
+		align-items: center;
+		background: none;
+		border: 0;
+		color: var(--ink);
+		font: inherit;
+		font-weight: 500;
+		padding: 4px 0;
+		cursor: pointer;
+	}
+	.toc ol { display: none; padding-top: 8px; max-height: 60vh; overflow-y: auto; }
+	.toc.open ol { display: block; }
+	.toc-meta { display: none; }
+	.wide { margin-right: 0; }
+	header.top { padding-top: 8px; }
+}
+@media (max-width: 640px) {
+	body { font-size: 16px; }
+	.grid2 { grid-template-columns: 1fr; }
+	h2 { font-size: 1.45rem; }
+	figure .scroll { padding: 6px; }
+}
+@media print {
+	nav.toc { display: none; }
+	.layout { grid-template-columns: 1fr; }
+	details { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc" id="toc" aria-label="Sections">
+	<p class="toc-title">On this page</p>
+	<button class="toc-toggle" type="button" aria-expanded="false" aria-controls="toc-list">
+		<span id="toc-current">Contents</span><span aria-hidden="true">&#9662;</span>
+	</button>
+	<ol id="toc-list">
+		<li><a href="#pitch">Pitch and problem</a></li>
+		<li><a href="#flow">End-to-end flow</a></li>
+		<li><a href="#levels">Disclosure levels</a></li>
+		<li><a href="#privacy">Privacy architecture</a></li>
+		<li><a href="#example">Worked example</a></li>
+		<li><a href="#commit">Forming teams</a></li>
+		<li><a href="#llm">LLM reliability</a></li>
+		<li><a href="#eval">Evaluation</a></li>
+		<li><a href="#design">Design decisions</a></li>
+		<li><a href="#qa">Interview questions</a></li>
+		<li><a href="#map">Code map</a></li>
+	</ol>
+	<p class="toc-meta">Every number and name on this page comes from the source in <code>src/</code> or from <code>results/eval.json</code>.</p>
+</nav>
+
+<main>
+<header class="top">
+	<div class="kicker">Agent Match · technical walkthrough</div>
+	<h1>How Agent Match works</h1>
+	<p class="lede">A network of personal AI agents that negotiate hackathon teams for their humans, with no central coordinator. Agents reveal profile information in stages, and a deterministic gate outside the model blocks anything that reveals more than the current stage allows.</p>
+	<div class="facts">
+		<span><strong>TypeScript</strong> · ESM · strict tsconfig</span>
+		<span><strong>zod</strong> schemas for every message and every model reply</span>
+		<span><strong>Vitest</strong>: 445 tests in 35 files</span>
+		<span><strong>Any OpenAI-compatible</strong> chat endpoint</span>
+		<span><strong>React</strong> replay studio driven by run logs</span>
+	</div>
+</header>
+
+<!-- 1 -->
+<section id="pitch">
+	<span class="sec-num">01</span>
+	<h2>Pitch and problem</h2>
+	<p class="say"><span class="label">One-paragraph pitch</span>
+	Everyone at a hackathon gets a personal AI agent that knows their skills, interests, availability, project ideas, and things they'd only tell a friend. The agents find each other on a public board, negotiate over a message bus, reshape project ideas together, and commit to teams, all without anyone, including a central server, seeing everyone's full profile. Information comes out in stages, only to people who have shown real interest, and the privacy rules are enforced by plain code that checks every outgoing message. They never depend on the model choosing to follow instructions.</p>
+
+	<h3>The problem</h3>
+	<p>Good matching needs private information: what you're good at, when you're free, what you care about, what went wrong last time. The usual fix is a <strong>trusted central matcher</strong> that collects every full profile and runs an optimizer. That works well, but everyone has to trust one party with everything. The other extreme is a <strong>broadcast</strong>, where everyone posts everything publicly. It's just as good at matching, and nothing is private.</p>
+	<p>Agent Match is in between. Each person's data stays with their own agent, agents only learn about each other gradually, and the project measures how much quality that costs and how much privacy it saves (see <a href="#eval">Evaluation</a>).</p>
+
+	<h3>Three ideas carry the design</h3>
+	<div class="grid2">
+		<div class="card"><h4>Staged disclosure</h4><p>Four levels: a public pitch, then interests and availability, then skills and preferences, then names. A level opens only when both sides say "continue".</p></div>
+		<div class="card"><h4>A deterministic gate</h4><p>Every model-written word passes <code>checkDisclosure</code> (in <code>gate.ts</code>) before it can be sent. It's plain string matching against the sender's own profile values. No LLM is involved.</p></div>
+		<div class="card"><h4>Less free text</h4><p>Where possible, messages have no text at all: accept, continue, withdraw, adopt, commit, and leave. Declines carry one fixed sentence. Profile shares are built by code.</p></div>
+		<div class="card"><h4>Decentralized decisions</h4><p>Each agent decides only from its own human's data and what others have shared with it. Teams form by deferred acceptance: owners make offers and people pick, all at the same time.</p></div>
+	</div>
+</section>
+
+<!-- 2 -->
+<section id="flow">
+	<span class="sec-num">02</span>
+	<h2>End-to-end flow</h2>
+	<p>The diagram is <code>runSimulation</code> in <code>simulation.ts</code>. Listings are written once. Then each round runs discovery, then conversations (<code>runRound</code>), then commitment (<code>runCommitment</code>), until a round changes nothing. A brainstorm phase follows for anyone left over. Every step emits typed events into one ordered stream, which goes to a JSONL log and the replay UI.</p>
+	<figure class="wide">
+		<div class="scroll">
+		<svg viewBox="0 0 960 1180" style="min-width:760px;width:100%;height:auto" role="img" aria-labelledby="flow-title flow-desc">
+			<title id="flow-title">Agent Match data flow</title>
+			<desc id="flow-desc">Profile and notes lead to a gate-checked listing, the public board, discovery, conversations on the bus through disclosure levels, commitment by deferred acceptance, teams, a loop to the next round, a brainstorm phase and a summary. Every step emits run events to a JSONL log, a CLI timeline and the replay UI.</desc>
+			<defs>
+				<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+				<marker id="ah-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+				<marker id="ah-priv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-priv" d="M0,0 L10,5 L0,10 z"/></marker>
+			</defs>
+
+			<text class="band" x="40" y="38">ONCE</text>
+			<!-- B1 -->
+			<rect class="bx" x="40" y="50" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="74">Human's profile + private notes</text>
+			<text class="ts" x="56" y="93">skills · interests · availability · preferences · project ideas · name</text>
+			<text class="tp" x="56" y="107">notes: free text, each tagged with a level (0–3) or “never”</text>
+			<line class="ln" x1="305" y1="112" x2="305" y2="140" marker-end="url(#ah)"/>
+
+			<!-- B2 -->
+			<rect class="bx" x="40" y="142" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="166">writeListings: the model drafts a pitch + roles needed</text>
+			<text class="ts" x="56" y="185">gate-checked at level 0; unknown roles rejected; the model redrafts on a block</text>
+			<text class="ts" x="56" y="199">fallback: first project idea + core roles the human lacks</text>
+			<rect class="pill" x="498" y="150" width="62" height="18" rx="9"/><text class="pill-t" x="529" y="162.5" text-anchor="middle">GATE L0</text>
+			<line class="ln" x1="305" y1="204" x2="305" y2="232" marker-end="url(#ah)"/>
+
+			<!-- B3 -->
+			<rect class="bx-soft" x="40" y="234" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="258">Public board</text>
+			<text class="ts" x="56" y="277">level-0 listings only; people with no idea show as bare ids (“looking to join”)</text>
+			<text class="ts" x="56" y="291">public leftTeams mark; teams leave the board unless places remain</text>
+			<line class="ln" x1="305" y1="296" x2="305" y2="332" marker-end="url(#ah)"/>
+
+			<text class="band" x="40" y="326">EACH ROUND</text>
+			<!-- B4 -->
+			<rect class="bx" x="40" y="334" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="358">discover: each open agent picks up to 3 from the board</text>
+			<text class="ts" x="56" y="377">sees its own profile + the board, nothing else; pairs already talking are skipped</text>
+			<text class="ts" x="56" y="391">picks become proposals; code fills the pitch (own listing, or “Join your project: …”)</text>
+			<line class="ln" x1="305" y1="396" x2="305" y2="424" marker-end="url(#ah)"/>
+
+			<!-- Container C -->
+			<rect class="container" x="40" y="426" width="530" height="372" rx="10"/>
+			<text class="t" x="56" y="450">runRound: ticks on the bus until no mail is waiting</text>
+			<text class="ts" x="56" y="467">bus validates every message · calls run concurrently · replies in inbox order</text>
+
+			<!-- i1 -->
+			<rect class="bx" x="56" y="480" width="314" height="50" rx="7"/>
+			<text class="t" x="68" y="500" style="font-size:12.5px">decide → accept · counter · decline</text>
+			<text class="ts" x="68" y="519" style="font-size:11px">counters ≤ 2 per pair · decline: fixed text</text>
+			<rect class="pill" x="320" y="510" width="44" height="15" rx="7.5"/><text class="pill-t" x="342" y="520.5" text-anchor="middle">GATE</text>
+			<line class="ln" x1="213" y1="530" x2="213" y2="546" marker-end="url(#ah)"/>
+			<!-- i2 -->
+			<rect class="bx-acc" x="56" y="548" width="314" height="50" rx="7"/>
+			<text class="t" x="68" y="568" style="font-size:12.5px">L1 opens → share {interests, availability}</text>
+			<text class="ts" x="68" y="587" style="font-size:11px">built by code from the profile</text>
+			<rect class="pill" x="320" y="578" width="44" height="15" rx="7.5"/><text class="pill-t" x="342" y="588.5" text-anchor="middle">GATE</text>
+			<line class="ln" x1="213" y1="598" x2="213" y2="614" marker-end="url(#ah)"/>
+			<!-- i3 -->
+			<rect class="bx" x="56" y="616" width="314" height="50" rx="7"/>
+			<text class="t" x="68" y="636" style="font-size:12.5px">interest check → continue · withdraw</text>
+			<text class="ts" x="68" y="655" style="font-size:11px">no text · + optional revision → adopt/keep</text>
+			<rect class="pill" x="320" y="646" width="44" height="15" rx="7.5"/><text class="pill-t" x="342" y="656.5" text-anchor="middle">GATE</text>
+			<line class="ln" x1="213" y1="666" x2="213" y2="682" marker-end="url(#ah)"/>
+			<!-- i4 -->
+			<rect class="bx-acc" x="56" y="684" width="314" height="50" rx="7"/>
+			<text class="t" x="68" y="704" style="font-size:12.5px">L2 opens → share {skills, preferences}</text>
+			<text class="ts" x="68" y="723" style="font-size:11px">after both continued at L1</text>
+			<rect class="pill" x="320" y="714" width="44" height="15" rx="7.5"/><text class="pill-t" x="342" y="724.5" text-anchor="middle">GATE</text>
+			<line class="ln" x1="213" y1="734" x2="213" y2="750" marker-end="url(#ah)"/>
+			<!-- i5 -->
+			<rect class="bx-acc" x="56" y="752" width="314" height="34" rx="7"/>
+			<text class="t" x="68" y="774" style="font-size:12.5px">both continued at L2 → ready pair</text>
+
+			<!-- Hunch -->
+			<rect class="bx-priv" x="386" y="480" width="172" height="186" rx="8"/>
+			<text class="tpt" x="398" y="502">Private hunch</text>
+			<text class="tp" x="398" y="522">only for agents with</text>
+			<text class="tp" x="398" y="537">“never” notes</text>
+			<text class="tp" x="398" y="557">sees every note; returns</text>
+			<text class="tp" x="398" y="572">only a steer + a risk area</text>
+			<text class="tp" x="398" y="592">code turns it into a fixed</text>
+			<text class="tp" x="398" y="607">sentence for the prompt</text>
+			<text class="tp" x="398" y="627">stop → decline / withdraw</text>
+			<text class="tp" x="398" y="642">with no model call</text>
+			<line class="ln-priv" x1="386" y1="505" x2="372" y2="505" marker-end="url(#ah-priv)"/>
+			<line class="ln-priv" x1="386" y1="641" x2="372" y2="641" marker-end="url(#ah-priv)"/>
+
+			<line class="ln" x1="305" y1="798" x2="305" y2="826" marker-end="url(#ah)"/>
+			<!-- B6 -->
+			<rect class="bx" x="40" y="828" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="852">runCommitment: deferred acceptance</text>
+			<text class="ts" x="56" y="871">owners send binding offers carrying the agreed version (third-party check)</text>
+			<text class="ts" x="56" y="885">everyone holding offers picks at once: commit · decline · busy; passes repeat</text>
+			<rect class="pill" x="476" y="836" width="84" height="18" rx="9"/><text class="pill-t" x="518" y="848.5" text-anchor="middle">3RD-PARTY</text>
+			<line class="ln" x1="305" y1="890" x2="305" y2="918" marker-end="url(#ah)"/>
+
+			<!-- B7 -->
+			<rect class="bx-acc" x="40" y="920" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="944">Committed teams · level 3: teammates swap names</text>
+			<text class="ts" x="56" y="963">if a team grew, earlier members re-check: stay (the default) or leave</text>
+			<text class="ts" x="56" y="977">leave: text-free message to teammates; public leftTeams + 1</text>
+			<rect class="pill" x="498" y="928" width="62" height="18" rx="9"/><text class="pill-t" x="529" y="940.5" text-anchor="middle">GATE L3</text>
+
+			<!-- loop back -->
+			<path class="ln-acc" d="M40,951 L20,951 L20,365 L38,365" marker-end="url(#ah-acc)"/>
+			<text class="ta" transform="rotate(-90 13 660)" x="13" y="660" text-anchor="middle">next round, until a round changes nothing (or 6 rounds)</text>
+
+			<line class="ln" x1="305" y1="982" x2="305" y2="1020" marker-end="url(#ah)"/>
+			<text class="ts" x="314" y="1004">stable or limit</text>
+			<text class="band" x="40" y="1014">END</text>
+
+			<!-- B8 -->
+			<rect class="bx" x="40" y="1022" width="530" height="62" rx="8"/>
+			<text class="t" x="56" y="1046">Brainstorm phase, if ≥ 2 people are still on no team</text>
+			<text class="ts" x="56" y="1065">up to 2 rounds; leftovers approach each other with a fixed pitch, no idea needed</text>
+			<text class="ts" x="56" y="1079">a team still needs an agreed idea (an adopted revision or accepted counter)</text>
+			<line class="ln" x1="305" y1="1084" x2="305" y2="1112" marker-end="url(#ah)"/>
+			<!-- B9 -->
+			<rect class="bx-soft" x="40" y="1114" width="530" height="44" rx="8"/>
+			<text class="t" x="56" y="1141">stopped → summarize: teams, unplaced, gate blocks, calls, tokens</text>
+
+			<!-- Event stream lane -->
+			<rect class="stream" x="600" y="150" width="22" height="1000" rx="6"/>
+			<text class="ta" transform="rotate(90 611 650)" x="611" y="650" text-anchor="middle">RunEvent stream: one ordered record of the run</text>
+			<line class="ln-dash" x1="570" y1="173" x2="598" y2="173" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="365" x2="598" y2="365" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="612" x2="598" y2="612" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="859" x2="598" y2="859" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="951" x2="598" y2="951" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="1053" x2="598" y2="1053" marker-end="url(#ah)"/>
+			<line class="ln-dash" x1="570" y1="1136" x2="598" y2="1136" marker-end="url(#ah)"/>
+
+			<!-- Sinks -->
+			<rect class="bx-soft" x="640" y="150" width="296" height="122" rx="8"/>
+			<text class="t" x="654" y="172">Event types (events.ts)</text>
+			<text class="ts" x="654" y="192">listing · discovery · round · tick · bus</text>
+			<text class="ts" x="654" y="208">decision · interest · hunch · level</text>
+			<text class="ts" x="654" y="224">revisionAnswer · offers · commitment</text>
+			<text class="ts" x="654" y="240">team · recheck · brainstorm · stopped</text>
+			<text class="ts" x="654" y="256">exchange (every model call)</text>
+
+			<rect class="bx" x="640" y="300" width="296" height="62" rx="8"/>
+			<text class="t" x="654" y="324">runs/&lt;time&gt;-&lt;label&gt;.jsonl</text>
+			<text class="ts" x="654" y="343">one event per line, written as it happens</text>
+			<text class="tp" x="654" y="357">gitignored: holds private rationales</text>
+			<line class="ln" x1="622" y1="331" x2="638" y2="331" marker-end="url(#ah)"/>
+
+			<line class="ln" x1="760" y1="362" x2="760" y2="396" marker-end="url(#ah)"/>
+			<text class="ts" x="768" y="384">npm run show-run</text>
+			<rect class="bx" x="640" y="398" width="296" height="62" rx="8"/>
+			<text class="t" x="654" y="422">formatEvent (describe.ts)</text>
+			<text class="ts" x="654" y="441">the same lines live and in show-run</text>
+			<text class="ts" x="654" y="455">--prompts prints every model call in full</text>
+
+			<path class="ln" d="M936,331 L950,331 L950,535 L938,535" marker-end="url(#ah)"/>
+			<rect class="bx" x="640" y="496" width="296" height="78" rx="8"/>
+			<text class="t" x="654" y="520">Replay studio (src/ui/web)</text>
+			<text class="ts" x="654" y="539">loads a .jsonl in the browser; replay.ts derives</text>
+			<text class="ts" x="654" y="554">board, levels, teams, idea versions from events</text>
+			<text class="ts" x="654" y="568">rationales only behind an operator toggle</text>
+
+			<rect class="bx-note" x="640" y="604" width="296" height="104" rx="8"/>
+			<text class="t" x="654" y="628">One-way dependency</text>
+			<text class="ts" x="654" y="648">engine emits events → UI subscribes</text>
+			<text class="ts" x="654" y="664">src/engine never imports src/ui</text>
+			<text class="ts" x="654" y="680">replay.ts imports engine types only,</text>
+			<text class="ts" x="654" y="696">and validates the fields it reads</text>
+		</svg>
+		</div>
+		<figcaption>Gate pills show where model-written or profile-derived content is checked before it reaches the bus. The dashed purple box is the hunch: the only call that ever sees "never" notes, and nothing it writes is sent.</figcaption>
+	</figure>
+
+	<details>
+		<summary>How one tick works (determinism and ordering)</summary>
+		<div class="body">
+			<ol>
+				<li>Every agent's inbox is drained in sorted id order. Each message is recorded in the receiver's history, and shares are merged into what it has <code>learn</code>ed.</li>
+				<li>All the model calls this tick needs run at once with <code>Promise.all</code>: decisions on proposals and counters, interest checks after shares, and adopt-or-keep on revisions. A hunch call runs first for agents with "never" notes. If a revision arrives in the same tick as a share from the same agent, the interest check waits for the adopt-or-keep answer, so it judges the version that's agreed after that answer (an uncommitted change in <code>round.ts</code> on this branch).</li>
+				<li>Results are acted on <strong>in inbox order</strong>, not in the order the calls finish, so what appears on the bus doesn't depend on LLM latency.</li>
+				<li>Decisions use each agent's state from <em>before</em> this tick's mail, so the message being decided on isn't in the prompt twice. Interest checks use the state <em>after</em> learning the share, because judging the share is the point.</li>
+				<li>The round ends when no mail is waiting, or after <code>maxTicks</code> (12 by default) so counters can't loop forever.</li>
+			</ol>
+			<p>Agent state is plain immutable data: every update returns a new <code>AgentState</code>, so logged snapshots stay accurate and states survive JSON round trips.</p>
+		</div>
+	</details>
+	<details>
+		<summary>When does the simulation stop?</summary>
+		<div class="body">
+			<p>A round is <strong>stable</strong> when it had no proposals, no mail left at the tick limit, no commits, and no departures. The normal rounds end when a round is stable or when <code>maxRounds</code> (default 6) is reached. If at least two people are still on no team, up to 2 brainstorm rounds follow. A <code>stopped</code> event records the reason (<code>stable</code> or <code>limit</code>).</p>
+			<p>The run always ends: a pair that has talked is never approached again, so the untried pairs run out. An agent that picked nobody isn't asked again until the board changes, which also saves model calls.</p>
+		</div>
+	</details>
+</section>
+
+<!-- 3 -->
+<section id="levels">
+	<span class="sec-num">03</span>
+	<h2>Disclosure levels</h2>
+	<p>The single source of truth is <code>FIELD_LEVELS</code> in <code>disclosure.ts</code>. It uses <code>satisfies Record&lt;ProfileField, DisclosureLevel&gt;</code>, so adding a profile field is a compile error until someone gives it a level. The prompt's disclosure rules, the gate, the share builder, and the leakage metric all read this same table.</p>
+	<div class="table-wrap">
+	<table>
+		<thead><tr><th>Level</th><th>Fields revealed</th><th>Opens when</th><th>How it's shared</th></tr></thead>
+		<tbody>
+			<tr><td><strong>0</strong> · pitch</td><td><code>id</code>, <code>projectIdeas</code></td><td>Always public: board listing, proposals</td><td>Listing written by the model and gate-checked at L0</td></tr>
+			<tr><td><strong>1</strong> · fit</td><td><code>interests</code>, <code>availability</code> (hours/week, UTC offset)</td><td>A proposal or counter is <strong>accepted</strong> (mutual interest)</td><td><code>share</code> message built by code, exactly these fields</td></tr>
+			<tr><td><strong>2</strong> · skills</td><td><code>skills</code>, <code>preferences</code> (team size range, preferred roles)</td><td>Both sides sent <code>continue</code> at level 1</td><td><code>share</code> built by code</td></tr>
+			<tr><td><strong>3</strong> · identity</td><td><code>name</code></td><td>A <strong>commit</strong> puts them on the same team; every pair of teammates swaps names, even pairs who never talked</td><td><code>share</code> built by code during commitment</td></tr>
+		</tbody>
+	</table>
+	</div>
+	<p>Notes follow the same scale: a note tagged level 1 enters prompts only once the conversation has reached level 1. Notes tagged <span class="tag priv">never</span> never enter a decision or interest prompt.</p>
+	<p class="note">Conversations stop at <code>maxLevel</code> = 2. Two agents who have both continued at level 2 are a <em>ready pair</em>. Level 3 is reserved for commitment. Levels only go up, because what was shared can't be unshared.</p>
+</section>
+
+<!-- 4 -->
+<section id="privacy">
+	<span class="sec-num">04</span>
+	<h2>Privacy architecture</h2>
+	<p class="say"><span class="label">The core claim</span>Privacy must never depend on the model following instructions. The prompt does tell the model the rules, but that only means fewer redrafts. What enforces them is code: schemas, the gate, and messages that have nowhere to put text.</p>
+
+	<h3>Layer 1: the deterministic gate</h3>
+	<p><code>checkDisclosure(sender, level, draft)</code> checks two things:</p>
+	<ul>
+		<li><strong>Structured shares</strong>: every field must be allowed at this level <em>and</em> deep-equal the sender's real profile value. A share can't contain made-up data.</li>
+		<li><strong>Free text</strong> (pitch and roles list): it searches for the sender's own values from fields above the level, as whole words and ignoring case. That covers skill names plus synonyms ("server-side" for backend), interests, preferred roles, availability phrasings ("15 hours", "UTC-4"), and the name. A term that's already public through an allowed field doesn't count, so a project idea about physical therapy can be mentioned at level 0 even though "physical therapy" is also an interest.</li>
+	</ul>
+	<p>The <strong>roles list</strong> is checked too: listing a role your human fills reveals their skill as clearly as saying it. The gate runs inside the model call loop (<code>chatJson</code>'s <code>check</code> hook). A violation goes back to the model as feedback and it redrafts, up to 3 attempts. If no allowed draft comes back, the safe fallback is sent instead (a plain decline, or a withdraw).</p>
+
+	<details>
+		<summary>Real gate results on the sample person Mara (ran locally, no LLM)</summary>
+		<div class="body">
+			<p>Mara: skills ml (expert) and backend (intermediate); interests injury recovery, physical therapy, health data; project idea "Rehab coach: an app that guides people through physical therapy exercises at home".</p>
+			<div class="table-wrap" style="margin:0.4rem 0 0.8rem">
+			<table>
+				<thead><tr><th>Level</th><th>Draft pitch</th><th>Result</th></tr></thead>
+				<tbody>
+					<tr><td>0</td><td>"A rehab coach for injury recovery"</td><td><span class="tag gate">blocked</span> interests: "injury recovery"</td></tr>
+					<tr><td>0</td><td>"Workout tracker that guides physical therapy exercises at home"</td><td><span class="tag ok">passes</span> already public through her project idea</td></tr>
+					<tr><td>0</td><td>"A workout tracker with an ML form checker"</td><td><span class="tag gate">blocked</span> skills and preferences: "ml"</td></tr>
+					<tr><td>1</td><td>"A rehab coach for injury recovery"</td><td><span class="tag ok">passes</span> interests are allowed at L1</td></tr>
+					<tr><td>1</td><td>"Recovery tracker; I can do the server-side part"</td><td><span class="tag gate">blocked</span> skills: "server-side" (synonym of backend)</td></tr>
+					<tr><td>2</td><td>same</td><td><span class="tag ok">passes</span></td></tr>
+				</tbody>
+			</table>
+			</div>
+			<p>Matching is whole-word: "ml" doesn't match inside "html", and "back end" doesn't match "backend".</p>
+		</div>
+	</details>
+
+	<h3>Layer 2: messages that can't carry text</h3>
+	<p>The most reliable way to stop a leak is to give it nowhere to go. Each message kind on the bus is a zod schema:</p>
+	<div class="table-wrap">
+	<table>
+		<thead><tr><th>Message</th><th>Written by</th><th>Free text?</th><th>Protection</th></tr></thead>
+		<tbody>
+			<tr><td><code>proposal</code></td><td>Code, from the gate-checked listing (or "Join your project: …")</td><td>Pitch (already checked)</td><td><code>leftTeams</code> filled by code, never by a model</td></tr>
+			<tr><td><code>accept</code></td><td>Model's choice</td><td><span class="tag none">none</span></td><td>Nothing to leak</td></tr>
+			<tr><td><code>counter</code></td><td>Model</td><td>Pitch + roles</td><td><span class="tag gate">gate</span> at the current level; at most 2 per pair</td></tr>
+			<tr><td><code>decline</code></td><td>Model's choice; code adds the reason</td><td><span class="tag none">fixed</span> "Not a fit right now."</td><td>The schema requires that exact literal; extra fields are stripped</td></tr>
+			<tr><td><code>share</code></td><td><span class="tag code">code</span></td><td>Structured only</td><td>Schema: every field must belong to exactly that level; gate: values must match the profile</td></tr>
+			<tr><td><code>interest</code></td><td>Model's choice</td><td><span class="tag none">none</span> continue / withdraw</td><td>A withdrawal says no more than a refusal</td></tr>
+			<tr><td><code>revision</code></td><td>Model</td><td>Pitch + roles</td><td><span class="tag gate">gate</span> at L1/L2 only; at most 2 per pair</td></tr>
+			<tr><td><code>revisionAnswer</code></td><td>Model's choice</td><td><span class="tag none">none</span> adopt: boolean</td><td>Nothing to leak</td></tr>
+			<tr><td><code>offer</code></td><td>Code: carries the agreed version</td><td>Pitch, written earlier</td><td><span class="tag gate">third-party check</span> (<code>safeToOffer</code>)</td></tr>
+			<tr><td><code>answer</code></td><td>Model's choice (or code: busy)</td><td><span class="tag none">none</span> commit / decline / busy</td><td>Nothing to leak</td></tr>
+			<tr><td><code>leave</code></td><td>Model's choice</td><td><span class="tag none">none</span></td><td>The cost is a public mark, not anything said</td></tr>
+		</tbody>
+	</table>
+	</div>
+
+	<h3>Layer 3: private reasoning stays private</h3>
+	<p>Every model call returns <code>{ rationale, … }</code>, with the rationale first so the model reasons before it decides. Only the decision part becomes a message. The rationale goes to the run log for the agent's own human and is never put on the bus. The prompt says so, and tells the model to "explain yourself fully there", which gives its reasoning somewhere harmless to go.</p>
+
+	<h3>Layer 4: notes only enter the prompt at their level</h3>
+	<div class="grid2">
+		<div class="card pub"><h4>The profile is always in the prompt</h4><p>Its values are short and known, such as "backend" or "UTC-4", so the gate can find them in anything sent. Including the full profile is safe because leaks of it can be detected.</p></div>
+		<div class="card priv"><h4>Notes are not</h4><p>A note like "patients skipped their home exercises" can be paraphrased in endless ways, and no string matching would catch it. So <code>aboutHuman(agent, level)</code> includes only the notes that level allows. <strong>A note that isn't in the prompt can't leak.</strong></p></div>
+	</div>
+
+	<h3>Layer 5: the hunch pattern for "never" notes</h3>
+	<p>Some things should shape judgment but never be said: "I burned out on a fitness startup last year." The hunch splits seeing from saying:</p>
+	<ol>
+		<li>A separate <strong>hunch call</strong> (<code>hunch.ts</code>) sees the profile, every note, and what the other side has shared so far. Its output schema allows only a <code>steer</code> from a fixed list (<code>neutral</code>, <code>explore</code>, <code>careful</code>, <code>stop</code>) and a <code>riskArea</code> from another fixed list (retention, scope, market, team, timeline, technical), plus a private rationale.</li>
+		<li><strong>Code</strong> turns that into one fixed sentence (<code>steerText</code>), for example "Your human has private reasons for caution about this, especially around scope." That sentence is the only thing that reaches the decision or interest prompt. The decision call never sees the notes.</li>
+		<li>The steer is also enforced in code. <code>stop</code> declines or withdraws with no model call at all. <code>careful</code> makes the <code>check</code> hook reject a plain accept, so the agent must counter or decline. If the hunch call fails, it falls back to <code>neutral</code>, which changes nothing.</li>
+	</ol>
+	<p>The channel from the notes to the outside is a few bits wide: four steers times six risk areas. Even a model that wanted to leak the note couldn't fit it through.</p>
+
+	<h3>Layer 6: offers can't pass on what you learned from others</h3>
+	<p>An owner talking to several people may have agreed on a version of the project with Mara that mentions what Mara shared. Before that version goes to anyone else in an offer, <code>safeToOffer</code> runs <code>checkThirdParty</code>: it searches the pitch for the name, skills (with synonyms), interests, and preferred roles of everyone the owner learned about, except terms the recipient could already see. If anything matches, that person gets no offer.</p>
+
+	<h3>Layer 7: the bus</h3>
+	<p>Agents never call each other. <code>bus.send(from, message)</code> validates the message against its schema, rejects a message whose <code>from</code> isn't the actual sender, rejects unknown recipients and messages to yourself, and stores separate copies for the inbox and the event log, so neither can change the other. A rejected message is a bug in the sending code, and the bus throws.</p>
+
+	<details>
+		<summary>Honest limits of this design</summary>
+		<div class="body">
+			<ul>
+				<li><strong>The free-text gate matches strings.</strong> It catches the human's own values and known synonyms. It won't catch a description like "I train neural nets" for <code>ml</code>. That's why free text is limited to pitches and roles, and why notes stay out of the prompt instead of relying on the gate.</li>
+				<li><strong>It protects a person from their own model, not from a malicious peer.</strong> The gate runs in the sender's process. An agent whose code was modified could skip it. Defending against adversarial agents (authentication, attestation) is out of scope for this prototype.</li>
+				<li><strong>In the simulation, the bus and logs see everything.</strong> The bus is in-process, so the decentralization claim is about who <em>decides</em>, and about no party needing everyone's full profile to compute a match. A real deployment would need encrypted transport between agents.</li>
+				<li><strong>The leakage metric uses the same matching</strong> (<code>fieldsMentioned</code>), so it shares the gate's blind spot for paraphrase.</li>
+			</ul>
+		</div>
+	</details>
+</section>
+
+<!-- 5 -->
+<section id="example">
+	<span class="sec-num">05</span>
+	<h2>Worked example: Theo and Mara</h2>
+	<p>These are the two sample people from <code>src/scenarios.ts</code> used by <code>npm run coevolve</code>. The message types, tick order, level changes, and gate results are what the code does. <strong>The model-written parts (decisions, counter and revision wording) are illustrative</strong>, not a recorded transcript.</p>
+
+	<div class="grid2">
+		<div class="card">
+			<h4>Theo</h4>
+			<ul>
+				<li>Idea: <em>Workout tracker</em>, "A fitness app that tracks workouts and streaks." <span class="tag code">L0</span></li>
+				<li>Interests: fitness, running, habits · 20 h/week, UTC−5 <span class="tag code">L1</span></li>
+				<li>Skills: frontend (expert), design (intermediate) · team 2–4, prefers frontend <span class="tag code">L2</span></li>
+				<li>Note L1: his running app died when people stopped logging after two weeks</li>
+				<li>Note L2: likes shipping a rough version on day one</li>
+				<li><span class="tag priv">never</span> burned out on a fitness startup; wary of anything needing a big launch</li>
+			</ul>
+		</div>
+		<div class="card">
+			<h4>Mara</h4>
+			<ul>
+				<li>Idea: <em>Rehab coach</em>, "An app that guides people through physical therapy exercises at home." <span class="tag code">L0</span></li>
+				<li>Interests: injury recovery, physical therapy, health data · 15 h/week, UTC−4 <span class="tag code">L1</span></li>
+				<li>Skills: ml (expert), backend (intermediate) · team 2–3, prefers ml <span class="tag code">L2</span></li>
+				<li>Note L1: two years as a physio assistant; patients skipped home exercises because they weren't sure they did them right</li>
+				<li>Note L2: has a half-finished pose-estimation prototype</li>
+				<li>No "never" notes, so no hunch calls</li>
+			</ul>
+		</div>
+	</div>
+
+	<ol class="trace">
+		<li>
+			<span class="when">setup · level 0</span><br>
+			<span class="who">Theo → Mara · proposal</span> (code-built by <code>publicPitch</code>: his first idea, plus the core roles he has no skill in)
+			<div class="msg">{ id: "p1", pitch: "Workout tracker: A fitness app that tracks workouts and streaks.", rolesNeeded: ["backend", "product"] }</div>
+		</li>
+		<li class="blocked">
+			<span class="when">tick 1 · Mara decides at L0</span><br>
+			<span class="who">Mara's model, first draft: a counter</span>
+			<div class="msg blocked">counter: "A rehab coach for injury recovery", rolesNeeded: ["frontend", "design"]</div>
+			<span class="aside">Gate: <span class="tag gate">blocked</span> "injury recovery" is an interest (L1). The model gets this feedback: "your pitch mentions your human's interests ("injury recovery"), which you may not share at level 0; rewrite it without that". It redrafts.</span>
+		</li>
+		<li>
+			<span class="when">tick 1 · sent</span><br>
+			<span class="who">Mara → Theo · counter</span>
+			<div class="msg">{ decision: "counter", pitch: "A workout tracker that guides physical therapy exercises at home", rolesNeeded: ["frontend", "design"] }</div>
+			<span class="aside">Passes: "physical therapy" is already public through her project idea, and frontend and design are roles she lacks.</span>
+			<span class="aside private"><br>Private rationale (logged, not sent): she can cover backend and wants the idea to lean toward rehab.</span>
+		</li>
+		<li class="lvl">
+			<span class="when">tick 2 · Theo decides on the counter</span><br>
+			<span class="who">Theo's hunch first</span> (he has a "never" note): steer <code>neutral</code>, so no sentence is added. <span class="who">Theo → Mara · accept</span> (no text).<br>
+			<span class="aside">Accepting opens <strong>level 1</strong> on Theo's side right away, and code sends his share:</span>
+			<div class="msg">share L1 { interests: ["fitness","running","habits"], availability: { hoursPerWeek: 20, utcOffset: -5 } }</div>
+		</li>
+		<li class="lvl">
+			<span class="when">tick 3 · Mara</span><br>
+			The accept opens L1 on her side → <span class="who">Mara → Theo · share L1</span>. Then she learns Theo's share and runs an interest check. Her L1 note (physio patients) now enters her prompt. → <span class="who">continue</span>.
+		</li>
+		<li class="lvl">
+			<span class="when">tick 4 · Theo</span><br>
+			He learns her share (UTC−4 and UTC−5 overlap; health and fitness are close) → hunch → interest check with his L1 note → <span class="who">continue</span>. Both have now continued at L1, so <strong>level 2</strong> opens: <span class="who">Theo → Mara · share L2</span> {skills, preferences}.
+		</li>
+		<li class="lvl">
+			<span class="when">tick 5 · Mara</span><br>
+			Theo's continue completes the pair, so she opens L2 and sends her share. Then she learns his skills (frontend, design: exactly what her counter needed) → <span class="who">continue</span>.
+		</li>
+		<li>
+			<span class="when">tick 6 · Theo at L2</span><br>
+			Hunch: his "never" note bears on this → steer <code>careful</code>, risk area <code>scope</code>. His interest prompt receives only the fixed sentence: <em>"Your human has private reasons for caution about this, especially around scope. If you continue, consider a revision that addresses it."</em>
+			<div class="msg">interest L2: continue
+revision L2 { pitch: "A small home-exercise coach that checks form with the phone camera; a rough first version on day one", rolesNeeded: ["ml", "backend"] }</div>
+			<span class="aside">The revision passes the L2 gate. "Rough first version on day one" comes from his L2 note, which is allowed at this level. Nothing about burnout or launches is in it, because that note was never in this prompt.</span>
+		</li>
+		<li>
+			<span class="when">tick 7 · Mara</span><br>
+			Considers the revision (it fits her pose-estimation prototype) → <span class="who">revisionAnswer { adopt: true }</span>. Tick 8 delivers it. No mail is left, so the round goes quiet.
+		</li>
+		<li class="lvl">
+			<span class="when">commitment</span><br>
+			<code>agreedVersion</code> is now Theo's revision, authored by Theo, so <code>projectOwner</code> = Theo. Mara is a candidate: both continued at L2, she fills <code>ml</code> (known from her L2 share), and her max team size (3) fits. Theo sends an <strong>offer</strong> carrying the revised version (the third-party check passes because he has no other contacts). Mara holds one offer → <strong>commit</strong>.<br>
+			<span class="aside">Team <code>team-theo</code> = [theo, mara], project title "Workout tracker" with the revised pitch as its description. Level 3 opens and they swap names.</span>
+		</li>
+	</ol>
+
+	<h3>What each side knows, level by level</h3>
+	<div class="table-wrap knows">
+	<table>
+		<thead><tr><th>After</th><th>Theo knows about Mara</th><th>Mara knows about Theo</th><th>Notes in prompts</th></tr></thead>
+		<tbody>
+			<tr><td>L0</td><td>Her counter pitch, and that she needs frontend and design</td><td>His pitch, and that he needs backend and product</td><td>none (no L0 notes)</td></tr>
+			<tr><td>L1</td><td>+ injury recovery, physical therapy, health data; 15 h, UTC−4</td><td>+ fitness, running, habits; 20 h, UTC−5</td><td>Theo: running app · Mara: physio assistant</td></tr>
+			<tr><td>L2</td><td>+ ml expert, backend intermediate; team 2–3, prefers ml</td><td>+ frontend expert, design intermediate; team 2–4, prefers frontend</td><td>+ ship rough · + pose prototype</td></tr>
+			<tr><td>L3</td><td>+ name "Mara"</td><td>+ name "Theo"</td><td>(commitment prompts use up to L2)</td></tr>
+			<tr><td><span class="tag priv">never</span></td><td colspan="2">Theo's burnout note never reaches Mara or any of Theo's decision or interest prompts. Its only effect is the word "careful" plus "scope".</td><td>hunch calls only</td></tr>
+		</tbody>
+	</table>
+	</div>
+</section>
+
+<!-- 6 -->
+<section id="commit">
+	<span class="sec-num">06</span>
+	<h2>Forming teams: deferred acceptance</h2>
+	<p>Ready pairs aren't teams yet. A person may be ready with several owners, and an owner may be ready with more people than it has places. <code>runCommitment</code> settles this without anyone seeing the whole picture, using passes modeled on Gale–Shapley deferred acceptance:</p>
+	<ol>
+		<li><strong>Owners offer.</strong> For each project owner, the candidates are people it's ready with, on no team, who haven't declined it or left it before, who fill a role the version still needs (or wrote that version themselves), and whose largest team size fits. If not all of them fit, the owner's model ranks them, and <code>selectOffers</code> trims the ranking so each person fills a different role and the team fits the smallest <code>maxTeamSize</code> among its members. <strong>Offers are binding.</strong></li>
+		<li><strong>Holders pick, all at once.</strong> Everyone holding offers chooses one at the same moment, so no offer wins by arriving first. They send commit to their pick and decline to the rest. An agent with its own offers out answers <code>busy</code> without a model call. Unlike a decline, busy leaves them open to the same offer later.</li>
+		<li><strong>Commits form teams.</strong> The member is added to the owner's team (the first member is the owner), and every pair of teammates opens level 3 and swaps names.</li>
+		<li>Steps 1–3 repeat (up to 5 passes) until a pass has no commits and no declines.</li>
+		<li><strong>Re-check.</strong> In any team that grew, earlier members other than the owner decide whether to stay. Staying is the default and the fallback. Leaving sends a text-free <code>leave</code> to each teammate, frees the place, and increments the leaver's public <code>leftTeams</code>, which appears on their board entry and every proposal they send afterward.</li>
+	</ol>
+	<details>
+		<summary>Who owns the project? (<code>agreedVersion</code> and <code>projectOwner</code>)</summary>
+		<div class="body">
+			<p>A version of the project is a pitch plus <code>rolesNeeded</code>, and the roles list names what's needed <em>from people other than its author</em>. So ownership follows authorship. <code>agreedVersion</code> walks the conversation history and returns the last accepted proposal or counter, or the last adopted revision, together with its author. In the example, Mara's counter made her the owner, then Theo's adopted revision made him the owner.</p>
+			<p>A "Join your project: …" request agrees to the <em>recipient's</em> pitch, so the recipient is the author. In a brainstorm, nobody owns anything until a real idea is agreed. Someone with no project idea can own a project only by writing the idea during a brainstorm.</p>
+			<p>Each offer carries the version the team will build: the team's version once the team exists, otherwise the version agreed with the first person offered. The public board keeps the original listing.</p>
+		</div>
+	</details>
+	<details>
+		<summary>Who keeps looking after joining a team?</summary>
+		<div class="body"><p>People on a team leave the board and stop discovering. The exception is owners with places left and roles still needed (<code>isOpen</code>). Seekers, people with no project idea, appear only as ids, and only agents with a project can see them.</p></div>
+	</details>
+</section>
+
+<!-- 7 -->
+<section id="llm">
+	<span class="sec-num">07</span>
+	<h2>LLM reliability layer</h2>
+	<p>All agents share one client (<code>createLlmClient</code>), so a single concurrency limit covers the whole run. Each layer handles one kind of failure:</p>
+	<figure>
+		<div class="scroll">
+		<svg viewBox="0 0 760 330" style="min-width:600px;width:100%;height:auto" role="img" aria-labelledby="llm-title">
+			<title id="llm-title">LLM client layers</title>
+			<defs>
+				<marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+			</defs>
+			<rect class="bx-soft" x="20" y="20" width="720" height="54" rx="8"/>
+			<text class="t" x="36" y="43">Agent step: decide · interest · listing · discover · offer · commit · hunch</text>
+			<text class="ts" x="36" y="62">passes a zod schema + check() (the gate, counter limits, valid ids) · catches StructuredOutputError → safe fallback</text>
+			<line class="ln" x1="380" y1="74" x2="380" y2="92" marker-end="url(#ah2)"/>
+
+			<rect class="bx" x="20" y="94" width="720" height="62" rx="8"/>
+			<text class="t" x="36" y="117">chatJson: re-asks on invalid output (up to 3 attempts)</text>
+			<text class="ts" x="36" y="136">adds a format message built from the same schema (z.toJSONSchema) · parse JSON → validate → check()</text>
+			<text class="ts" x="36" y="150">on failure, appends the reply plus a list of problems and asks again; each retry goes back through the queue</text>
+			<line class="ln" x1="380" y1="156" x2="380" y2="174" marker-end="url(#ah2)"/>
+
+			<rect class="bx" x="20" y="176" width="350" height="62" rx="8"/>
+			<text class="t" x="36" y="199">Queue (createLimiter)</text>
+			<text class="ts" x="36" y="218">at most LLM_MAX_CONCURRENCY in flight (default 8)</text>
+			<text class="ts" x="36" y="232">FIFO; a freed slot goes straight to the next</text>
+			<line class="ln" x1="370" y1="207" x2="388" y2="207" marker-end="url(#ah2)"/>
+
+			<rect class="bx" x="390" y="176" width="350" height="62" rx="8"/>
+			<text class="t" x="406" y="199">withRetry (backoff.ts)</text>
+			<text class="ts" x="406" y="218">429, 5xx, timeouts, network: up to 5 retries</text>
+			<text class="ts" x="406" y="232">1 s doubling, 30 s cap, full jitter, Retry-After</text>
+			<line class="ln" x1="565" y1="238" x2="565" y2="256" marker-end="url(#ah2)"/>
+
+			<rect class="bx-acc" x="390" y="258" width="350" height="54" rx="8"/>
+			<text class="t" x="406" y="281">chat: one HTTP request</text>
+			<text class="ts" x="406" y="299">OpenAI-compatible · timeout · key redacted</text>
+			<text class="ts" x="36" y="281">The slot is held during backoff waits, so a rate-limited</text>
+			<text class="ts" x="36" y="297">client slows down on its own instead of piling up retries.</text>
+		</svg>
+		</div>
+		<figcaption>Content errors (bad JSON, schema, rule violations) are retried by <code>chatJson</code>. Transport errors (429, 5xx, timeouts) are retried by <code>withRetry</code>. Tests swap <code>fetch</code> and <code>sleep</code> for fakes.</figcaption>
+	</figure>
+
+	<h3>Every fallback leans toward sharing less</h3>
+	<div class="table-wrap">
+	<table>
+		<thead><tr><th>Call</th><th>If no valid reply after the retries</th><th>Why that default</th></tr></thead>
+		<tbody>
+			<tr><td>Listing</td><td>Built-in pitch: first idea + missing core roles</td><td>Safe at level 0 by construction</td></tr>
+			<tr><td>Discovery / brainstorm pick</td><td>Approach nobody this round (asked again next round)</td><td>A failed call isn't a choice</td></tr>
+			<tr><td>Decision</td><td>Plain decline</td><td>No text, nothing revealed</td></tr>
+			<tr><td>Interest check</td><td>Withdraw</td><td>Continuing would share more</td></tr>
+			<tr><td>Revision answer</td><td>Keep the current version</td><td>Nothing changes</td></tr>
+			<tr><td>Hunch</td><td>Neutral</td><td>Adds no sentence</td></tr>
+			<tr><td>Owner's ranking</td><td>Id order, trimmed by <code>selectOffers</code></td><td>Still a valid set of offers</td></tr>
+			<tr><td>Which offer to commit to</td><td>Decline them all</td><td>A commitment can't be undone</td></tr>
+			<tr><td>Re-check</td><td>Stay</td><td>Leaving breaks a commitment and costs a public mark</td></tr>
+		</tbody>
+	</table>
+	</div>
+	<p>Each event records <code>fellBack</code> and <code>gateBlocks</code>, and the simulation report adds them up.</p>
+	<p class="note">Settings from <code>CLAUDE.md</code>: optional <code>LLM_REASONING_EFFORT</code> is passed as <code>reasoning_effort</code>. Hidden reasoning was about 95% of output tokens in simulations, and <code>minimal</code> cut one decision from 25 s to 2.5 s. <code>-contributor</code> models are about 95% cheaper because the provider trains on their inputs, so they're used only with synthetic profiles.</p>
+</section>
+
+<!-- 8 -->
+<section id="eval">
+	<span class="sec-num">08</span>
+	<h2>Evaluation</h2>
+	<p>Every method runs on the same generated people (<code>generateProfiles(20, seed)</code> for seeds 1–5) and is scored the same way. The baselines use teams of 3. The agents run the full simulation (up to 6 rounds) on model <code>muse-spark-1.3-contributor</code> with reasoning effort <code>minimal</code> (from <code>results/eval.json</code>).</p>
+
+	<div class="grid2">
+		<div class="card"><h4>Methods</h4><ul>
+			<li><strong>random</strong>: shuffle and deal. The floor.</li>
+			<li><strong>greedy</strong>: build teams one at a time, adding whoever raises the score most.</li>
+			<li><strong>local search</strong>: greedy, then swap people between teams while any swap helps.</li>
+			<li><strong>broadcast</strong>: local search's teams, but everyone sees every full profile.</li>
+			<li><strong>agents</strong>: this system.</li>
+		</ul></div>
+		<div class="card"><h4>Metrics</h4><ul>
+			<li><strong>Team quality</strong>: mean of skill coverage of the 4 core roles (weighted by level), shared interest, and overlap of 9-to-5 workdays across time zones.</li>
+			<li><strong>Placed</strong>: share of people on a team.</li>
+			<li><strong>Per-person quality</strong>: each person gets their team's score, or 0 if unplaced.</li>
+			<li><strong>Leakage</strong>: private fields that reached people <em>outside</em> the sender's final team, out of all possible (a full broadcast ≈ 0.87).</li>
+			<li><strong>Central</strong>: needs a trusted party that sees everything.</li>
+		</ul></div>
+	</div>
+
+	<div class="table-wrap">
+	<table>
+		<thead><tr><th>Method</th><th class="num">Team quality</th><th class="num">Placed</th><th class="num">Per-person</th><th class="num">Leakage</th><th>Trusted party</th></tr></thead>
+		<tbody>
+			<tr><td>random</td><td class="num">0.340</td><td class="num">100%</td><td class="num">0.343</td><td class="num">0</td><td>yes</td></tr>
+			<tr><td>greedy</td><td class="num">0.546</td><td class="num">100%</td><td class="num">0.532</td><td class="num">0</td><td>yes</td></tr>
+			<tr><td>local search</td><td class="num">0.600</td><td class="num">100%</td><td class="num">0.589</td><td class="num">0</td><td>yes</td></tr>
+			<tr><td>broadcast</td><td class="num">0.600</td><td class="num">100%</td><td class="num">0.589</td><td class="num">0.874</td><td>no</td></tr>
+			<tr class="hl"><td><strong>agents</strong></td><td class="num">0.596</td><td class="num">72%</td><td class="num">0.425</td><td class="num">0.149</td><td>no</td></tr>
+			<tr><td>agents, before the brainstorm phase</td><td class="num">0.563</td><td class="num">67%</td><td class="num">0.379</td><td class="num">0.124</td><td>no</td></tr>
+		</tbody>
+	</table>
+	</div>
+
+	<figure>
+		<div class="scroll">
+		<svg viewBox="0 0 640 400" style="min-width:520px;width:100%;height:auto" role="img" aria-labelledby="chart-title chart-desc">
+			<title id="chart-title">Privacy versus quality</title>
+			<desc id="chart-desc">Per-person quality against leakage. Central baselines sit at zero leakage. Broadcast reaches 0.589 at 0.874 leakage. Agents reach 0.425 at 0.149 leakage.</desc>
+			<!-- grid: y from 0 (330) to 0.7 (30); x from 0 (70) to 1 (600) -->
+			<g>
+				<line class="grid" x1="70" y1="287.1" x2="600" y2="287.1"/>
+				<line class="grid" x1="70" y1="244.3" x2="600" y2="244.3"/>
+				<line class="grid" x1="70" y1="201.4" x2="600" y2="201.4"/>
+				<line class="grid" x1="70" y1="158.6" x2="600" y2="158.6"/>
+				<line class="grid" x1="70" y1="115.7" x2="600" y2="115.7"/>
+				<line class="grid" x1="70" y1="72.9" x2="600" y2="72.9"/>
+				<line class="grid" x1="70" y1="30" x2="600" y2="30"/>
+				<line class="axis" x1="70" y1="330" x2="600" y2="330"/>
+				<line class="axis" x1="70" y1="30" x2="70" y2="330"/>
+			</g>
+			<g class="tick">
+				<text x="62" y="334" text-anchor="end">0</text>
+				<text x="62" y="291" text-anchor="end">0.1</text>
+				<text x="62" y="248" text-anchor="end">0.2</text>
+				<text x="62" y="205" text-anchor="end">0.3</text>
+				<text x="62" y="163" text-anchor="end">0.4</text>
+				<text x="62" y="120" text-anchor="end">0.5</text>
+				<text x="62" y="77" text-anchor="end">0.6</text>
+				<text x="62" y="34" text-anchor="end">0.7</text>
+				<text x="70" y="348" text-anchor="middle">0</text>
+				<text x="202.5" y="348" text-anchor="middle">0.25</text>
+				<text x="335" y="348" text-anchor="middle">0.5</text>
+				<text x="467.5" y="348" text-anchor="middle">0.75</text>
+				<text x="600" y="348" text-anchor="middle">1</text>
+			</g>
+			<text class="lab" x="335" y="378" text-anchor="middle">leakage: share of private fields reaching people outside your team</text>
+			<text class="lab" transform="rotate(-90 20 180)" x="20" y="180" text-anchor="middle">per-person quality (unplaced = 0)</text>
+
+			<!-- baselines -->
+			<circle class="pt-base" cx="70" cy="183" r="5"/><circle class="ring" cx="70" cy="183" r="9"/>
+			<text class="lab" x="84" y="187">random</text>
+			<circle class="pt-base" cx="70" cy="102" r="5"/><circle class="ring" cx="70" cy="102" r="9"/>
+			<text class="lab" x="84" y="106">greedy</text>
+			<circle class="pt-base" cx="70" cy="77.6" r="5"/><circle class="ring" cx="70" cy="77.6" r="9"/>
+			<text class="lab" x="84" y="74">local search</text>
+			<circle class="pt-base" cx="533.2" cy="77.6" r="5"/>
+			<text class="lab" x="533.2" y="64" text-anchor="middle">broadcast</text>
+			<!-- agents -->
+			<circle class="pt-hollow" cx="135.7" cy="167.6" r="5"/>
+			<text class="lab" x="146" y="186">before brainstorm</text>
+			<line class="ln-acc" x1="139" y1="163" x2="145.5" y2="152.5" style="stroke-dasharray:2 2"/>
+			<circle class="pt-agent" cx="149" cy="147.9" r="6.5"/>
+			<text class="lab-acc" x="162" y="146">agents</text>
+			<text class="tick" x="440" y="300">rings = needs a trusted party</text>
+		</svg>
+		</div>
+		<figcaption>Drawn from <code>results/eval.json</code> and <code>results/eval-before-brainstorm.json</code> (mean of 5 seeds, 20 people each). The repo's own version is <code>results/chart.svg</code> (<code>npm run chart</code>).</figcaption>
+	</figure>
+
+	<h3>How to read it</h3>
+	<ul>
+		<li><strong>The teams that form are good.</strong> Agent teams average 0.596, close to local search's 0.600, which uses full information and a central party. Interest (0.727) and time-zone overlap (0.623) are higher than any baseline's.</li>
+		<li><strong>Leakage is a sixth of a broadcast's</strong>: 0.149 against 0.874. No trusted party is needed.</li>
+		<li><strong>Placement is the weak spot.</strong> Only 72% of people end up on a team, against 100% for the baselines, which force everyone into a team. Because unplaced people count as 0, per-person quality falls to 0.425.</li>
+		<li><strong>The brainstorm phase is the lever being worked on.</strong> Adding it raised placement from 67% to 72% and per-person quality from 0.379 to 0.425, with leakage rising from 0.124 to 0.149, since more conversations mean more sharing.</li>
+	</ul>
+	<p class="note">Caveats worth saying out loud. Agent teams are mostly pairs (per-seed results show teams of 2 or 3), while the baselines use teams of 3. Smaller teams find shared interests and overlapping hours more easily but cover fewer roles, which matches the lower skill coverage (0.438 vs 0.556). Profiles are synthetic and the model is a single cheap one, so these are comparisons on one setup, not general claims.</p>
+</section>
+
+<!-- 9 -->
+<section id="design">
+	<span class="sec-num">09</span>
+	<h2>Design decisions and trade-offs</h2>
+	<details open>
+		<summary>Why decentralized, instead of one central matcher?</summary>
+		<div class="body">
+			<p>A central optimizer gives the best teams but needs one party trusted with every full profile, and that party becomes the target for any breach. Here, each agent decides only from its human's data and what was shared with it. The evaluation measures the cost of this choice (placement) as well as the gain (no trusted party, leakage 0.149 instead of 0.874).</p>
+			<p>Trade-off: more model calls (about 2,000 for the 5-seed, 20-person evaluation), slower convergence, and fewer people placed.</p>
+		</div>
+	</details>
+	<details>
+		<summary>Why staged disclosure?</summary>
+		<div class="body"><p>Most conversations end early. If everything were shared at once, every rejected match would take your whole profile with it. With stages, a pitch that doesn't fit costs nothing beyond what's on the board, and skills are only shown to someone who has already shown interest twice. Leakage counts only what reaches people outside your final team, which is exactly the cost staging reduces.</p></div>
+	</details>
+	<details>
+		<summary>Why does code build shares instead of the model?</summary>
+		<div class="body"><p>If the model wrote "here are my skills", it could add, omit, exaggerate, or paraphrase. Code takes the exact fields for that level from the real profile, the schema refuses fields from any other level, and the gate checks again that the values match the profile. The model decides <em>whether</em> to go on. It never decides <em>what</em> gets shared.</p></div>
+	</details>
+	<details>
+		<summary>Why give the gate's violations back to the model instead of just blocking?</summary>
+		<div class="body"><p>A blocked counter that's simply dropped wastes a good idea. The gate runs as <code>chatJson</code>'s <code>check</code>, so the model hears exactly what it may not say ("your roles needed list mentions your human's skills…") and redrafts. That feedback goes only to the agent's own model and never to the other side. After 3 attempts, the code falls back to the safe option.</p></div>
+	</details>
+	<details>
+		<summary>Why deferred acceptance for commitment?</summary>
+		<div class="body"><p>Without it, the result depends on timing: whoever's offer arrives first wins, and an agent might commit before a better offer lands. With offers sent in one pass and every holder choosing at the same time, arrival order doesn't matter. Offers are binding, so owners must commit before they ask, and <code>busy</code> handles an owner who is also holding offers without permanently ruling anyone out. It's an adaptation, not textbook Gale–Shapley: preferences come from model judgments, and teams have several roles and size limits.</p></div>
+	</details>
+	<details>
+		<summary>Why one ordered event stream, and replay from JSONL for the demo?</summary>
+		<div class="body">
+			<p>The bus and every phase emit typed <code>RunEvent</code>s. One stream feeds the log file, the live terminal output, <code>show-run</code>, and the browser UI, so they can't disagree. Replaying a recorded run means a demo costs no credits, has no latency or rate limits, and shows the same thing every time. The engine doesn't depend on the UI, so the UI can change freely.</p>
+			<p>Logs are gitignored because they contain every agent's private rationale.</p>
+		</div>
+	</details>
+	<details>
+		<summary>Why immutable agent state?</summary>
+		<div class="body"><p>Every update returns a new <code>AgentState</code>, so a logged snapshot can't change after it's written, states survive JSON round trips, and a tick can read "state before this tick's mail" for decisions and "state after" for interest checks without copying bugs.</p></div>
+	</details>
+	<details>
+		<summary>Why caps on counters, revisions, ticks, rounds, and passes?</summary>
+		<div class="body"><p>Two LLMs can negotiate forever. The hard limits (2 counters and 2 revisions per pair, 12 ticks per round, 6 rounds plus 2 brainstorm rounds, 5 commitment passes) guarantee the run ends. A pair that has talked is never approached again, so the untried pairs run out.</p></div>
+	</details>
+</section>
+
+<!-- 10 -->
+<section id="qa" class="qa">
+	<span class="sec-num">10</span>
+	<h2>Likely interview questions</h2>
+	<details>
+		<summary>What stops an agent from leaking data?</summary>
+		<div class="body"><p>Code, not the prompt. Every model-written pitch and roles list goes through a deterministic gate that searches for the human's own above-level values, and the model must redraft until it passes or the code sends a safe default. Shares are built by code and checked against the profile. Most messages have no text field at all, and a decline is one fixed sentence. Rationales are never sent. Free-form notes are kept out of the prompt until their level, and "never" notes only reach a separate call that can output one of a few fixed words.</p></div>
+	</details>
+	<details>
+		<summary>String matching is easy to get around. Isn't the gate weak?</summary>
+		<div class="body"><p>For arbitrary free text, yes, and the design doesn't pretend otherwise. The gate is reliable for what it targets: short, known profile values and their synonyms. Everything that can't be matched reliably is handled by keeping it out: notes stay out of the prompt, messages have no text, and shares are built by code. If the model never sees a fact, it can't leak it. A semantic checker could be added as an extra layer, but never as the only one.</p></div>
+	</details>
+	<details>
+		<summary>Why not just use one central matcher?</summary>
+		<div class="body"><p>It needs a party trusted with everyone's full profile. Local search gets 0.600 team quality with 100% placement, but only with that trust. A broadcast gets the same teams with no trusted party, at 0.874 leakage. The agents form teams of almost the same quality (0.596) with no trusted party and 0.149 leakage. The cost is placement, which is what I'm working on.</p></div>
+	</details>
+	<details>
+		<summary>How do you evaluate it?</summary>
+		<div class="body"><p>Same synthetic people (seeded generator, 20 people, 5 seeds) for every method. Team quality is the mean of role coverage, shared interest, and workday overlap. I also track placement, per-person quality (unplaced counts as 0, so a method can't win by placing only easy people), leakage measured from what each agent actually recorded as revealed to non-teammates, and whether a trusted party is needed. Results go to <code>results/eval.json</code> and a privacy-versus-quality chart.</p></div>
+	</details>
+	<details>
+		<summary>Why is placement only 72%?</summary>
+		<div class="body"><p>Agents are selective by design: they can decline, withdraw, and run out of untried pairs, and a team needs someone who fills a role the agreed version actually needs. People with no idea of their own, or with uncommon skills, can go unpicked. The brainstorm phase targets this by letting leftovers meet each other with a fixed "let's come up with a project together" pitch, so a team can form around an idea they write together. It moved placement from 67% to 72%.</p></div>
+	</details>
+	<details>
+		<summary>How do you make LLM output reliable?</summary>
+		<div class="body"><p>Every reply is a JSON object validated against a zod schema. The format instructions are generated from that same schema, so they can't drift apart. A reply that's invalid or breaks a rule is shown back with the problems listed, up to 3 attempts. Transport errors get exponential backoff with jitter and Retry-After. A shared queue caps concurrency. If a call still fails, a safe fallback is used, and it always leans toward sharing less: decline, withdraw, keep, stay.</p></div>
+	</details>
+	<details>
+		<summary>How do you test code that calls an LLM?</summary>
+		<div class="body"><p>The client accepts a fake <code>fetch</code> and backoff accepts a fake <code>sleep</code> and random source, so tests script exact model replies, including bad JSON and gate violations, and run instantly. The protocol is deterministic for a given set of replies: ids are sorted, actions follow inbox order, and profiles come from a seeded generator. There are 445 Vitest tests. Live scripts (<code>decide</code>, <code>reliability</code>, <code>negotiate</code>, <code>simulate</code>) cover real model behavior, and logs can be replayed.</p></div>
+	</details>
+	<details>
+		<summary>Isn't the bus a central party?</summary>
+		<div class="body"><p>In the simulation it's an in-process transport. It validates schemas and sender identity and delivers to inboxes, but it doesn't decide anything. It does see messages in transit, which include level shares. A real deployment would put encrypted, authenticated channels between agents so the transport sees only ciphertext. The point is that no party needs everyone's full profile to compute the match.</p></div>
+	</details>
+	<details>
+		<summary>What breaks at scale?</summary>
+		<div class="body">
+			<ul>
+				<li><strong>Discovery prompts grow with the board.</strong> Every open agent sees every listing, so total prompt tokens grow roughly with n². You'd need retrieval or filtering (embedding search over listings) before the model picks.</li>
+				<li><strong>Calls and cost.</strong> The repo's own estimate is about 100–200 calls for 10 agents and 300–450 for 20. The queue and backoff handle rate limits, but at scale throughput is limited by the provider.</li>
+				<li><strong>Trust between agents.</strong> The bus checks sender identity in-process. A network needs real authentication, and protection against Sybil agents and agents that ignore the protocol.</li>
+				<li><strong>Convergence.</strong> Capped at 3 picks per round and 6 rounds. More people may need more rounds or smarter targeting.</li>
+			</ul>
+		</div>
+	</details>
+	<details>
+		<summary>What would you do next?</summary>
+		<div class="body"><p>Some reasonable directions, based on where the results are weakest: raise placement (more from the brainstorm phase, and helping pairs grow into teams of 3), have humans approve or reject the final recommendations (the README's model, and the replay UI already has local approve and pass), move the bus to an encrypted network transport, add retrieval so discovery scales, and evaluate on more seeds, more people, and more than one model.</p></div>
+	</details>
+	<details>
+		<summary>What was the hardest bug or design problem?</summary>
+		<div class="body"><p>A good one to tell: <strong>ownership after reshaping</strong>. Once revisions existed, "whose project is this?" wasn't obvious anymore. The fix was to model a version as terms plus an author, with the roles list meaning "needed from people other than the author". <code>agreedVersion</code> derives the current version from history, and <code>projectOwner</code>, offers, and team roles all follow from it. Another: an owner could pass on what it learned from Mara in an offer to Ben, which <code>checkThirdParty</code> now blocks.</p></div>
+	</details>
+</section>
+
+<!-- 11 -->
+<section id="map">
+	<span class="sec-num">11</span>
+	<h2>Code map</h2>
+	<div class="table-wrap">
+	<table>
+		<thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+		<tbody>
+			<tr><td><code>engine/profile.ts</code>, <code>disclosure.ts</code></td><td>Profile schema, roles, <code>FIELD_LEVELS</code>, <code>fieldsAtLevel</code></td></tr>
+			<tr><td><code>engine/proposal.ts</code></td><td>Every message schema; fixed refusal; join and brainstorm pitches</td></tr>
+			<tr><td><code>engine/gate.ts</code></td><td><code>checkDisclosure</code>, <code>checkThirdParty</code>, <code>fieldsMentioned</code></td></tr>
+			<tr><td><code>engine/notes.ts</code>, <code>hunch.ts</code></td><td>Level-tagged notes, <code>aboutHuman</code>; private steer from "never" notes</td></tr>
+			<tr><td><code>engine/bus.ts</code></td><td>Validated delivery, inboxes, numbered events</td></tr>
+			<tr><td><code>engine/agent.ts</code></td><td>Immutable agent state, contacts, <code>agreedVersion</code></td></tr>
+			<tr><td><code>engine/listing.ts</code>, <code>discovery.ts</code></td><td>Board listings; board, seekers, <code>discover</code>, <code>brainstorm</code></td></tr>
+			<tr><td><code>engine/decision.ts</code>, <code>interest.ts</code></td><td>Accept, counter, or decline; continue or withdraw, revisions, adopt or keep</td></tr>
+			<tr><td><code>engine/round.ts</code></td><td><code>runRound</code>: ticks, level opening, code-built shares</td></tr>
+			<tr><td><code>engine/commitment.ts</code></td><td>Deferred acceptance, <code>projectOwner</code>, <code>safeToOffer</code>, re-check and leave</td></tr>
+			<tr><td><code>engine/simulation.ts</code></td><td><code>runSimulation</code> loop, stopping, brainstorm phase, <code>summarize</code></td></tr>
+			<tr><td><code>engine/client.ts</code>, <code>queue.ts</code>, <code>backoff.ts</code>, <code>llm.ts</code></td><td>Shared client: limiter → retry → <code>chatJson</code> → <code>chat</code></td></tr>
+			<tr><td><code>engine/events.ts</code>, <code>runlog.ts</code>, <code>../describe.ts</code></td><td>Run-event schema, JSONL log, shared formatter</td></tr>
+			<tr><td><code>evaluation/</code></td><td>Synthetic profiles, baselines, quality, leakage, agent evaluation, chart</td></tr>
+			<tr><td><code>ui/web/</code></td><td>React replay studio: <code>replay.ts</code> derives state from events; <code>main.tsx</code> renders network, teams, board, inspector</td></tr>
+		</tbody>
+	</table>
+	</div>
+</section>
+
+</main>
+</div>
+
+<script>
+(function () {
+	var toc = document.getElementById("toc");
+	var toggle = toc.querySelector(".toc-toggle");
+	var current = document.getElementById("toc-current");
+	var links = Array.prototype.slice.call(toc.querySelectorAll("ol a"));
+	toggle.addEventListener("click", function () {
+		var open = toc.classList.toggle("open");
+		toggle.setAttribute("aria-expanded", open ? "true" : "false");
+	});
+	links.forEach(function (a) {
+		a.addEventListener("click", function () {
+			toc.classList.remove("open");
+			toggle.setAttribute("aria-expanded", "false");
+		});
+	});
+	if (!("IntersectionObserver" in window)) return;
+	var byId = {};
+	links.forEach(function (a) { byId[a.getAttribute("href").slice(1)] = a; });
+	var visible = {};
+	var obs = new IntersectionObserver(function (entries) {
+		entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+		var first = links.find(function (a) { return visible[a.getAttribute("href").slice(1)]; });
+		if (!first) return;
+		links.forEach(function (a) { a.classList.toggle("active", a === first); });
+		current.textContent = first.textContent;
+	}, { rootMargin: "-10% 0px -60% 0px" });
+	document.querySelectorAll("main section[id]").forEach(function (s) { obs.observe(s); });
+})();
+</script>
+</body>
+</html>
