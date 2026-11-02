@@ -36,7 +36,18 @@ const good = {
 	rationale: "An AI notes app needs a frontend and data work.",
 	title: "LectureNotes",
 	pitch: "An AI note-taking app that turns lectures into study notes.",
+	problem: "Students lose track of what was said in long lectures.",
+	build: "Record a lecture and get organized notes with key terms.",
 	rolesNeeded: ["frontend", "data"],
+	roleWork: {
+		frontend: "the notes reader",
+		data: "a pipeline that turns transcripts into notes",
+	},
+};
+const card = {
+	problem: good.problem,
+	build: good.build,
+	roleWork: good.roleWork,
 };
 
 // A client whose fake model gives each listing in turn (repeating the last), recording what it was sent.
@@ -68,11 +79,13 @@ describe("writeListings", () => {
 				title: good.title,
 				pitch: good.pitch,
 				rolesNeeded: ["frontend", "data"],
+				...card,
 			},
 		]);
 		expect(proposalFrom(world.agents.nia!, "omar", "p1")).toMatchObject({
 			pitch: good.pitch,
 			rolesNeeded: ["frontend", "data"],
+			...card,
 		});
 	});
 
@@ -100,6 +113,35 @@ describe("writeListings", () => {
 		const world = await writeListings(client, createWorld([nia]));
 		expect(world.agents.nia!.listing!.title).toBe(good.title);
 		expect(sent).toHaveLength(2);
+	});
+
+	test("the card is checked like the pitch: role work that reveals a private field is redrafted", async () => {
+		const { client, sent } = fakeModel(
+			{
+				...good,
+				roleWork: {
+					...good.roleWork,
+					data: "pairs with our ML expert",
+				},
+			},
+			good,
+		);
+		const world = await writeListings(client, createWorld([nia]));
+		expect(world.agents.nia!.listing!.roleWork).toEqual(good.roleWork);
+		expect(sent).toHaveLength(2);
+		expect(sent[1]!.at(-1)!.content).toMatch(/roleWork/);
+	});
+
+	test("a listing without its card is asked for again, and role work for a role it doesn't need is dropped", async () => {
+		const { problem: _, ...cardless } = good;
+		const { client, sent } = fakeModel(cardless, {
+			...good,
+			roleWork: { ...good.roleWork, design: "a logo" },
+		});
+		const world = await writeListings(client, createWorld([nia]));
+		expect(sent).toHaveLength(2);
+		expect(world.agents.nia!.listing!.problem).toBe(good.problem);
+		expect(world.agents.nia!.listing!.roleWork).toEqual(good.roleWork);
 	});
 
 	test("a listing that mentions a private field is redrafted", async () => {
@@ -164,6 +206,7 @@ describe("writeListings", () => {
 				title: good.title,
 				pitch: good.pitch,
 				rolesNeeded: ["frontend", "data"],
+				...card,
 				rationale: good.rationale,
 				gateBlocks: 1,
 				fellBack: false,

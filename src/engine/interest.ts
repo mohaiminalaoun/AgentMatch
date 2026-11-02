@@ -215,7 +215,7 @@ export function interestMessages(
 				...(revise
 					? [
 							[
-								"Optional, only with continue: if what you've learned suggests a better version of the project, one that fits both humans better, add a revision: a short title for it (1 to 4 words, like a product name), a new one-line pitch, and the roles it needs from people other than your human. The pitch describes the project itself, as it would appear on the team's page: not a message to them, no questions, no \"how about\". They'll adopt it or keep the current version. Leave it out if the current version is fine.",
+								"Optional, only with continue: if what you've learned suggests a better version of the project, one that fits both humans better, add a revision: a short title for it (1 to 4 words, like a product name), a new one-line pitch, the roles it needs from people other than your human, and its card (problem, build, and roleWork, as on the board). The pitch describes the project itself, as it would appear on the team's page: not a message to them, no questions, no \"how about\". They'll adopt it or keep the current version. Leave it out if the current version is fine.",
 								"A revision is sent, so it follows the disclosure rules. Describe the idea, not the people.",
 								level === 2
 									? `At this level, a revision also lists covers: for every role the new version needs, and every role the version you've agreed on needed, who covers it: "proposer" (your human), "recipient" (agent ${otherId}'s human), "open" (still needs someone), or "dropped" (the new version doesn't need it). rolesNeeded is exactly the roles marked recipient or open. Claim only skills that are listed: your human's in their profile, theirs in what they shared.`

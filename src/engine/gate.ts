@@ -6,7 +6,7 @@ import {
 	type ProfileField,
 } from "./disclosure.js";
 import type { Profile } from "./profile.js";
-import type { Decision, Terms } from "./proposal.js";
+import { termsTexts, type Decision, type Terms } from "./proposal.js";
 
 // What an agent is about to send: free-text parts by name (such as a pitch) and any structured profile data.
 export type Draft = {
@@ -56,10 +56,7 @@ export function draftOf(message: Decision | Terms): Draft {
 	return "pitch" in message
 		? {
 				texts: {
-					...(message.title !== undefined && {
-						title: message.title,
-					}),
-					pitch: message.pitch,
+					...termsTexts(message),
 					roles: message.rolesNeeded.join(", "),
 				},
 			}

@@ -70,7 +70,10 @@ function fakeClient(script: typeof picks = picks, model = config.model) {
 				title: "Listed",
 				pitch: profiles.find((p) => p.id === who)!.projectIdeas[0]!
 					.title,
+				problem: "A problem worth solving.",
+				build: "A small working version.",
 				rolesNeeded: listings[who],
+				roleWork: {},
 			};
 		} else if (last.startsWith("Public board:")) {
 			const round = (discoveryCalls[who] =

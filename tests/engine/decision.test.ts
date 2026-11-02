@@ -101,6 +101,26 @@ describe("decisionMessages", () => {
 		expect(user!.content).toContain("frontend, backend");
 		expect(user!.content).toContain('"music"');
 	});
+
+	test("shows the proposal's title and card, with each needed role's work", () => {
+		const [, user] = decisionMessages(ada, {
+			...proposal,
+			title: "InvoiceNudge",
+			problem: "Freelancers lose track of unpaid invoices.",
+			build: "A web app that reads invoices and sends reminders.",
+			roleWork: { backend: "a queue for reminders", design: "dropped" },
+		});
+		expect(user!.content).toContain("Title: InvoiceNudge");
+		expect(user!.content).toContain(
+			"Problem: Freelancers lose track of unpaid invoices.",
+		);
+		expect(user!.content).toContain(
+			"Weekend build: A web app that reads invoices and sends reminders.",
+		);
+		expect(user!.content).toContain(
+			"Roles needed: frontend, backend (a queue for reminders)",
+		);
+	});
 });
 
 describe("decideOnProposal", () => {

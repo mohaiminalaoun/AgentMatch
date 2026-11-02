@@ -9,24 +9,92 @@ export const Terms = z.object({
 	title: z.string().min(1).max(60).optional(),
 	// One line, the level-0 pitch.
 	pitch: z.string().min(1).max(280),
+	// The project card, shown with the pitch from level 0 on, so whoever decides can judge the project without
+	// accepting just to learn more: the problem and who has it, and what a weekend build would include. Like
+	// the pitch, it describes the project, never the person behind it, and passes the gate. Optional, since
+	// older logs and fallback pitches have none.
+	problem: z.string().min(1).max(200).optional(),
+	build: z.string().min(1).max(200).optional(),
 	rolesNeeded: z.array(z.string().min(1)).min(1),
+	// Part of the card: what each needed role would do, by role. Entries for roles not in rolesNeeded are
+	// dropped by `termsOf`.
+	roleWork: z
+		.record(z.string().min(1), z.string().min(1).max(160))
+		.optional(),
 });
 
 export type Terms = z.infer<typeof Terms>;
 
-// Just the terms of `message`: its title, if it has one, its pitch, and its roles.
+// Just the terms of `message`: its title, pitch, card, and roles, with role work only for roles it needs.
 export function termsOf(message: Terms): Terms {
+	const roleWork = Object.fromEntries(
+		Object.entries(message.roleWork ?? {}).filter(([role]) =>
+			message.rolesNeeded.includes(role),
+		),
+	);
 	return {
 		...(message.title !== undefined && { title: message.title }),
 		pitch: message.pitch,
+		...(message.problem !== undefined && { problem: message.problem }),
+		...(message.build !== undefined && { build: message.build }),
 		rolesNeeded: message.rolesNeeded,
+		...(Object.keys(roleWork).length > 0 && { roleWork }),
 	};
 }
 
-// The model-written words of some terms, for the gate and for spotting fields mentioned: title and pitch.
-export function termsText(terms: Terms): string {
-	return [terms.title, terms.pitch].filter(Boolean).join(" ");
+// The model-written parts of some terms by name (title, pitch, and the card), for the gate and the
+// third-party check. Role work is one text, "role: work" per role.
+export function termsTexts(terms: Terms): Record<string, string> {
+	const work = Object.entries(terms.roleWork ?? {})
+		.map(([role, text]) => `${role}: ${text}`)
+		.join("; ");
+	return {
+		...(terms.title !== undefined && { title: terms.title }),
+		pitch: terms.pitch,
+		...(terms.problem !== undefined && { problem: terms.problem }),
+		...(terms.build !== undefined && { build: terms.build }),
+		...(work && { roleWork: work }),
+	};
 }
+
+// The model-written words of some terms, for the gate and for spotting fields mentioned: title, pitch, and
+// the card.
+export function termsText(terms: Terms): string {
+	return [
+		terms.title,
+		terms.pitch,
+		terms.problem,
+		terms.build,
+		...Object.values(terms.roleWork ?? {}),
+	]
+		.filter(Boolean)
+		.join(" ");
+}
+
+// The terms as lines for a prompt: title, pitch, the card, and each needed role with its work.
+export function termsLines(terms: Terms): string[] {
+	return [
+		...(terms.title !== undefined ? [`Title: ${terms.title}`] : []),
+		`Pitch: ${terms.pitch}`,
+		...(terms.problem !== undefined ? [`Problem: ${terms.problem}`] : []),
+		...(terms.build !== undefined ? [`Weekend build: ${terms.build}`] : []),
+		`Roles needed: ${terms.rolesNeeded
+			.map((role) =>
+				terms.roleWork?.[role]
+					? `${role} (${terms.roleWork[role]})`
+					: role,
+			)
+			.join(", ")}`,
+	];
+}
+
+// How the card is asked for, in every prompt where a model writes a version of a project.
+export const CARD_FIELDS = [
+	"- problem: one sentence on the problem the project solves and who has it.",
+	"- build: one sentence on what a weekend build would include, concretely.",
+	'- roleWork: for each role in rolesNeeded, what that teammate would build, in a few words (for example {"frontend": "a dashboard to review blocked calls"}).',
+	"The card describes the project, like the pitch: never the people behind it.",
+].join("\n");
 
 export const Proposal = Terms.extend({
 	id: z.string().min(1),

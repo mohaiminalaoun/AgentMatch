@@ -29,6 +29,7 @@ import {
 	BRAINSTORM_PITCH,
 	isJoinRequest,
 	termsOf,
+	termsTexts,
 	type Leave,
 	type Offer,
 	type OfferAnswer,
@@ -136,16 +137,7 @@ export function safeToOffer(
 		contact.learned,
 		contact.history,
 	]);
-	return (
-		checkThirdParty(
-			{
-				...(version.title !== undefined && { title: version.title }),
-				pitch: version.pitch,
-			},
-			others,
-			known,
-		).length === 0
-	);
+	return checkThirdParty(termsTexts(version), others, known).length === 0;
 }
 
 // The largest team `id` wants, as `owner` knows it: from its own profile for the owner, from what `id`
@@ -247,24 +239,23 @@ export function teamListing(
 	}
 	const agent = world.agents[owner]!;
 	const version = teamTerms(team);
-	const texts = {
-		...(version.title !== undefined && { title: version.title }),
-		pitch: version.pitch,
-	};
+	const texts = termsTexts(version);
 	const listing = publicPitch(agent);
 	const safe =
 		checkDisclosure(agent.profile, 0, { texts }).length === 0 &&
 		checkThirdParty(
 			texts,
 			Object.values(agent.contacts).map((contact) => contact.learned),
-			JSON.stringify([listing?.title, listing?.pitch]),
+			JSON.stringify(listing ? termsTexts(listing) : []),
 		).length === 0;
 	const shown = safe ? version : (listing ?? version);
 	const needed = stillNeeded(world, owner);
+	// The card's role work only for the roles still needed (`termsOf` drops the rest).
 	return {
-		...(shown.title !== undefined && { title: shown.title }),
-		pitch: shown.pitch,
-		rolesNeeded: needed.length > 0 ? needed : version.rolesNeeded,
+		...termsOf({
+			...shown,
+			rolesNeeded: needed.length > 0 ? needed : version.rolesNeeded,
+		}),
 		teamSize: team.members.length,
 	};
 }
@@ -685,7 +676,7 @@ export function teamVersionMessages(
 				factsAbout(owner, ids),
 				[
 					`Your human has no team yet and wants to offer places to ${ids.join(", ")}. You agreed a different version of the project with each, and a version can carry what only that person told you, so one person's version can't be sent to the others. Write one version for the whole team instead; every offer will carry it, and each of them can commit or decline.`,
-					"Build it from your human's own idea and what the versions share. Its title and pitch must not mention anything you learned from only one of them: their skills, interests, time zones, hours, or anything else they shared. The pitch describes the project itself, as it would appear on the team's page.",
+					"Build it from your human's own idea and what the versions share. Its title, pitch, and card must not mention anything you learned from only one of them: their skills, interests, time zones, hours, or anything else they shared. The pitch describes the project itself, as it would appear on the team's page. Give its card too: problem (the problem and who has it), build (what a weekend build includes), and roleWork (what each role it needs would build).",
 					`Its roles are what the project needs from people other than your human, from: ${ROLES.join(", ")}. Include a role each of them can do, so each has a place, and any role the work needs that nobody covers yet. Don't add a role the work doesn't need.`,
 					"Your rationale is private.",
 					CITE_FACTS,

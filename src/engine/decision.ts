@@ -19,9 +19,11 @@ import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	BRAINSTORM_PITCH,
+	CARD_FIELDS,
 	Decision,
 	isJoinRequest,
 	JOIN_PREFIX,
+	termsLines,
 	type Proposal,
 } from "./proposal.js";
 
@@ -113,6 +115,7 @@ export function decisionMessages(
 					"- accept if a good team could plausibly come of it: your human could fill a role the project lists, and it's something they'd want to build. Nothing is binding yet; accepting opens the next level of sharing.",
 					'- counter if it is a partial fit and one concrete change would make it work: put the changed project in the pitch, describing the project itself, not a message to them (no questions, no "how about"), and give it a short new title, 1 to 4 words, if the change makes the old one wrong.',
 					"- rolesNeeded lists roles you need others to fill. Never list a role your human would fill.",
+					`- a counter also gives the changed project's card:\n${CARD_FIELDS}`,
 					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
 					CITE_FACTS,
 				].join("\n"),
@@ -122,8 +125,7 @@ export function decisionMessages(
 			role: "user",
 			content: [
 				`Agent ${proposal.from} proposes:`,
-				`Pitch: ${proposal.pitch}`,
-				`Roles needed: ${proposal.rolesNeeded.join(", ")}`,
+				...termsLines(proposal),
 				...(proposal.teamSize
 					? [
 							`Their human already leads a committed team of ${proposal.teamSize} people building this version; the roles are what that team still needs. Joining means joining that team.`,

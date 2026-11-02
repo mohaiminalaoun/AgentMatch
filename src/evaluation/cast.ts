@@ -754,7 +754,11 @@ export const CAST: CastMember[] = SEEDS.map((seed, i) => {
 			projectIdeas: [
 				{
 					title: seed.title,
-					description: `${seed.pitch} ${seed.card.problem} A weekend build: ${seed.card.build}`,
+					description: `${seed.pitch} ${seed.card.problem} A weekend build: ${seed.card.build} Teammates needed: ${Object.entries(
+						seed.card.roleWork,
+					)
+						.map(([role, work]) => `${role} for ${work}`)
+						.join("; ")}.`,
 				},
 			],
 			availability: { hoursPerWeek: seed.hours, utcOffset: seed.utc },

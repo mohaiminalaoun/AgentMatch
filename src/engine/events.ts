@@ -50,7 +50,11 @@ export const RunEvent = z.discriminatedUnion("type", [
 		// Missing in older logs.
 		title: z.string().optional(),
 		pitch: z.string(),
+		// The project card; missing in older logs and fallbacks.
+		problem: z.string().optional(),
+		build: z.string().optional(),
 		rolesNeeded: z.array(z.string()),
+		roleWork: z.record(z.string(), z.string()).optional(),
 		rationale: z.string().optional(),
 		gateBlocks: z.number().int(),
 		fellBack: z.boolean(),

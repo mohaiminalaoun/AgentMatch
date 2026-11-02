@@ -11,16 +11,19 @@ import {
 	type Message,
 } from "./llm.js";
 import { GOOD_TEAM } from "./goals.js";
-import { BRAINSTORM_PITCH, JOIN_PREFIX, type Proposal } from "./proposal.js";
+import {
+	BRAINSTORM_PITCH,
+	JOIN_PREFIX,
+	termsOf,
+	type Proposal,
+	type Terms,
+} from "./proposal.js";
 import { missingCoreRoles, publicPitch, type World } from "./round.js";
 
-// One agent's listing on the public board: only what it shows at level 0, plus how many committed teams
-// its human has left, if any.
-export type BoardEntry = {
+// One agent's listing on the public board: only what it shows at level 0 (its terms, card included), plus how
+// many committed teams its human has left, if any.
+export type BoardEntry = Terms & {
 	id: string;
-	title?: string | undefined;
-	pitch: string;
-	rolesNeeded: string[];
 	leftTeams?: number;
 	// Set when the person already leads a committed team: its size, them included.
 	teamSize?: number;
@@ -264,17 +267,17 @@ export async function discover(
 					? { id, from: pick.agent, to, ...own, ...record }
 					: {
 							// Nothing of its own to pitch: ask to join theirs, revealing nothing about itself.
+							// The terms, card included, are theirs.
 							id,
 							from: pick.agent,
 							to,
-							...(target.title !== undefined && {
-								title: target.title,
+							...termsOf({
+								...target,
+								pitch: `${JOIN_PREFIX}${target.pitch}`.slice(
+									0,
+									280,
+								),
 							}),
-							pitch: `${JOIN_PREFIX}${target.pitch}`.slice(
-								0,
-								280,
-							),
-							rolesNeeded: target.rolesNeeded,
 							join: true,
 							...record,
 						},

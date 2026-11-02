@@ -11,13 +11,17 @@ import {
 	type Message,
 } from "./llm.js";
 import { ROLES } from "./profile.js";
-import { Terms, termsOf } from "./proposal.js";
+import { CARD_FIELDS, Terms, termsOf } from "./proposal.js";
 import { publicPitch, type World } from "./round.js";
 
 // What the model returns: private reasoning, then the public listing.
-// The title is required here, though optional in Terms, so a listing without one is asked for again.
+// The title and the card are required here, though optional in Terms, so a listing without them is asked for
+// again.
 export const AgentListing = Terms.extend({
 	title: z.string().min(1).max(60),
+	problem: z.string().min(1).max(200),
+	build: z.string().min(1).max(200),
+	roleWork: z.record(z.string().min(1), z.string().min(1).max(160)),
 	rationale: z.string().min(1),
 });
 
@@ -36,6 +40,8 @@ export function listingMessages(agent: AgentState): Message[] {
 					"- title: a short, memorable name for the project, 1 to 4 words, like a product name (their idea's title is fine if it's good).",
 					"- pitch: one line describing the project idea itself, not a message to anyone. You may sharpen the wording, but mention nothing beyond the project idea: not their skills, interests, availability, preferences, or name.",
 					`- rolesNeeded: the roles the project needs teammates to fill, from: ${ROLES.join(", ")}. Think about what this project actually needs (an AI app needs ml; a data dashboard needs data). List only roles others would fill, never one your human would fill. Usually 2 to 4.`,
+					"Then the project card, shown with the pitch so others can judge the project before any conversation:",
+					CARD_FIELDS,
 					"Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
