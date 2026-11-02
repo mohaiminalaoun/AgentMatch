@@ -41,6 +41,8 @@ import {
 	demoEvents,
 	describe,
 	factsFor,
+	eventTimes,
+	formatElapsed,
 	ideaVersions,
 	pairEvents,
 	parseLog,
@@ -270,6 +272,7 @@ function App() {
 			? ideaVersions(visibleEvents, current.id, partner)
 			: undefined;
 	const facts = useMemo(() => factsFor(events), [events]);
+	const times = useMemo(() => eventTimes(events), [events]);
 	const activity =
 		current && partner
 			? pairEvents(visibleEvents, current.id, partner)
@@ -1913,6 +1916,33 @@ function App() {
 													<div
 														className="agent-activity"
 														key={i}
+														{times.get(e) && (
+															<time
+																className="activity-time"
+																dateTime={
+																	times.get(
+																		e,
+																	)!.at
+																}
+																title={`${new Date(times.get(e)!.at).toLocaleTimeString()} · ${formatElapsed(times.get(e)!.ms)} into the run${times.get(e)!.estimated ? " (estimated: this event has no time of its own)" : ""}`}
+															>
+																{times.get(e)!
+																	.estimated
+																	? "~"
+																	: ""}
+																{new Date(
+																	times.get(
+																		e,
+																	)!.at,
+																).toLocaleTimeString(
+																	[],
+																	{
+																		hour: "numeric",
+																		minute: "2-digit",
+																	},
+																)}
+															</time>
+														)}
 													>
 														<span className="activity-marker" />
 														<p>{describe(e)}</p>

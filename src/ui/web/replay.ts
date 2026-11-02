@@ -104,6 +104,11 @@ export const demoPeople: Person[] = [
 		roles: ["frontend", "devops"],
 	},
 ];
+// A made-up clock for the demo: each stamp is a deterministic 1 to 4 seconds after the one before.
+let demoClock = Date.parse("2026-10-28T12:00:00Z");
+let demoStep = 0;
+const demoTime = () =>
+	new Date((demoClock += 1000 + ((demoStep++ * 1237) % 3000))).toISOString();
 export const demoEvents: Event[] = [];
 for (const p of demoPeople)
 	demoEvents.push({
@@ -116,7 +121,7 @@ for (const p of demoPeople)
 	});
 demoEvents.push({
 	type: "round",
-	time: "2026-10-28T12:00:00Z",
+	time: demoTime(),
 	model: "Synthetic demo",
 	agents: demoPeople.map((p) => p.id),
 });
@@ -141,7 +146,7 @@ for (const [i, pair] of [
 		type: "bus",
 		event: {
 			seq: i + 1,
-			time: "2026-10-28T12:00:00Z",
+			time: demoTime(),
 			type: "sent",
 			message: {
 				id: `demo-${i}`,
@@ -166,7 +171,7 @@ for (const [i, pair] of [
 		type: "bus",
 		event: {
 			seq: i + 50,
-			time: "2026-10-28T12:00:00Z",
+			time: demoTime(),
 			type: "sent",
 			message: {
 				decision: "accept",
@@ -224,7 +229,7 @@ for (const [i, pair] of [
 				type: "bus",
 				event: {
 					seq: 100,
-					time: "2026-10-28T12:00:00Z",
+					time: demoTime(),
 					type: "sent",
 					message: revision,
 				},
@@ -233,7 +238,7 @@ for (const [i, pair] of [
 				type: "bus",
 				event: {
 					seq: 101,
-					time: "2026-10-28T12:00:00Z",
+					time: demoTime(),
 					type: "sent",
 					message: {
 						kind: "revisionAnswer",
@@ -426,6 +431,47 @@ export function parseLog(text: string): Event[] {
 	if (!events.length) throw new Error("This file contains no run events.");
 	return events;
 }
+// When each event happened. Bus messages, model calls and round starts carry a time; the rest (decisions,
+// interest checks, level changes, listings, ...) don't, so they borrow the nearest earlier timed event
+// (the model call that produced them), or the next one when nothing earlier has a time, and are marked
+// `estimated`. `ms` counts from the first timed event.
+export type EventTime = { ms: number; at: string; estimated: boolean };
+export function eventTimes(events: Event[]): Map<Event, EventTime> {
+	const own = (e: Event): string | undefined =>
+		e.type === "bus"
+			? e.event.time
+			: "time" in e && typeof e.time === "string"
+				? e.time
+				: undefined;
+	const stamps = events.map(own);
+	const first = stamps.find((t) => t !== undefined);
+	const times = new Map<Event, EventTime>();
+	if (first === undefined) return times;
+	const start = Date.parse(first);
+	let last: string | undefined;
+	const next = (from: number) => stamps.slice(from).find((t) => t);
+	events.forEach((e, i) => {
+		const exact = stamps[i];
+		if (exact) last = exact;
+		const at = exact ?? last ?? next(i);
+		if (at === undefined || Number.isNaN(Date.parse(at))) return;
+		times.set(e, {
+			ms: Math.max(0, Date.parse(at) - start),
+			at,
+			estimated: exact === undefined,
+		});
+	});
+	return times;
+}
+// "+4.2s", "+1m 12s", "+1h 02m": time since the run's first timed event.
+export function formatElapsed(ms: number): string {
+	const s = ms / 1000;
+	if (s < 60) return `+${s.toFixed(1)}s`;
+	const m = Math.floor(s / 60);
+	if (m < 60) return `+${m}m ${String(Math.floor(s % 60)).padStart(2, "0")}s`;
+	return `+${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
 export function describe(e: Event): string {
 	switch (e.type) {
 		// Listings are the public board, so the feed shows them in full.
