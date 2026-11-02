@@ -2526,6 +2526,15 @@ h1 > span {
 .team-steps .good {
 	color: #3c7767;
 }
+.idea-offers {
+	list-style: none;
+	margin: 6px 0 0;
+	padding: 0 0 0 8px;
+	border-left: 2px solid #e4dde9;
+}
+.idea-offers > li + li {
+	margin-top: 4px;
+}
 .idea-why {
 	margin-top: 5px;
 	font-size: 9px;

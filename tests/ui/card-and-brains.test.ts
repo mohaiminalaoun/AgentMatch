@@ -136,3 +136,76 @@ describe("brains", () => {
 		expect(brains(log([{ type: "tick", n: 1 }])).size).toBe(0);
 	});
 });
+
+describe("offers in a version's history", () => {
+	const proposal = sent({
+		id: "r1",
+		from: "c1",
+		to: "p-me",
+		title: "Firewall",
+		pitch: "A policy proxy for agents.",
+		rolesNeeded: ["frontend"],
+		...card,
+	});
+	const accept = sent({
+		proposalId: "r1",
+		from: "p-me",
+		to: "c1",
+		decision: "accept",
+	});
+	const answer = sent({
+		kind: "answer",
+		from: "p-me",
+		to: "c1",
+		team: "team-c1",
+		answer: "commit",
+	});
+
+	it("an offer that repeats the agreed version is a step on it, not a new version", () => {
+		const offer = sent({
+			kind: "offer",
+			from: "c1",
+			to: "p-me",
+			team: "team-c1",
+			title: "Firewall",
+			pitch: "A policy proxy for agents.",
+			rolesNeeded: ["frontend"],
+			...card,
+		});
+		const { versions, agreed } = ideaVersions(
+			log([proposal, accept, offer, answer]),
+			"c1",
+			"p-me",
+		);
+		expect(versions).toHaveLength(1);
+		expect(versions[0]!.status).toBe("accepted");
+		expect(versions[0]!.offers?.map((o) => [o.from, o.status])).toEqual([
+			["c1", "committed"],
+		]);
+		expect(agreed).toBe(0);
+	});
+
+	it("an offer that changes anything, even only the roles, is a version of its own", () => {
+		const offer = sent({
+			kind: "offer",
+			from: "c1",
+			to: "p-me",
+			team: "team-c1",
+			title: "Firewall",
+			pitch: "A policy proxy for agents.",
+			rolesNeeded: ["frontend", "ml"],
+			...card,
+		});
+		const { versions, agreed } = ideaVersions(
+			log([proposal, accept, offer, answer]),
+			"c1",
+			"p-me",
+		);
+		expect(versions.map((v) => [v.how, v.status])).toEqual([
+			["proposal", "accepted"],
+			["offer", "committed"],
+		]);
+		expect(versions[0]!.offers).toBeUndefined();
+		expect(agreed).toBe(1);
+	});
+});

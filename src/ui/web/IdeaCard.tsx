@@ -1,5 +1,5 @@
 import React from "react";
-import type { Card, IdeaVersion } from "./replay.js";
+import type { Card, IdeaVersion, OfferStep } from "./replay.js";
 
 // "a03" → "Agent 03", "p4" → "Agent 04", and a pilot id like "p-c41e" → "Agent c41e".
 export const agentLabel = (id: string) =>
@@ -133,6 +133,52 @@ export function CardDetails({
 	);
 }
 
+// Offers that carried a version unchanged as a team's project, one line each with its answer, and the private
+// reasoning behind both when `show` is set.
+function Offers({ v, show }: { v: IdeaVersion; show: boolean }) {
+	if (!v.offers?.length) return null;
+	const answer = (o: OfferStep) =>
+		o.status === "committed"
+			? `${name(o.to)} joined the team`
+			: o.status === "busy"
+				? `${name(o.to)} was busy with offers of their own`
+				: o.status === "declined"
+					? `${name(o.to)} declined`
+					: `Waiting for ${name(o.to)}`;
+	return (
+		<ul className="idea-offers">
+			{v.offers.map((o, i) => (
+				<li key={i}>
+					<p className="idea-meta">
+						{name(o.from)} offered it as the team’s project,
+						unchanged ·{" "}
+						<span
+							className={o.status === "committed" ? "good" : ""}
+						>
+							{answer(o)}
+						</span>
+					</p>
+					{show && (o.why || o.answerWhy) && (
+						<details className="idea-why">
+							<summary>Private reasoning</summary>
+							{o.why && (
+								<p>
+									<strong>{name(o.from)}:</strong> {o.why}
+								</p>
+							)}
+							{o.answerWhy && (
+								<p>
+									<strong>{name(o.to)}:</strong> {o.answerWhy}
+								</p>
+							)}
+						</details>
+					)}
+				</li>
+			))}
+		</ul>
+	);
+}
+
 // The private reasoning behind a version and behind the answer to it, folded away until opened.
 function Why({ v, show }: { v: IdeaVersion; show: boolean }) {
 	if (!show || (!v.why && !v.answerWhy)) return null;
@@ -169,10 +215,13 @@ export function IdeaCard({
 	if (!first) return null;
 	const end = agreed ?? versions.length - 1;
 	const last = versions[end]!;
+	const joined =
+		last.status === "committed" ||
+		(last.offers ?? []).some((o) => o.status === "committed");
 	const label =
 		agreed === undefined
 			? "STILL ON THE TABLE"
-			: last.status === "committed"
+			: joined
 				? "ENDS AS THE TEAM’S PROJECT"
 				: "AGREED NOW";
 	return (
@@ -188,6 +237,7 @@ export function IdeaCard({
 				</span>
 			</p>
 			<Why v={first} show={showWhy} />
+			<Offers v={first} show={showWhy} />
 			{versions.length > 1 && (
 				<ol className="idea-history">
 					{versions.slice(1).map((v, i) => (
@@ -204,6 +254,7 @@ export function IdeaCard({
 								</span>
 							</p>
 							<Why v={v} show={showWhy} />
+							<Offers v={v} show={showWhy} />
 						</li>
 					))}
 				</ol>

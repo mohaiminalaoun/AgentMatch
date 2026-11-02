@@ -674,13 +674,40 @@ export type IdeaVersion = {
 	// The private reasoning of whoever sent this version, and of whoever answered it, when the log has it.
 	why?: string | undefined;
 	answerWhy?: string | undefined;
+	// Offers that carried this version unchanged as a team's project, and how each was answered. An offer that
+	// changes anything (title, pitch, roles, or card) is a version of its own instead.
+	offers?: OfferStep[];
 };
+
+// An offer of a place on a team building a version as it stood, and its answer.
+export type OfferStep = {
+	from: string;
+	to: string;
+	status: "open" | "committed" | "busy" | "declined";
+	why?: string | undefined;
+	answerWhy?: string | undefined;
+};
+
+// Whether two versions say the same thing: title, pitch, roles in order, and card.
+function sameVersion(
+	v: IdeaVersion,
+	m: { title?: string | undefined; pitch: string; rolesNeeded: string[] },
+	card: Card,
+): boolean {
+	return (
+		v.title === m.title &&
+		v.pitch === m.pitch &&
+		JSON.stringify(v.rolesNeeded) === JSON.stringify(m.rolesNeeded) &&
+		JSON.stringify(v.card) === JSON.stringify(card)
+	);
+}
 // Matches JOIN_PREFIX in src/engine/proposal.ts, which the browser can't import.
 const JOIN_PREFIX = "Join your project: ";
 // Every version of the idea that passed between `a` and `b`, oldest first, and the index of the one they
 // agree on now: the last accepted proposal or counter, adopted revision, or offer committed to. Offers
-// carry the version the team will build. Both sides may send a revision at once, so each answer settles
-// the latest revision from the agent it answers.
+// carry the version the team will build: one that repeats the version agreed (or, with none agreed, the last
+// one) is attached to it as a step rather than counted as a new version. Both sides may send a revision at
+// once, so each answer settles the latest revision from the agent it answers.
 export function ideaVersions(
 	events: Event[],
 	a: string,
@@ -690,7 +717,8 @@ export function ideaVersions(
 	let agreed: number | undefined;
 	let onTable: number | undefined;
 	const revised = new Map<string, number>();
-	const offered = new Map<string, number>();
+	// For each team's offer: the version it carries and, if it repeated one, its step there.
+	const offered = new Map<string, { i: number; step?: OfferStep }>();
 	const pair = pairEvents(events, a, b);
 	const why = reasons(pair);
 	for (const e of pair) {
@@ -754,7 +782,21 @@ export function ideaVersions(
 			settle(i, m.adopt ? "adopted" : "kept");
 			if (m.adopt) agreed = i;
 		} else if (m.kind === "offer") {
-			offered.set(m.team, versions.length);
+			const card = cardOf(m, m.rolesNeeded);
+			const base = agreed ?? versions.length - 1;
+			const repeated = versions[base];
+			if (repeated && sameVersion(repeated, m, card)) {
+				const step: OfferStep = {
+					from: m.from,
+					to: m.to,
+					status: "open",
+					why: reason,
+				};
+				(repeated.offers ??= []).push(step);
+				offered.set(m.team, { i: base, step });
+				continue;
+			}
+			offered.set(m.team, { i: versions.length });
 			versions.push({
 				how: "offer",
 				author: m.from,
@@ -763,21 +805,23 @@ export function ideaVersions(
 				title: m.title,
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
-				card: cardOf(m, m.rolesNeeded),
+				card,
 				status: "open",
 				why: reason,
 			});
 		} else if (m.kind === "answer") {
-			const i = offered.get(m.team);
-			settle(
-				i,
+			const offer = offered.get(m.team);
+			const status =
 				m.answer === "commit"
 					? "committed"
 					: m.answer === "busy"
 						? "busy"
-						: "declined",
-			);
-			if (m.answer === "commit") agreed = i;
+						: "declined";
+			if (offer?.step) {
+				offer.step.status = status;
+				offer.step.answerWhy = reason;
+			} else settle(offer?.i, status);
+			if (m.answer === "commit") agreed = offer?.i;
 		}
 	}
 	return { versions, agreed };

@@ -655,9 +655,18 @@ describe("browser replay", () => {
 		).toEqual([
 			["proposal", "accepted", undefined, "Fits my skills."],
 			["revision", "adopted", "Use their devops.", "Better for me."],
-			["offer", "committed", undefined, "Best team."],
 		]);
-		expect(story.idea.agreed).toBe(2);
+		// The offer repeated the adopted revision, so it's a step on that version, not a version of its own.
+		expect(story.idea.versions[1]!.offers).toEqual([
+			{
+				from: "o",
+				to: "m",
+				status: "committed",
+				why: undefined,
+				answerWhy: "Best team.",
+			},
+		]);
+		expect(story.idea.agreed).toBe(1);
 		expect(story.steps).toEqual([
 			{ who: "o", what: "offered", others: ["m"], why: undefined },
 			{
