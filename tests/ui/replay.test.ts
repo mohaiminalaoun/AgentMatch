@@ -467,6 +467,70 @@ describe("browser replay", () => {
 		]);
 		expect(agreed).toBe(1);
 	});
+	it("keeps the reasoning behind an answer to a counter, whose id the engine derives", () => {
+		const sent = (message: object) => ({
+			type: "bus",
+			event: { seq: 1, time: "t", type: "sent", message },
+		});
+		const decision = (
+			agent: string,
+			proposalId: string,
+			d: string,
+			rationale: string,
+		) => ({
+			type: "decision",
+			agent,
+			proposalId,
+			decision: { decision: d },
+			rationale,
+			gateBlocks: 0,
+			fellBack: false,
+		});
+		const events = parseLog(
+			[
+				sent({
+					id: "r1-b-a",
+					from: "b",
+					to: "a",
+					pitch: "A soccer replay app.",
+					rolesNeeded: ["mobile"],
+				}),
+				sent({
+					proposalId: "r1-b-a",
+					from: "a",
+					to: "b",
+					decision: "counter",
+					pitch: "A press conference sim.",
+					rolesNeeded: ["ml"],
+				}),
+				decision("a", "r1-b-a", "counter", "My own idea fits better."),
+				sent({
+					proposalId: "r1-b-a.c",
+					from: "b",
+					to: "a",
+					decision: "accept",
+				}),
+				decision("b", "r1-b-a.c", "accept", "It uses my ML."),
+			]
+				.map((e) => JSON.stringify(e))
+				.join("\n"),
+		);
+		expect(
+			pairEvents(events, "a", "b").filter((e) => e.type === "decision"),
+		).toHaveLength(2);
+		const { versions } = ideaVersions(events, "a", "b");
+		expect(
+			versions.map((v) => [v.how, v.status, v.why, v.answerWhy]),
+		).toEqual([
+			["proposal", "countered", undefined, "My own idea fits better."],
+			[
+				"counter",
+				"accepted",
+				"My own idea fits better.",
+				"It uses my ML.",
+			],
+		]);
+	});
 	it("settles crossing revisions by who each answer replies to", () => {
 		const sent = (message: object) => ({
 			type: "bus",

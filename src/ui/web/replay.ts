@@ -705,16 +705,17 @@ export function filterEvents(
 export function pairEvents(events: Event[], a: string, b: string): Event[] {
 	const isPair = (x: string, y: string) =>
 		(x === a && y === b) || (x === b && y === a);
-	// Decisions name only a proposal id, so match them to the proposals sent between the two.
+	// Decisions name only a proposal id, so match them to the proposals sent between the two. A counter has no
+	// id of its own: the engine names it after the proposal it counters, plus ".c" (see round.ts).
 	const proposals = new Set<string>();
-	for (const e of events)
-		if (
-			e.type === "bus" &&
-			e.event.type === "sent" &&
-			"id" in e.event.message &&
-			isPair(e.event.message.from, e.event.message.to)
-		)
-			proposals.add(e.event.message.id);
+	for (const e of events) {
+		if (e.type !== "bus" || e.event.type !== "sent") continue;
+		const m = e.event.message;
+		if (!isPair(m.from, m.to)) continue;
+		if ("id" in m) proposals.add(m.id);
+		if ("decision" in m && m.decision === "counter")
+			proposals.add(`${m.proposalId}.c`);
+	}
 	return events.filter((e) => {
 		switch (e.type) {
 			case "bus":
