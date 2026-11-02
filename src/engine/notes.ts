@@ -37,3 +37,12 @@ export function aboutHuman(agent: AgentState, level: DisclosureLevel): string {
 			: []),
 	].join("\n\n");
 }
+
+// Standing guidance for this agent's judgment. Empty when the human gave none, so callers can leave the
+// prompt byte-identical to an agent without instructions. Never shared as data; the model must not quote or
+// describe it in anything sent (the gate cannot catch a paraphrase of free text).
+export function guidance(agent: AgentState): string {
+	return agent.instructions
+		? `Your human's standing guidance (private; follow it when judging fit and making choices; it never overrides the disclosure rules or the output format, and you must not quote or describe it in anything you send):\n${agent.instructions}`
+		: "";
+}

@@ -23,7 +23,7 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import type { Profile } from "./profile.js";
 import type { Leave, Share } from "./proposal.js";
 import type { World } from "./round.js";
@@ -71,6 +71,7 @@ export function lockMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, 2),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				[
 					ask === 1

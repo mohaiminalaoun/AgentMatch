@@ -16,8 +16,9 @@ const config: Config = {
 const sam = PilotPerson.parse(
 	JSON.parse(readFileSync("profiles/example.json", "utf8")),
 );
+const { instructions: _samInstructions, ...samWithoutInstructions } = sam;
 const kim: PilotPerson = {
-	...sam,
+	...samWithoutInstructions,
 	profile: { ...sam.profile, id: "p-k1m0", name: "Kim" },
 	notes: [],
 };
@@ -35,7 +36,7 @@ const silentClient = () =>
 	});
 
 describe("runPilot", () => {
-	test("real people join generated ones, each agent with only its own human's notes", async () => {
+	test("real people join generated ones, each agent with only its own human's notes and instructions", async () => {
 		const world = await runPilot(silentClient(), [sam, kim], {
 			fill: 3,
 			maxRounds: 1,
@@ -50,6 +51,9 @@ describe("runPilot", () => {
 		expect(world.agents["p-7f3a"]!.notes).toEqual(sam.notes);
 		expect(world.agents["p-k1m0"]!.notes).toEqual([]);
 		expect(world.agents.p1!.notes).toEqual([]);
+		expect(world.agents["p-7f3a"]!.instructions).toBe(sam.instructions);
+		expect(world.agents["p-k1m0"]!.instructions).toBeUndefined();
+		expect(world.agents.p1!.instructions).toBeUndefined();
 	});
 });
 

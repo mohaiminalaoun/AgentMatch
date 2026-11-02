@@ -32,6 +32,8 @@ export type SimulationOptions = {
 	perAgent?: number;
 	// Some humans' private notes, by id.
 	notes?: Record<string, readonly Note[]>;
+	// Some humans' standing guidance for their agent, by id. Never sent as data.
+	instructions?: Record<string, string>;
 	// Whether teammates swap names as soon as they commit (default true); see runCommitment.
 	revealNames?: boolean;
 	maxTicks?: number;
@@ -114,15 +116,20 @@ export async function runSimulation(
 		brainstorm: brainstormAtEnd = true,
 		perAgent,
 		notes = {},
+		instructions = {},
 		revealNames = true,
 		maxTicks,
 		onEvent,
 		onPhase,
 	}: SimulationOptions = {},
 ): Promise<World> {
-	let world = await writeListings(client, createWorld(profiles, notes), {
-		...(onEvent && { onEvent }),
-	});
+	let world = await writeListings(
+		client,
+		createWorld(profiles, notes, instructions),
+		{
+			...(onEvent && { onEvent }),
+		},
+	);
 	const listed = Object.values(world.agents).filter((a) => a.listing).length;
 	onPhase?.(`listings written: ${listed}`);
 

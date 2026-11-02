@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import { contactOf, type AgentState } from "./agent.js";
 import { brainOf, type LlmClient } from "./client.js";
 import {
@@ -15,7 +15,7 @@ import {
 	type TokenUsage,
 } from "./llm.js";
 import { factsText, fitFacts } from "./fit.js";
-import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
+import { CITE_FACTS, GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	BRAINSTORM_PITCH,
@@ -107,7 +107,9 @@ export function decisionMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				...(countersLeft ? [PROJECT_EXPLORATION] : []),
 				factsText(fitFacts(agent, proposal.from)),
 				disclosureRules(contact.level),
 				[
@@ -175,6 +177,7 @@ export function joinRequestMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				factsText(fitFacts(agent, proposal.from)),
 				[

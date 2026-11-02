@@ -230,3 +230,22 @@ describe("brains", () => {
 		expect(eventsFor("c", [brains])).toEqual([]);
 	});
 });
+
+describe("instructions stay off the event stream", () => {
+	test("a planted marker in one agent's rationale never reaches anyone else's view", () => {
+		const marker = "zz-instruction-marker";
+		const events: RunEvent[] = [
+			{
+				type: "decision",
+				agent: "a",
+				proposalId: "r1-a-b",
+				decision: { decision: "accept" },
+				rationale: marker,
+				gateBlocks: 0,
+				fellBack: false,
+			},
+		];
+		expect(JSON.stringify(eventsFor("a", events))).toContain(marker);
+		expect(JSON.stringify(eventsFor("b", events))).not.toContain(marker);
+	});
+});

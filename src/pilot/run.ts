@@ -27,8 +27,9 @@ export type PilotOutcome = {
 	team?: { members: string[]; project: string } | undefined;
 };
 
-// Runs the whole system for real people, plus `fill` generated ones. Each person's notes go to their own
-// agent, and names stay unshared even within teams: they wait until every member's human approves.
+// Runs the whole system for real people, plus `fill` generated ones. Each person's notes and standing
+// guidance go to their own agent, and names stay unshared even within teams: they wait until every member's
+// human approves.
 export async function runPilot(
 	client: LlmClient,
 	people: readonly PilotPerson[],
@@ -51,6 +52,11 @@ export async function runPilot(
 		{
 			notes: Object.fromEntries(
 				people.map((p) => [p.profile.id, p.notes]),
+			),
+			instructions: Object.fromEntries(
+				people.flatMap((p) =>
+					p.instructions ? [[p.profile.id, p.instructions]] : [],
+				),
 			),
 			revealNames: false,
 			...(maxRounds && { maxRounds }),

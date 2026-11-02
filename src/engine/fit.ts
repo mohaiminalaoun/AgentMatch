@@ -144,7 +144,7 @@ export function factsText(f: FitFacts): string {
 		const ahead = f.them.utcOffset - f.you.utcOffset;
 		facts.push(
 			`Time zones: your human ${utc(f.you.utcOffset)}, ${f.other} ${utc(f.them.utcOffset)} (${hours(f.timeZoneGap!)} apart).`,
-			`On the clock: when it's ${clock(EVENING)} for your human, it's ${clock(EVENING + ahead)} for ${f.other}; when it's ${clock(EVENING)} for ${f.other}, it's ${clock(EVENING - ahead)} for your human. That holds whatever hours anyone keeps.`,
+			`On the clock: when it's ${clock(EVENING)} for your human, it's ${clock(EVENING + ahead)} for ${f.other}; when it's ${clock(EVENING)} for ${f.other}, it's ${clock(EVENING - ahead)} for your human.`,
 		);
 	}
 	if (f.them.hoursPerWeek !== undefined) {
@@ -169,13 +169,6 @@ export function factsText(f: FitFacts): string {
 		);
 	}
 
-	const estimates =
-		f.workdayOverlap === undefined
-			? []
-			: [
-					`If both worked ${WORKDAY_START}:00 to ${WORKDAY_END}:00 in their own time zone, their working days would overlap about ${hours(f.workdayOverlap)} a day. That is an assumption, not a fact: nobody has said when they work. The time zones and the clock above are facts.`,
-				];
-
 	const unknowns = [
 		...(f.them.utcOffset === undefined
 			? [
@@ -187,7 +180,7 @@ export function factsText(f: FitFacts): string {
 					`${f.other}'s skills and team size: not shared yet (they come at level 2). Don't assume they have any skill or would fill any role.`,
 				]
 			: []),
-		"Exactly when anyone works or can meet: not shared. That doesn't make a time-zone gap matter less: whatever hours they keep, the clock above holds.",
+		"Exactly when anyone works or can meet, and whether synchronous work is needed: not shared. Time-zone differences alone do not establish a scheduling conflict.",
 		"Roles a pitch doesn't list: unknown. Its author may cover them, so they aren't necessarily open.",
 		"One person may cover several roles, so the number of roles isn't the number of people. Whether someone's weekly hours stretch to all their roles is a judgment, not a fact.",
 	];
@@ -195,12 +188,6 @@ export function factsText(f: FitFacts): string {
 	return [
 		`Facts about you and ${f.other} (computed by code from your human's profile and what ${f.other} has shared):`,
 		...facts.map((line) => `- ${line}`),
-		...(estimates.length > 0
-			? [
-					"Estimates (resting on an assumption):",
-					...estimates.map((l) => `- ${l}`),
-				]
-			: []),
 		"Unknown:",
 		...unknowns.map((line) => `- ${line}`),
 	].join("\n");
@@ -208,8 +195,7 @@ export function factsText(f: FitFacts): string {
 
 // What code can say about how a whole group would fit together on the clock, for an agent putting one together:
 // its own time zone and those `ids` shared with it (anyone who hasn't shared one is listed as unknown), every
-// pair's gap, everyone's evening on its human's clock, and the 9-to-5 overlap for all of them, labelled as an
-// estimate. Undefined with fewer than two others. The people in `ids` may never have talked to each other, so
+// pair's gap and everyone's evening on its human's clock. Undefined with fewer than two others. The people in `ids` may never have talked to each other, so
 // the agent is the only one who can see this; it goes into its prompt only.
 export function groupFactsText(
 	agent: AgentState,
@@ -250,7 +236,6 @@ export function groupFactsText(
 	return [
 		"Facts about these people together (computed by code from what each shared with you):",
 		...lines.map((line) => `- ${line}`),
-		"Estimate (resting on an assumption):",
-		`- If everyone worked ${WORKDAY_START}:00 to ${WORKDAY_END}:00 in their own time zone, all of them at once would overlap about ${hours(workdayOverlapHours(known.map(([, o]) => o)))} a day. Nobody has said when they work.`,
+		"Actual working hours and need for synchronous work are unknown. The clock conversions alone do not establish a scheduling conflict.",
 	].join("\n");
 }

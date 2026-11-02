@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import {
 	agreedTerms,
 	agreedVersion,
@@ -14,7 +14,7 @@ import { describeViolation, disclosureRules } from "./decision.js";
 import type { DisclosureLevel } from "./disclosure.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, draftOf } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
+import { CITE_FACTS, GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	StructuredOutputError,
@@ -196,6 +196,7 @@ export function interestMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, level),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				factsText(fitFacts(agent, otherId)),
 				[
@@ -212,6 +213,7 @@ export function interestMessages(
 						: "Only the single word continue or withdraw is sent; your rationale is private, so explain yourself fully there.",
 					CITE_FACTS,
 				].join("\n"),
+				...(revise ? [PROJECT_EXPLORATION] : []),
 				...(revise
 					? [
 							[
@@ -380,6 +382,7 @@ export function revisionMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, contact.level),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				factsText(fitFacts(agent, revision.from)),
 				[

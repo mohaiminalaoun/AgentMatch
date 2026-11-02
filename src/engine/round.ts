@@ -91,14 +91,19 @@ export type RoundResult = {
 const DEFAULT_MAX_TICKS = 12;
 const DEFAULT_MAX_LEVEL = 2;
 
-// A world with one agent per profile, all on a fresh bus. `notes` gives some humans private notes, by id.
+// A world with one agent per profile, all on a fresh bus. `notes` gives some humans private notes, by id;
+// `instructions` gives some humans standing guidance, by id.
 export function createWorld(
 	profiles: readonly Profile[],
 	notes: Record<string, readonly Note[]> = {},
+	instructions: Record<string, string> = {},
 ): World {
 	return {
 		agents: Object.fromEntries(
-			profiles.map((p) => [p.id, createAgent(p, notes[p.id])]),
+			profiles.map((p) => [
+				p.id,
+				createAgent(p, notes[p.id], instructions[p.id]),
+			]),
 		),
 		bus: createBus(profiles.map((p) => p.id)),
 		teams: [],

@@ -59,12 +59,16 @@ export type AgentState = {
 	// Its human's private notes, each with the level at which it may draw on them. Never sent as data: prompts
 	// include only the notes their level allows.
 	notes: Note[];
+	// Standing guidance for judging (personality, what to seek or refuse). Never sent as data: prompts may
+	// include it, but it is never added to the profile the gate scans, and never put on the bus.
+	instructions?: string;
 };
 
 // A new agent for `profile`'s human, using the profile's id, with no contacts yet, and the human's notes.
 export function createAgent(
 	profile: Profile,
 	notes: readonly Note[] = [],
+	instructions?: string | undefined,
 ): AgentState {
 	return {
 		id: profile.id,
@@ -73,6 +77,7 @@ export function createAgent(
 		contacts: {},
 		leftTeams: 0,
 		notes: [...notes],
+		...(instructions ? { instructions } : {}),
 	};
 }
 

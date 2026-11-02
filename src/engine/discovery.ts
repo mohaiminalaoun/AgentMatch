@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import { brainstormedWith, contactOf, type AgentState } from "./agent.js";
 import { brainOf, type LlmClient } from "./client.js";
 import { isOpen, teamListing, teamOf } from "./commitment.js";
@@ -10,7 +10,7 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import { GOOD_TEAM } from "./goals.js";
+import { GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
 import {
 	BRAINSTORM_PITCH,
 	JOIN_PREFIX,
@@ -125,6 +125,7 @@ export function discoveryMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, 0),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
@@ -344,7 +345,9 @@ export function brainstormMessages(
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human. Act in their interest.",
 				aboutHuman(agent, 0),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				PROJECT_EXPLORATION,
 				[
 					"Everyone below is still without a team, and so is your human. Instead of joining an existing project, you can come up with a new one together.",
 					`Pick up to ${perAgent} people to brainstorm with, best first, by their id: people whose roles would complement your human's (rolesNeeded is what each lacks), and who might share an idea worth building. An idea, where shown, is their own project idea.`,

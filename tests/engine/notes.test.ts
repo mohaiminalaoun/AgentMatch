@@ -4,17 +4,27 @@ import { createLlmClient } from "../../src/engine/client.js";
 import {
 	commitmentMessages,
 	offerMessages,
+	teamVersionMessages,
 } from "../../src/engine/commitment.js";
 import type { Config } from "../../src/engine/config.js";
-import { decisionMessages } from "../../src/engine/decision.js";
-import { discover, discoveryMessages } from "../../src/engine/discovery.js";
+import {
+	decisionMessages,
+	joinRequestMessages,
+} from "../../src/engine/decision.js";
+import {
+	brainstormMessages,
+	discover,
+	discoveryMessages,
+} from "../../src/engine/discovery.js";
+import { hunchMessages } from "../../src/engine/hunch.js";
 import {
 	interestMessages,
 	revisionMessages,
 } from "../../src/engine/interest.js";
 import { listingMessages } from "../../src/engine/listing.js";
 import { lockMessages } from "../../src/engine/lock.js";
-import { notesFor, type Note } from "../../src/engine/notes.js";
+import { guidance, notesFor, type Note } from "../../src/engine/notes.js";
+import { JOIN_PREFIX } from "../../src/engine/proposal.js";
 import { createWorld, proposalFrom, runRound } from "../../src/engine/round.js";
 import { person, sampleProfile } from "../fixtures.js";
 
@@ -225,5 +235,146 @@ describe("in a live run", () => {
 		expect(writing.join("\n")).not.toContain("zz-note-level3");
 		expect(writing.join("\n")).not.toContain("zz-note-never");
 		expect(prompts[sampleProfile.id]!.some(hunch)).toBe(true);
+	});
+
+	test("another agent's prompts, bus messages, listings, and shares never contain your instructions", async () => {
+		const marker = "zz-instruction-marker";
+		const omar = {
+			...person(
+				"omar",
+				[{ name: "ml", level: "expert" }],
+				["finance"],
+				5.5,
+			),
+			projectIdeas: [
+				{ title: "Risk dashboard", description: "A dashboard." },
+			],
+		};
+		const world = createWorld(
+			[sampleProfile, omar],
+			{ [sampleProfile.id]: planted },
+			{ [sampleProfile.id]: marker },
+		);
+		const { client, prompts } = recordingClient();
+		await discover(client, world);
+		const after = await runRound(world, client, [
+			proposalFrom(world.agents[sampleProfile.id]!, "omar", "p1")!,
+		]);
+		expect(prompts.omar!.length).toBeGreaterThan(2);
+		for (const prompt of prompts.omar!) {
+			expect(prompt).not.toContain(marker);
+		}
+		const hunch = (prompt: string) => prompt.includes("What's your steer?");
+		const writing = prompts[sampleProfile.id]!.filter((p) => !hunch(p));
+		expect(writing.join("\n")).toContain(marker);
+		expect(prompts[sampleProfile.id]!.some(hunch)).toBe(true);
+		expect(
+			prompts[sampleProfile.id]!.filter(hunch).join("\n"),
+		).not.toContain(marker);
+		const sent = JSON.stringify(
+			Object.values(after.world.agents).flatMap((agent) => [
+				agent.listing,
+				...Object.values(agent.contacts).flatMap((c) => c.history),
+			]),
+		);
+		expect(sent).not.toContain(marker);
+	});
+});
+
+describe("standing guidance", () => {
+	const marker = "zz-instruction-marker";
+	const proposal = {
+		id: "p1",
+		from: "p9",
+		to: sampleProfile.id,
+		pitch: "A carbon tracker.",
+		rolesNeeded: ["mobile"],
+	};
+	const join = {
+		...proposal,
+		pitch: `${JOIN_PREFIX}A carbon tracker.`,
+		join: true as const,
+	};
+	const revision = {
+		kind: "revision" as const,
+		from: "p9",
+		to: sampleProfile.id,
+		level: 1 as const,
+		pitch: "A carbon tracker for schools.",
+		rolesNeeded: ["mobile"],
+	};
+	const offer = {
+		kind: "offer" as const,
+		from: "p9",
+		to: sampleProfile.id,
+		team: "team-p9",
+		pitch: "A carbon tracker.",
+		rolesNeeded: ["mobile"],
+	};
+	const team = {
+		id: "team-p9",
+		members: ["p9", sampleProfile.id],
+		project: { title: "Carbon", description: "A tracker." },
+		rolesNeeded: ["mobile"],
+		status: "tentative" as const,
+	};
+
+	const promptsOf = (agent: ReturnType<typeof createAgent>) => ({
+		listing: listingMessages(agent),
+		discovery: discoveryMessages(agent, [], 3),
+		brainstorm: brainstormMessages(
+			agent,
+			[{ id: "p9", rolesNeeded: ["ml"] }],
+			3,
+		),
+		decision: decisionMessages(agent, proposal),
+		join: joinRequestMessages(agent, join),
+		interest: interestMessages(agent, "p9", 1),
+		revision: revisionMessages(agent, revision),
+		offer: offerMessages(agent, ["p9"], 1),
+		commitment: commitmentMessages(agent, [offer]),
+		teamVersion: teamVersionMessages(agent, ["p9"], {}),
+		lock: lockMessages(agent, team, [], 1),
+	});
+
+	test("guidance is empty without instructions, and a labeled private block with them", () => {
+		expect(guidance(createAgent(sampleProfile))).toBe("");
+		expect(guidance(createAgent(sampleProfile, [], marker))).toContain(
+			marker,
+		);
+		expect(guidance(createAgent(sampleProfile, [], marker))).toContain(
+			"standing guidance",
+		);
+		expect(guidance(createAgent(sampleProfile, [], marker))).toContain(
+			"must not quote or describe it",
+		);
+	});
+
+	test("every aboutHuman call includes the block when set, and is unchanged when unset", () => {
+		const none = promptsOf(createAgent(sampleProfile));
+		const unset = promptsOf(createAgent(sampleProfile, [], undefined));
+		const guided = promptsOf(createAgent(sampleProfile, [], marker));
+		expect(unset).toEqual(none);
+		for (const [kind, messages] of Object.entries(none)) {
+			expect(JSON.stringify(messages), kind).not.toContain(marker);
+			expect(JSON.stringify(messages), kind).not.toContain(
+				"standing guidance",
+			);
+			expect(
+				JSON.stringify(guided[kind as keyof typeof guided]),
+			).toContain(marker);
+		}
+	});
+
+	test("the hunch call never sees instructions", () => {
+		expect(
+			JSON.stringify(
+				hunchMessages(
+					createAgent(sampleProfile, planted, marker),
+					"p9",
+					"A carbon tracker.",
+				),
+			),
+		).not.toContain(marker);
 	});
 });

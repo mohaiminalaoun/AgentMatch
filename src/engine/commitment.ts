@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import {
 	agreedTerms,
 	agreedVersion,
@@ -630,6 +630,7 @@ export function offerMessages(
 			content: [
 				INTRO,
 				aboutHuman(owner, 2),
+				...(guidance(owner) ? [guidance(owner)] : []),
 				GOOD_TEAM,
 				factsAbout(owner, candidates),
 				...(together
@@ -692,6 +693,7 @@ export function teamVersionMessages(
 			content: [
 				INTRO,
 				aboutHuman(owner, 2),
+				...(guidance(owner) ? [guidance(owner)] : []),
 				factsAbout(owner, ids),
 				[
 					`Your human has no team yet and wants to offer places to ${ids.join(", ")}. You agreed a different version of the project with each, and a version can carry what only that person told you, so one person's version can't be sent to the others. Write one version for the whole team instead; every offer will carry it, and each of them can commit or decline.`,
@@ -756,6 +758,7 @@ export function commitmentMessages(
 			content: [
 				INTRO,
 				aboutHuman(agent, 2),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				[
 					"The project owners below have offered your human a place on their team. Each offer shows the version of the project the team will build.",

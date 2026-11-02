@@ -10,8 +10,9 @@ const role = z.enum(ROLES, {
 	error: `must be one of ${ROLES.join(", ")}`,
 });
 
-// One real person taking part: their profile and private notes, which their agent works from, and how
-// teammates can reach them, which no agent ever sees: it's shown only once everyone on a team approves it.
+// One real person taking part: their profile, private notes, and optional standing instructions, which their
+// agent works from, and how teammates can reach them, which no agent ever sees: it's shown only once everyone
+// on a team approves it.
 export const PilotPerson = z.object({
 	profile: Profile.safeExtend({
 		id: z.string().regex(PERSON_ID, {
@@ -26,6 +27,12 @@ export const PilotPerson = z.object({
 		}),
 	}),
 	notes: z.array(Note).default([]),
+	// Standing guidance for this person's agent: private, never shared as data. Empty is treated as unset.
+	instructions: z.preprocess(
+		(value) =>
+			typeof value === "string" ? value.trim() || undefined : value,
+		z.string().max(600).optional(),
+	),
 	contact: z.string().min(1).optional(),
 });
 

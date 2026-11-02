@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aboutHuman } from "./notes.js";
+import { aboutHuman, guidance } from "./notes.js";
 import type { AgentState } from "./agent.js";
 import { brainOf, type LlmClient } from "./client.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
@@ -35,6 +35,7 @@ export function listingMessages(agent: AgentState): Message[] {
 			content: [
 				"You are an AI agent forming hackathon teams on behalf of one person, your human.",
 				aboutHuman(agent, 0),
+				...(guidance(agent) ? [guidance(agent)] : []),
 				[
 					"Write your human's listing for the public board, which everyone sees before any conversation:",
 					"- title: a short, memorable name for the project, 1 to 4 words, like a product name (their idea's title is fine if it's good).",

@@ -71,7 +71,7 @@ describe("fitFacts", () => {
 		expect(text).not.toContain("Estimates");
 	});
 
-	test("at level 1, time zones, hours, and shared interests are facts, and the overlap is an estimate", () => {
+	test("at level 1, prompts retain clock facts without assuming working hours", () => {
 		const facts = fitFacts(atLevel(1), "p-leo");
 		expect(facts).toMatchObject({
 			timeZoneGap: 7,
@@ -85,8 +85,10 @@ describe("fitFacts", () => {
 		);
 		expect(text).toContain("Hours a week: your human 10, p-leo 28.");
 		expect(text).toContain("Interests both listed, word for word: AI.");
+		expect(text).not.toContain("their working days would overlap");
+		expect(text).not.toContain("If both worked");
 		expect(text).toContain(
-			"their working days would overlap about 1 hour a day. That is an assumption, not a fact",
+			"Time-zone differences alone do not establish a scheduling conflict.",
 		);
 		expect(text).toContain("p-leo's skills and team size: not shared yet");
 		expect(text).not.toContain("p-leo's interests, time zone");
@@ -123,7 +125,7 @@ describe("fitFacts", () => {
 	test("always says what a profile can't tell: meeting times, unlisted roles, and role count versus headcount", () => {
 		const text = factsText(fitFacts(atLevel(2), "p-leo"));
 		expect(text).toContain(
-			"Exactly when anyone works or can meet: not shared. That doesn't make a time-zone gap matter less",
+			"Exactly when anyone works or can meet, and whether synchronous work is needed: not shared.",
 		);
 		expect(text).toContain("Roles a pitch doesn't list: unknown.");
 		expect(text).toContain(
@@ -176,8 +178,9 @@ describe("groupFactsText", () => {
 		expect(text).toContain(
 			"When it's 19:00 for your human: p-leo 02:00, p-kim 20:00.",
 		);
+		expect(text).not.toContain("If everyone worked");
 		expect(text).toContain(
-			"all of them at once would overlap about 1 hour a day",
+			"Actual working hours and need for synchronous work are unknown.",
 		);
 	});
 

@@ -8,7 +8,7 @@ import {
 	removePerson,
 	savePerson,
 } from "../../src/pilot/people.js";
-import { PilotPerson } from "../../src/pilot/person.js";
+import { checkPerson, PilotPerson } from "../../src/pilot/person.js";
 
 // The example everyone copies must itself be valid.
 const example = PilotPerson.parse(
@@ -141,5 +141,43 @@ describe("saving, listing, and removing people", () => {
 		expect(removePerson(dir, "p-mine")).toBe(true);
 		expect(removePerson(dir, "p-mine")).toBe(false);
 		expect(listPeople(dir)).toEqual([]);
+	});
+});
+
+describe("checkPerson instructions", () => {
+	const personOf = (json: unknown) => {
+		const checked = checkPerson(json);
+		if (checked.problems) {
+			throw new Error(checked.problems.join("; "));
+		}
+		return checked.person;
+	};
+
+	test("accepts a value, trimmed, up to 600 characters", () => {
+		expect(
+			personOf({ ...example, instructions: "  only ML projects  " })
+				.instructions,
+		).toBe("only ML projects");
+		expect(
+			personOf({ ...example, instructions: "x".repeat(600) })
+				.instructions,
+		).toHaveLength(600);
+	});
+
+	test("treats empty or whitespace as unset", () => {
+		for (const value of ["", "   ", "\n\t"]) {
+			expect(
+				personOf({ ...example, instructions: value }).instructions,
+			).toBeUndefined();
+		}
+	});
+
+	test("rejects a value that is too long or the wrong type", () => {
+		expect(
+			checkPerson({ ...example, instructions: "x".repeat(601) }).problems,
+		).toEqual([expect.stringMatching(/^instructions /)]);
+		expect(
+			checkPerson({ ...example, instructions: 3 } as unknown).problems,
+		).toEqual([expect.stringMatching(/^instructions /)]);
 	});
 });
