@@ -24,6 +24,8 @@ const team = (id: string, members: string[]): RunEvent => ({
 // A run with a, b, and c touching every kind of event. a and b talk and form a team that c joins and
 // then leaves; b and c also talk to each other, which a never sees.
 const run: RunEvent[] = [
+	// c's agent is an outside one, which only c may know.
+	{ type: "brains", agents: { c: "mailbox:muse" } },
 	{ type: "round", time: "t", model: "m", agents: ["a", "b", "c"] },
 	...["a", "b", "c"].map((id): RunEvent => ({
 		type: "listing",
@@ -213,5 +215,18 @@ describe("eventsFor", () => {
 		expect(
 			eventsFor("b", run).find((e) => e.type === "brainstorm"),
 		).toEqual({ type: "brainstorm", agents: ["b"] });
+	});
+});
+
+describe("brains", () => {
+	test("each person sees only whether their own agent had a brain of its own", () => {
+		const brains: RunEvent = {
+			type: "brains",
+			agents: { a: "mailbox:muse", b: "other-model" },
+		};
+		expect(eventsFor("a", [brains])).toEqual([
+			{ type: "brains", agents: { a: "mailbox:muse" } },
+		]);
+		expect(eventsFor("c", [brains])).toEqual([]);
 	});
 });

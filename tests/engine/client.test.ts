@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	brainOf,
+	brainsEvent,
 	createLlmClient,
 	withBrains,
 } from "../../src/engine/client.js";
@@ -155,5 +156,19 @@ describe("brainOf", () => {
 		);
 		expect(brainOf(client, "b").model).toBe("other-model");
 		expect([shared.seen.calls(), other.seen.calls()]).toEqual([1, 1]);
+	});
+});
+
+describe("brainsEvent", () => {
+	test("records each agent with a brain of its own and its model, and nothing when all share one", () => {
+		const shared = createLlmClient(config);
+		expect(brainsEvent(shared)).toBeUndefined();
+		const client = withBrains(shared, {
+			b: createLlmClient({ ...config, model: "other-model" }),
+		});
+		expect(brainsEvent(client)).toEqual({
+			type: "brains",
+			agents: { b: "other-model" },
+		});
 	});
 });

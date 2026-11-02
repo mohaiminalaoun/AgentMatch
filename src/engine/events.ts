@@ -182,6 +182,13 @@ export const RunEvent = z.discriminatedUnion("type", [
 	}),
 	// A team formed, gained a member, or lost one.
 	z.object({ type: z.literal("team"), team: Team }),
+	// Agents that think with a brain of their own instead of the shared model, by id: "mailbox:<name>" for an
+	// outside agent answering through the mailbox as <name>, otherwise the model it uses. Emitted once, before
+	// anything else, by runs where some agents have one (`withBrains`).
+	z.object({
+		type: z.literal("brains"),
+		agents: z.record(z.string(), z.string()),
+	}),
 	// The normal rounds are over, and the people still without a team start brainstorming together.
 	z.object({ type: z.literal("brainstorm"), agents: z.array(z.string()) }),
 	// A simulation ended: after a round that changed nothing, or at its round limit.

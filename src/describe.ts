@@ -84,6 +84,14 @@ export function formatEvent(
 			return `  ${event.agent} rechecks ${event.team} after it grew → ${event.decision}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
 		case "lock":
 			return `  ${event.agent} at the deadline${event.ask === 2 ? " (asked again)" : ""}: ${event.confident ? "confident, stays in" : "drops out of"} ${event.team}${event.fellBack ? " (fell back)" : ""}${reasoning(event.rationale)}`;
+		case "brains":
+			return `brains · ${Object.entries(event.agents)
+				.map(([id, brain]) =>
+					brain.startsWith("mailbox:")
+						? `${id} answers through the mailbox as ${brain.slice("mailbox:".length)}`
+						: `${id} thinks with ${brain}`,
+				)
+				.join(" · ")}`;
 		case "brainstorm":
 			return `\nbrainstorm · ${event.agents.length} people still without a team: ${event.agents.join(", ")}`;
 		case "stopped":

@@ -1,5 +1,5 @@
 import React from "react";
-import type { IdeaVersion } from "./replay.js";
+import type { Card, IdeaVersion } from "./replay.js";
 
 // "a03" → "Agent 03", "p4" → "Agent 04", and a pilot id like "p-c41e" → "Agent c41e".
 export const agentLabel = (id: string) =>
@@ -76,7 +76,60 @@ function Version({
 					</span>
 				))}
 			</div>
+			<CardDetails
+				card={v.card}
+				roles={v.rolesNeeded}
+				before={before?.card}
+			/>
 		</>
+	);
+}
+
+// A version's project card: the problem, the weekend build, and what each needed role would build. Given
+// `before`, only what changed from it is shown. Shows nothing when there's no card, as in older logs.
+export function CardDetails({
+	card,
+	roles,
+	before,
+	compact = false,
+}: {
+	card: Card;
+	roles: readonly string[];
+	before?: Card | undefined;
+	compact?: boolean;
+}) {
+	const problem =
+		card.problem && card.problem !== before?.problem
+			? card.problem
+			: undefined;
+	const build =
+		card.build && card.build !== before?.build ? card.build : undefined;
+	const work = roles.flatMap((role) => {
+		const text = card.roleWork?.[role];
+		return text && text !== before?.roleWork?.[role] ? [[role, text]] : [];
+	});
+	if (!problem && !build && work.length === 0) return null;
+	return (
+		<dl className={`card-details${compact ? " compact" : ""}`}>
+			{problem && (
+				<div>
+					<dt>Problem</dt>
+					<dd>{problem}</dd>
+				</div>
+			)}
+			{build && (
+				<div>
+					<dt>Weekend build</dt>
+					<dd>{build}</dd>
+				</div>
+			)}
+			{work.map(([role, text]) => (
+				<div key={role}>
+					<dt className="card-role">{role}</dt>
+					<dd>{text}</dd>
+				</div>
+			))}
+		</dl>
 	);
 }
 

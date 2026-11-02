@@ -8,7 +8,7 @@
 // else thinks with LLM_MODEL. The engine referees it the same way: schema, gate, and safe defaults.
 import { formatSummary } from "./describe.js";
 import { z } from "zod";
-import { createLlmClient, withBrains } from "./engine/client.js";
+import { brainsEvent, createLlmClient, withBrains } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import type { RunEvent } from "./engine/events.js";
 import { createMailboxBrain } from "./engine/mailbox-brain.js";
@@ -100,18 +100,24 @@ try {
 	console.log(
 		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request)` : ""}\n`,
 	);
+	const onEvent = (event: RunEvent) => {
+		events.push(event);
+		log.write(event);
+		if (event.type === "exchange") {
+			status.call(event.usage?.total ?? 0);
+		}
+	};
+	// Which agents think with a brain of their own, recorded first so the log and the UI can mark them.
+	const brains = brainsEvent(client);
+	if (brains) {
+		onEvent(brains);
+	}
 	const world = await runPilot(client, people, {
 		fill,
 		cast,
 		seed,
 		maxRounds,
-		onEvent: (event) => {
-			events.push(event);
-			log.write(event);
-			if (event.type === "exchange") {
-				status.call(event.usage?.total ?? 0);
-			}
-		},
+		onEvent,
 		onPhase: (line) => status.print(`▸ ${line}`),
 	});
 	status.stop();

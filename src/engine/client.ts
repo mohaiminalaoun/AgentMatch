@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { withRetry, type RetryOptions } from "./backoff.js";
 import type { Config } from "./config.js";
+import type { RunEvent } from "./events.js";
 import {
 	chat,
 	chatJson,
@@ -56,6 +57,20 @@ export function withBrains(
 	brains: Readonly<Record<string, LlmClient>>,
 ): LlmClient {
 	return { ...client, brains: { ...client.brains, ...brains } };
+}
+
+// The run event recording which agents have a brain of their own, and what it is (its `model`: a model id, or
+// "mailbox:<name>" for an outside agent), so logs and the UI can mark them. None if every agent shares one.
+export function brainsEvent(client: LlmClient): RunEvent | undefined {
+	const entries = Object.entries(client.brains ?? {});
+	return entries.length > 0
+		? {
+				type: "brains",
+				agents: Object.fromEntries(
+					entries.map(([id, brain]) => [id, brain.model]),
+				),
+			}
+		: undefined;
 }
 
 export type ClientOptions = {

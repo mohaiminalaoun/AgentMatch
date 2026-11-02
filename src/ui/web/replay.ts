@@ -3,12 +3,41 @@ import type { AgentMessage } from "../../engine/agent.js";
 import type { RunEvent } from "../../engine/events.js";
 
 export type Event = RunEvent;
-export type Person = {
+export type Person = Card & {
 	id: string;
 	pitch: string;
 	roles: string[];
 	name?: string;
 };
+
+// The project card a version of a project carries from level 0 on, beyond its title, pitch, and roles: the
+// problem and who has it, what a weekend build includes, and what each needed role would build. Older logs
+// have none.
+export type Card = {
+	problem?: string | undefined;
+	build?: string | undefined;
+	roleWork?: Record<string, string> | undefined;
+};
+const CardFields = z.object({
+	problem: z.string().optional(),
+	build: z.string().optional(),
+	roleWork: z.record(z.string(), z.string()).optional(),
+});
+// The card of any version-like value from the log, keeping only well-formed parts, so a malformed card shows
+// nothing rather than breaking the replay. Role work is kept only for the roles the version needs.
+export function cardOf(value: unknown, rolesNeeded?: readonly string[]): Card {
+	const parsed = CardFields.safeParse(value);
+	if (!parsed.success) return {};
+	const { problem, build, roleWork } = parsed.data;
+	const work = Object.entries(roleWork ?? {}).filter(
+		([role, text]) => text && (!rolesNeeded || rolesNeeded.includes(role)),
+	);
+	return {
+		...(problem && { problem }),
+		...(build && { build }),
+		...(work.length > 0 && { roleWork: Object.fromEntries(work) }),
+	};
+}
 export const demoPeople: Person[] = [
 	{
 		id: "a01",
@@ -358,6 +387,7 @@ const schemas: Record<string, z.ZodType> = {
 		})
 		.passthrough(),
 	brainstorm: z.object({ agents: ids }).passthrough(),
+	brains: z.object({ agents: z.record(id, z.string()) }).passthrough(),
 	stopped: z
 		.object({
 			rounds: z.number().int().nonnegative(),
@@ -416,6 +446,10 @@ export function describe(e: Event): string {
 			return `${e.agent} checked privately with their human’s notes`;
 		case "brainstorm":
 			return `${e.agents.length} people without a team start brainstorming together`;
+		case "brains":
+			return Object.entries(e.agents)
+				.map(([agent, brain]) => brainText(agent, brainOf(brain)))
+				.join(" · ");
 		case "stopped":
 			return e.reason === "stable"
 				? `Run settled after ${e.rounds} rounds`
@@ -626,6 +660,8 @@ export type IdeaVersion = {
 	title?: string | undefined;
 	pitch: string;
 	rolesNeeded: string[];
+	// The version's project card, when the log has one.
+	card: Card;
 	status:
 		| "open"
 		| "accepted"
@@ -695,6 +731,7 @@ export function ideaVersions(
 				title: m.title,
 				pitch: joins ? m.pitch.slice(JOIN_PREFIX.length) : m.pitch,
 				rolesNeeded: m.rolesNeeded,
+				card: cardOf(m, m.rolesNeeded),
 				status: "open",
 				why: reason,
 			});
@@ -708,6 +745,7 @@ export function ideaVersions(
 				title: m.title,
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
+				card: cardOf(m, m.rolesNeeded),
 				status: "open",
 				why: reason,
 			});
@@ -725,6 +763,7 @@ export function ideaVersions(
 				title: m.title,
 				pitch: m.pitch,
 				rolesNeeded: m.rolesNeeded,
+				card: cardOf(m, m.rolesNeeded),
 				status: "open",
 				why: reason,
 			});
@@ -876,7 +915,7 @@ function reasons(pair: Event[]): (m: AgentMessage) => string | undefined {
 }
 // One entry on the public board: what any agent could see about someone, plus how many agents approached
 // them, which only the operator sees.
-export type BoardEntry = {
+export type BoardEntry = Card & {
 	id: string;
 	// Missing for someone looking to join, whom the board shows by id only.
 	pitch?: string;
@@ -894,7 +933,7 @@ export type BoardEntry = {
 export function board(events: Event[]): BoardEntry[] {
 	const listings = new Map<
 		string,
-		{ pitch: string; rolesNeeded: string[] }
+		Card & { pitch: string; rolesNeeded: string[] }
 	>();
 	const everyone = new Set<string>();
 	const approachers = new Map<string, Set<string>>();
@@ -909,6 +948,7 @@ export function board(events: Event[]): BoardEntry[] {
 			listings.set(e.agent, {
 				pitch: e.pitch,
 				rolesNeeded: e.rolesNeeded,
+				...cardOf(e, e.rolesNeeded),
 			});
 		}
 		if (e.type === "discovery") {
@@ -988,6 +1028,7 @@ export function project(events: Event[]) {
 				id: e.agent,
 				pitch: e.pitch,
 				roles: e.rolesNeeded,
+				...cardOf(e, e.rolesNeeded),
 			});
 		if (e.type === "discovery")
 			for (const b of e.approach) {
@@ -1025,4 +1066,40 @@ export function project(events: Event[]) {
 		gates,
 		tick,
 	};
+}
+
+// What an agent thinks with, when it isn't the shared model: an outside agent answering through the mailbox as
+// `name`, or a different model.
+export type Brain =
+	{ kind: "outside"; name: string } | { kind: "model"; model: string };
+function brainOf(label: string): Brain {
+	return label.startsWith("mailbox:")
+		? { kind: "outside", name: label.slice("mailbox:".length) }
+		: { kind: "model", model: label };
+}
+// One line explaining an agent's brain, for the feed and the badge's tooltip.
+export function brainText(agent: string, brain: Brain): string {
+	return brain.kind === "outside"
+		? `${agent} answered through the mailbox as an outside agent (${brain.name}); the arena checked every answer the same way`
+		: `${agent} thought with a different model (${brain.model}); the arena checked every answer the same way`;
+}
+// Which agents had a brain of their own in this run, by id. Newer logs say so in a "brains" event. Older ones
+// only show it in the model calls an outside agent answered ("mailbox:<name>"), whose prompt names the agent
+// it answered for in its profile; the call itself is never shown.
+export function brains(events: Event[]): Map<string, Brain> {
+	const found = new Map<string, Brain>();
+	for (const e of events) {
+		if (e.type === "brains")
+			for (const [agent, label] of Object.entries(e.agents))
+				found.set(agent, brainOf(label));
+	}
+	if (found.size > 0) return found;
+	for (const e of events) {
+		if (e.type !== "exchange" || !e.model?.startsWith("mailbox:")) continue;
+		const agent = e.messages
+			.map((m) => /"id": "([^"]+)"/.exec(m.content)?.[1])
+			.find(Boolean);
+		if (agent && !found.has(agent)) found.set(agent, brainOf(e.model));
+	}
+	return found;
 }

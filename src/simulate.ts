@@ -7,7 +7,7 @@
 // fixed cast built from real hackathon ideas instead of generated ones, and each team is judged against the
 // cast's expected groups.
 import { formatEvent, formatSummary } from "./describe.js";
-import { createLlmClient, withBrains } from "./engine/client.js";
+import { brainsEvent, createLlmClient, withBrains } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
 import type { RunEvent } from "./engine/events.js";
 import { createRunLog } from "./engine/runlog.js";
@@ -63,19 +63,25 @@ try {
 	console.log(
 		`${agents} agents · up to ${maxRounds} rounds · seed ${seed} · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${brainModel ? ` · ${brainAgent} thinks with ${brainModel}` : ""}\n`,
 	);
+	const onEvent = (event: RunEvent) => {
+		events.push(event);
+		log.write(event);
+		if (event.type === "exchange") {
+			status.call(event.usage?.total ?? 0);
+		}
+		const line = formatEvent(event, { rationale: showPrivate });
+		if (line !== undefined) {
+			status.print(line);
+		}
+	};
+	// Which agents think with a brain of their own, recorded first so the log and the UI can mark them.
+	const brains = brainsEvent(client);
+	if (brains) {
+		onEvent(brains);
+	}
 	const world = await runSimulation(client, profiles, {
 		maxRounds,
-		onEvent: (event) => {
-			events.push(event);
-			log.write(event);
-			if (event.type === "exchange") {
-				status.call(event.usage?.total ?? 0);
-			}
-			const line = formatEvent(event, { rationale: showPrivate });
-			if (line !== undefined) {
-				status.print(line);
-			}
-		},
+		onEvent,
 		onPhase: (line) => status.print(`\n▸ ${line}`),
 	});
 	status.stop();

@@ -25,6 +25,17 @@ describe("formatEvent", () => {
 		);
 	});
 
+	test("says which agents answer through the mailbox and which think with another model", () => {
+		expect(
+			formatEvent({
+				type: "brains",
+				agents: { "p-me": "mailbox:muse", p1: "muse-wonder-1.0" },
+			}),
+		).toBe(
+			"brains · p-me answers through the mailbox as muse · p1 thinks with muse-wonder-1.0",
+		);
+	});
+
 	test("model calls have no line of their own", () => {
 		expect(
 			formatEvent({

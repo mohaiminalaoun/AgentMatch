@@ -1007,6 +1007,64 @@ h1 > span {
 	text-decoration: line-through;
 	border-style: dashed;
 }
+/* A version's project card: problem, weekend build, and each needed role's work. */
+.card-details {
+	margin: 7px 0 0;
+	display: grid;
+	gap: 4px;
+}
+.card-details > div {
+	display: grid;
+	grid-template-columns: 78px 1fr;
+	gap: 6px;
+	align-items: baseline;
+}
+.card-details dt {
+	font-size: 8px;
+	font-weight: 650;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	color: #8a7f95;
+}
+.card-details dt.card-role {
+	text-transform: none;
+	letter-spacing: 0;
+	font-size: 9px;
+	color: #6a5d84;
+}
+.card-details dd {
+	margin: 0;
+	font-size: 10px;
+	line-height: 1.4;
+	color: #4f4a58;
+}
+.card-details.compact > div {
+	grid-template-columns: 64px 1fr;
+}
+.card-details.compact dd {
+	font-size: 9px;
+}
+/* An agent with a brain of its own: an outside agent, or a different model. */
+.brain-badge {
+	font-size: 8px;
+	font-weight: 600;
+	border-radius: 4px;
+	padding: 3px 6px;
+	white-space: nowrap;
+	color: #2f5f94;
+	background: #edf4fc;
+	border: 1px solid #d5e5f7;
+	cursor: help;
+}
+.brain-badge.model {
+	color: #6a5d84;
+	background: #f4f0fa;
+	border-color: #e6def2;
+}
+.node-brain {
+	fill: #2f5f94;
+	font-weight: 600;
+}
 .idea-meta {
 	font-size: 9px;
 	color: #716979;
@@ -2494,4 +2552,11 @@ h1 > span {
 	font-weight: 600;
 	color: #6b5a7a;
 	margin: 6px 0 0;
+}
+/* The badge sits next to the board status, and below the inspector's status pill. */
+.board-card-top > strong {
+	margin-right: auto;
+}
+.profile-header .brain-badge {
+	margin-top: 6px;
 }

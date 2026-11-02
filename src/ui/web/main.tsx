@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import {
 	board,
+	brains,
+	brainText,
 	codeNotes,
 	demoEvents,
 	describe,
@@ -43,16 +45,30 @@ import {
 	project,
 	teamStory,
 	type BoardEntry,
+	type Brain,
 	type Event,
 } from "./replay.js";
 import "./style.css";
 import { groupAgents } from "./layout.js";
 import { AgentCharacter, type Mood } from "./AgentCharacter.js";
-import { IdeaCard } from "./IdeaCard.js";
+import { CardDetails, IdeaCard } from "./IdeaCard.js";
 import { TeamStory } from "./TeamStory.js";
 const colors = ["#9079e5", "#59a7a0", "#c49b57", "#d48497", "#7e9cbf"];
 // "a03" → "3", "p4" → "4", and a pilot id like "p-c41e" → "c41e".
 const short = (id: string) => id.replace(/^a0?/, "").replace(/^p-?/, "");
+// A small mark for an agent with a brain of its own: an outside agent answering through the mailbox, or a
+// different model. Its tooltip says what that means.
+function BrainBadge({ id, brain }: { id: string; brain: Brain | undefined }) {
+	if (!brain) return null;
+	return (
+		<span
+			className={`brain-badge ${brain.kind}`}
+			title={brainText(id, brain)}
+		>
+			{brain.kind === "outside" ? "outside agent" : "other model"}
+		</span>
+	);
+}
 const agentName = (id: string) => `Agent ${short(id).padStart(2, "0")}`;
 // What each board status says on a card, and the hover text that explains it.
 const statusText: Record<BoardEntry["status"], [string, string]> = {
@@ -151,6 +167,8 @@ function App() {
 		[events, cursor],
 	);
 	const current = people.find((p) => p.id === selected);
+	// Agents with a brain of their own, from the whole log: it's known from the start of the run.
+	const agentBrains = useMemo(() => brains(events), [events]);
 	// Clicking the selected agent again deselects it.
 	const toggleAgent = (id: string) => {
 		setSelected((s) => (s === id ? "" : id));
@@ -948,6 +966,30 @@ function App() {
 															{short(
 																p.id,
 															).padStart(2, "0")}
+															{agentBrains.has(
+																p.id,
+															) && (
+																<tspan className="node-brain">
+																	{agentBrains.get(
+																		p.id,
+																	)!.kind ===
+																	"outside"
+																		? " · outside"
+																		: " · other model"}
+																</tspan>
+															)}
+															{agentBrains.has(
+																p.id,
+															) && (
+																<title>
+																	{brainText(
+																		p.id,
+																		agentBrains.get(
+																			p.id,
+																		)!,
+																	)}
+																</title>
+															)}
 														</text>
 													</g>
 												);
@@ -1036,9 +1078,24 @@ function App() {
 																][0]
 															}
 														</span>
+														<BrainBadge
+															id={b.id}
+															brain={agentBrains.get(
+																b.id,
+															)}
+														/>
 													</div>
 													{b.pitch !== undefined ? (
-														<p>“{b.pitch}”</p>
+														<>
+															<p>“{b.pitch}”</p>
+															<CardDetails
+																card={b}
+																roles={
+																	b.rolesNeeded
+																}
+																compact
+															/>
+														</>
 													) : (
 														<p className="board-seeker">
 															Looking to join.
@@ -1409,6 +1466,10 @@ function App() {
 												? "Found a team"
 												: "Exploring possibilities"}
 										</span>
+										<BrainBadge
+											id={current.id}
+											brain={agentBrains.get(current.id)}
+										/>
 										<span className="agent-id">
 											{current.id} · independent personal
 											agent
@@ -1442,6 +1503,10 @@ function App() {
 												<p className="pitch">
 													“{current.pitch}”
 												</p>
+												<CardDetails
+													card={current}
+													roles={current.roles}
+												/>
 												<div className="detail-label">
 													LOOKING FOR
 												</div>

@@ -39,6 +39,11 @@ export function eventsFor(id: string, events: readonly RunEvent[]): RunEvent[] {
 					: [];
 			case "exchange":
 				return [];
+			// Whether someone else's agent is an outside one isn't public yet; their own entry is theirs.
+			case "brains": {
+				const brain = event.agents[id];
+				return brain ? [{ ...event, agents: { [id]: brain } }] : [];
+			}
 			// Decisions, discovery, interest checks, hunches, revision answers, levels, offers, commitments,
 			// rechecks, and deadline answers: each is one agent's own step, with its private reasoning.
 			default:
