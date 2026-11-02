@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+	ArrowLeft,
 	ArrowRight,
 	Check,
 	ChevronDown,
@@ -127,24 +128,59 @@ function App() {
 		[showMessages, setShowMessages] = useState(false),
 		// Another agent whose conversation with the selected one fills the Activity tab.
 		[partner, setPartner] = useState(""),
-		// The team whose story is open under its card, if any.
+		// The team whose detail view (its card and how it formed) fills the Teams tab, if any.
 		[openTeam, setOpenTeam] = useState(""),
-		// The team a click on its name in the network asked to see, scrolled to and highlighted in the Teams tab.
+		// The team card to scroll to and highlight in the Teams grid, after closing its detail view.
 		[focusTeam, setFocusTeam] = useState("");
 	const file = useRef<HTMLInputElement>(null);
-	// From the network, show a team's card in the Teams tab: switch tabs, then scroll to it and highlight it.
+	const teamsPanel = useRef<HTMLDivElement>(null);
+	// Open a team's detail view in the Teams tab. It gets a #team= hash, so the browser's Back closes it; the
+	// replay lives in memory, so the hash can't bring a team back after a reload and is cleared on load.
 	const showTeam = (id: string) => {
-		setFocusTeam(id);
 		setView("teams");
+		setOpenTeam(id);
+		if (location.hash !== `#team=${id}`)
+			history.pushState(null, "", `#team=${id}`);
+		teamsPanel.current?.scrollTo({ top: 0 });
+	};
+	// Back to the grid, scrolled to the team just viewed.
+	const closeTeam = () => {
+		if (location.hash.startsWith("#team=")) history.back();
+		else {
+			setFocusTeam(openTeam);
+			setOpenTeam("");
+		}
 	};
 	useEffect(() => {
-		if (view !== "teams" || !focusTeam) return;
+		if (location.hash.startsWith("#team="))
+			history.replaceState(null, "", location.pathname + location.search);
+		const onPop = () => {
+			const id = /^#team=(.+)$/.exec(location.hash)?.[1];
+			setOpenTeam((open) => {
+				if (!id && open) setFocusTeam(open);
+				return id ?? "";
+			});
+			if (id) setView("teams");
+		};
+		addEventListener("popstate", onPop);
+		return () => removeEventListener("popstate", onPop);
+	}, []);
+	useEffect(() => {
+		if (view !== "teams" || !openTeam) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") closeTeam();
+		};
+		addEventListener("keydown", onKey);
+		return () => removeEventListener("keydown", onKey);
+	});
+	useEffect(() => {
+		if (view !== "teams" || openTeam || !focusTeam) return;
 		document
 			.getElementById(`team-card-${focusTeam}`)
-			?.scrollIntoView({ behavior: "smooth", block: "center" });
+			?.scrollIntoView({ block: "center" });
 		const done = setTimeout(() => setFocusTeam(""), 1800);
 		return () => clearTimeout(done);
-	}, [view, focusTeam]);
+	}, [view, openTeam, focusTeam]);
 	// The network panel and inspector go full screen together, so an open conversation stays visible.
 	const studio = useRef<HTMLDivElement>(null);
 	// Chart units per screen pixel, for drawing the speech bubble at a fixed size.
@@ -1438,17 +1474,25 @@ function App() {
 										</div>
 									</div>
 								) : (
-									<div className="teams-view">
-										<div className="eyebrow">
-											WHEN POSSIBILITIES BECOME PEOPLE
-										</div>
-										<h2>Better, together.</h2>
-										<p>
-											Agent commitments from this replay.
-											Your review is saved for this
-											session.
-										</p>
-										{!state.teams.length && (
+									<div
+										className="teams-view"
+										ref={teamsPanel}
+									>
+										{!openTeam && (
+											<>
+												<div className="eyebrow">
+													WHEN POSSIBILITIES BECOME
+													PEOPLE
+												</div>
+												<h2>Better, together.</h2>
+												<p>
+													Agent commitments from this
+													replay. Your review is saved
+													for this session.
+												</p>
+											</>
+										)}
+										{!openTeam && !state.teams.length && (
 											<div className="empty-state">
 												<Users size={28} />
 												<h3>
@@ -1473,161 +1517,219 @@ function App() {
 												</button>
 											</div>
 										)}
-										{state.teams.map((t, i) => (
-											<article
-												id={`team-card-${t.id}`}
-												className={[
-													"team-card",
-													openTeam === t.id && "open",
-													focusTeam === t.id &&
-														"focused",
-												]
-													.filter(Boolean)
-													.join(" ")}
-												key={t.id}
-											>
-												<div className="team-card-top">
-													<div
-														className="team-avatar"
-														style={{
-															background:
-																colors[
-																	i %
-																		colors.length
-																],
-														}}
-													>
-														<Users size={21} />
-													</div>
-													<span>{t.status}</span>
-												</div>
-												<h3>{t.project.title}</h3>
-												<p>{t.project.description}</p>
-												<div className="team-member-row">
-													{t.members.map((id) => (
-														<button
-															key={id}
-															onClick={() => {
-																setSelected(id);
-																setView(
-																	"network",
-																);
+										{(() => {
+											const teamCard = (
+												t: (typeof state.teams)[number],
+												i: number,
+												detail: boolean,
+											) => (
+												<article
+													id={
+														detail
+															? undefined
+															: `team-card-${t.id}`
+													}
+													className={[
+														"team-card",
+														detail && "detail",
+														focusTeam === t.id &&
+															"focused",
+													]
+														.filter(Boolean)
+														.join(" ")}
+													key={t.id}
+												>
+													<div className="team-card-top">
+														<div
+															className="team-avatar"
+															style={{
+																background:
+																	colors[
+																		i %
+																			colors.length
+																	],
 															}}
 														>
-															Agent {short(id)}
+															<Users size={21} />
+														</div>
+														<span>{t.status}</span>
+													</div>
+													<h3>{t.project.title}</h3>
+													<p>
+														{t.project.description}
+													</p>
+													<div className="team-member-row">
+														{t.members.map((id) => (
+															<button
+																key={id}
+																onClick={() => {
+																	setSelected(
+																		id,
+																	);
+																	setView(
+																		"network",
+																	);
+																}}
+															>
+																Agent{" "}
+																{short(id)}
+															</button>
+														))}
+													</div>
+													{!detail && (
+														<button
+															className="team-story-toggle"
+															onClick={() =>
+																showTeam(t.id)
+															}
+														>
+															How it formed
+															<ArrowRight
+																size={14}
+															/>
 														</button>
-													))}
-												</div>
-												<button
-													className="team-story-toggle"
-													aria-expanded={
-														openTeam === t.id
-													}
-													onClick={() =>
-														setOpenTeam((o) =>
-															o === t.id
-																? ""
-																: t.id,
-														)
-													}
-												>
-													<ChevronDown size={15} />
-													{openTeam === t.id
-														? "Hide how it formed"
-														: "How it formed"}
-												</button>
-												{openTeam === t.id && (
-													<TeamStory
-														story={teamStory(
-															visibleEvents,
-															t,
-														)}
-														team={t}
-														events={visibleEvents}
-														showPrivate={
-															privateView
-														}
-														onTogglePrivate={() =>
-															setPrivate(
-																(v) => !v,
-															)
-														}
-														colorOf={characterColor}
-														onOpenConversation={
-															openConversation
-														}
-													/>
-												)}
-												<div className="approval-row">
-													{approvals[t.id] ? (
-														<span className="approval-status">
-															<Check size={15} />
-															{
-																approvals[t.id]
-															}{" "}
-															locally{" "}
-															<button
-																onClick={() =>
-																	setApprovals(
-																		(a) => {
-																			const next =
-																				{
-																					...a,
-																				};
-																			delete next[
-																				t
-																					.id
-																			];
-																			return next;
-																		},
-																	)
-																}
-															>
-																Undo
-															</button>
-														</span>
-													) : (
-														<>
-															<button
-																className="button primary"
-																onClick={() =>
-																	setApprovals(
-																		(
-																			a,
-																		) => ({
-																			...a,
-																			[t.id]:
-																				"Approved",
-																		}),
-																	)
-																}
-															>
+													)}
+													<div className="approval-row">
+														{approvals[t.id] ? (
+															<span className="approval-status">
 																<Check
-																	size={14}
-																/>{" "}
-																Approve team
-															</button>
-															<button
-																className="button"
-																onClick={() =>
-																	setApprovals(
-																		(
-																			a,
-																		) => ({
-																			...a,
-																			[t.id]:
-																				"Rejected",
-																		}),
+																	size={15}
+																/>
+																{
+																	approvals[
+																		t.id
+																	]
+																}{" "}
+																locally{" "}
+																<button
+																	onClick={() =>
+																		setApprovals(
+																			(
+																				a,
+																			) => {
+																				const next =
+																					{
+																						...a,
+																					};
+																				delete next[
+																					t
+																						.id
+																				];
+																				return next;
+																			},
+																		)
+																	}
+																>
+																	Undo
+																</button>
+															</span>
+														) : (
+															<>
+																<button
+																	className="button primary"
+																	onClick={() =>
+																		setApprovals(
+																			(
+																				a,
+																			) => ({
+																				...a,
+																				[t.id]:
+																					"Approved",
+																			}),
+																		)
+																	}
+																>
+																	<Check
+																		size={
+																			14
+																		}
+																	/>{" "}
+																	Approve team
+																</button>
+																<button
+																	className="button"
+																	onClick={() =>
+																		setApprovals(
+																			(
+																				a,
+																			) => ({
+																				...a,
+																				[t.id]:
+																					"Rejected",
+																			}),
+																		)
+																	}
+																>
+																	Pass
+																</button>
+															</>
+														)}
+													</div>
+												</article>
+											);
+											const i = state.teams.findIndex(
+												(t) => t.id === openTeam,
+											);
+											const t = state.teams[i];
+											if (!openTeam)
+												return state.teams.map((t, i) =>
+													teamCard(t, i, false),
+												);
+											return (
+												<div className="team-detail">
+													<button
+														type="button"
+														className="team-back"
+														onClick={closeTeam}
+													>
+														<ArrowLeft size={14} />{" "}
+														All teams
+													</button>
+													{t ? (
+														<>
+															{teamCard(
+																t,
+																i,
+																true,
+															)}
+															<TeamStory
+																story={teamStory(
+																	visibleEvents,
+																	t,
+																)}
+																team={t}
+																events={
+																	visibleEvents
+																}
+																showPrivate={
+																	privateView
+																}
+																onTogglePrivate={() =>
+																	setPrivate(
+																		(v) =>
+																			!v,
 																	)
 																}
-															>
-																Pass
-															</button>
+																colorOf={
+																	characterColor
+																}
+																onOpenConversation={
+																	openConversation
+																}
+															/>
 														</>
+													) : (
+														<p className="team-detail-missing">
+															This team hasn’t
+															formed at this point
+															in the replay. Play
+															on, or go back to
+															all teams.
+														</p>
 													)}
 												</div>
-											</article>
-										))}
+											);
+										})()}
 									</div>
 								)}
 							</div>

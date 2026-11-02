@@ -2381,11 +2381,6 @@ h1 > span {
 		height: 212px;
 	}
 }
-/* A team's story, opened under its card: the card takes the full width so the history has room. */
-.team-card.open {
-	width: 100%;
-	margin-right: 0;
-}
 .team-story-toggle {
 	display: flex;
 	align-items: center;
@@ -2394,8 +2389,9 @@ h1 > span {
 	color: #7b648d;
 	margin: -6px 0 13px;
 }
-.team-story-toggle[aria-expanded="true"] svg {
-	transform: rotate(180deg);
+.team-story-toggle:hover {
+	color: #5a4b73;
+	text-decoration: underline;
 }
 .team-story {
 	border-top: 1px solid #f0eaf5;
@@ -3400,4 +3396,31 @@ h1 > span {
 		border-color: #eae3f0;
 		box-shadow: none;
 	}
+}
+
+/* One team's detail view in the Teams tab: its card full width, then how it formed. */
+.team-detail {
+	display: grid;
+	gap: 14px;
+}
+.team-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	width: fit-content;
+	font-size: 13px;
+	color: #6a5d84;
+}
+.team-back:hover {
+	color: #4b3f5c;
+	text-decoration: underline;
+}
+.team-card.detail {
+	display: block;
+	width: 100%;
+	margin: 0;
+}
+.team-detail-missing {
+	font-size: 14px;
+	color: #73687b;
 }
