@@ -14,9 +14,4 @@ export default defineConfig({
 			},
 		},
 	],
-	build: {
-		rollupOptions: {
-			input: { main: "index.html", people: "people.html" },
-		},
-	},
 });

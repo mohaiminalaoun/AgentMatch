@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useRef, useState } from "react";
 import { FileUp, RefreshCw, Save, Trash2, Users, Wand2 } from "lucide-react";
 import example from "../../../profiles/example.json";
 import { checkPerson, newPersonId } from "../../pilot/person.js";
@@ -49,7 +48,8 @@ const pretty = (json: unknown) => JSON.stringify(json, null, 2);
 const levelName = (level: number | "never") =>
 	level === "never" ? "never shared" : `level ${level}`;
 
-function People() {
+/** The People view: add, check, and remove the real people in the pilot. */
+export function People() {
 	const [text, setText] = useState("");
 	const [people, setPeople] = useState<PersonSummary[]>([]);
 	// The outcome of the last save or upload, one line per file or person.
@@ -163,9 +163,8 @@ function People() {
 	};
 
 	return (
-		<main className="people-page">
+		<section className="people-page" aria-label="People in the pilot">
 			<header>
-				<a href="/">AgentMatch</a>
 				<h1>
 					<Users size={20} /> People in the pilot
 				</h1>
@@ -328,12 +327,6 @@ function People() {
 					regular (not <code>-contributor</code>) model.
 				</p>
 			</section>
-		</main>
+		</section>
 	);
 }
-
-createRoot(document.getElementById("root")!).render(
-	<React.StrictMode>
-		<People />
-	</React.StrictMode>,
-);

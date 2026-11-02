@@ -56,6 +56,7 @@ import {
 } from "./replay.js";
 import "./style.css";
 import { groupAgents } from "./layout.js";
+import { People } from "./people.js";
 import { AgentCharacter, type Mood } from "./AgentCharacter.js";
 import { CardDetails, IdeaCard, RoleCards } from "./IdeaCard.js";
 import { TeamStory } from "./TeamStory.js";
@@ -110,6 +111,11 @@ const trustDots = (level: number) => (
 	</span>
 );
 
+/** The pages of the app: the replay studio at /, and People at /people. */
+type Page = "studio" | "people";
+const pageAt = (): Page =>
+	location.pathname.replace(/\/$/, "") === "/people" ? "people" : "studio";
+
 function App() {
 	const [events, setEvents] = useState<Event[]>(demoEvents),
 		[cursor, setCursor] = useState(68),
@@ -118,6 +124,8 @@ function App() {
 		[selected, setSelected] = useState("a01"),
 		[tab, setTab] = useState("Overview"),
 		[view, setView] = useState("network"),
+		// Which page fills the workspace: the replay studio, or People at /people.
+		[page, setPage] = useState<Page>(pageAt),
 		[source, setSource] = useState("The first connections"),
 		[error, setError] = useState(""),
 		[privateView, setPrivate] = useState(false),
@@ -132,6 +140,25 @@ function App() {
 		// The team card to scroll to and highlight in the Teams grid, after closing its detail view.
 		[focusTeam, setFocusTeam] = useState("");
 	const file = useRef<HTMLInputElement>(null);
+	// Go to a page and give it its own URL, so Back returns. The studio stays mounted (hidden) on People,
+	// so the loaded run and where you were in it are still there on the way back; playback pauses.
+	const go = (to: Page) => {
+		setPage(to);
+		if (to === "people") setPlaying(false);
+		const path = to === "people" ? "/people" : "/";
+		if (location.pathname !== path) history.pushState(null, "", path);
+	};
+	// A studio view from the rail, leaving People if it's open.
+	const showView = (to: string) => {
+		go("studio");
+		setView(to);
+	};
+	useEffect(() => {
+		document.title =
+			page === "people"
+				? "People in the pilot · AgentMatch"
+				: "AgentMatch — The meeting of minds";
+	}, [page]);
 	const teamsPanel = useRef<HTMLDivElement>(null);
 	// Open a team's detail view in the Teams tab. It gets a #team= hash, so the browser's Back closes it; the
 	// replay lives in memory, so the hash can't bring a team back after a reload and is cleared on load.
@@ -154,6 +181,7 @@ function App() {
 		if (location.hash.startsWith("#team="))
 			history.replaceState(null, "", location.pathname + location.search);
 		const onPop = () => {
+			setPage(pageAt());
 			const id = /^#team=(.+)$/.exec(location.hash)?.[1];
 			setOpenTeam((open) => {
 				if (!id && open) setFocusTeam(open);
@@ -511,51 +539,73 @@ function App() {
 	return (
 		<div className="app-shell">
 			<aside className="rail">
-				<a className="brand-mark" href="#" aria-label="AgentMatch home">
+				<a
+					className="brand-mark"
+					href="/"
+					aria-label="AgentMatch home"
+					onClick={(e) => {
+						e.preventDefault();
+						go("studio");
+					}}
+				>
 					<Network size={25} />
 				</a>
 				<button
 					className={
-						view === "network"
+						page === "studio" && view === "network"
 							? "rail-button active"
 							: "rail-button"
 					}
 					title="Network"
-					onClick={() => setView("network")}
+					onClick={() => showView("network")}
 				>
 					<Network size={21} />
 				</button>
 				<button
 					className={
-						view === "teams" ? "rail-button active" : "rail-button"
+						page === "studio" && view === "teams"
+							? "rail-button active"
+							: "rail-button"
 					}
 					title="Teams"
-					onClick={() => setView("teams")}
+					onClick={() => showView("teams")}
 				>
 					<Users size={21} />
 					{state.teams.length > 0 && <i />}
 				</button>
 				<button
 					className={
-						view === "board" ? "rail-button active" : "rail-button"
+						page === "studio" && view === "board"
+							? "rail-button active"
+							: "rail-button"
 					}
 					title="Board"
-					onClick={() => setView("board")}
+					onClick={() => showView("board")}
 				>
 					<ClipboardList size={21} />
 				</button>
 				<button
 					className="rail-button"
 					title="Import a run"
-					onClick={() => file.current?.click()}
+					onClick={() => {
+						go("studio");
+						file.current?.click();
+					}}
 				>
 					<Upload size={21} />
 				</button>
 				<a
-					className="rail-button"
-					href="/people.html"
+					className={
+						page === "people" ? "rail-button active" : "rail-button"
+					}
+					href="/people"
 					title="People in the pilot"
 					aria-label="People in the pilot"
+					aria-current={page === "people" ? "page" : undefined}
+					onClick={(e) => {
+						e.preventDefault();
+						go("people");
+					}}
 				>
 					<UserPlus size={21} />
 				</a>
@@ -578,7 +628,11 @@ function App() {
 					</div>
 					<div className="breadcrumb">
 						Workspace <ChevronRight size={13} />{" "}
-						<span>Simulation studio</span>
+						<span>
+							{page === "people"
+								? "People in the pilot"
+								: "Simulation studio"}
+						</span>
 					</div>
 					<div className="top-right">
 						<span className="local-badge">
@@ -594,7 +648,7 @@ function App() {
 						</button>
 					</div>
 				</header>
-				<div className="workspace">
+				<div className="workspace" hidden={page === "people"}>
 					<section className="page-title">
 						<div>
 							<div className="eyebrow">
@@ -2411,6 +2465,11 @@ function App() {
 						</span>
 					</footer>
 				</div>
+				{page === "people" && (
+					<div className="workspace">
+						<People />
+					</div>
+				)}
 			</main>
 			{showHelp && (
 				<div className="modal-backdrop" onClick={() => setHelp(false)}>

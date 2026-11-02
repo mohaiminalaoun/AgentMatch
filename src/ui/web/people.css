@@ -1,5 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap");
-:root {
+/* The People view, inside the app shell. Every rule is scoped to it, since it
+   shares the page with the replay studio; :where() keeps each rule as specific
+   as it was on a page of its own. */
+.people-page {
 	--bg: #f7f8fa;
 	--panel: #fff;
 	--ink: #353542;
@@ -14,21 +16,16 @@
 	font-family: "DM Sans", sans-serif;
 	font-size: 14px;
 	color: var(--ink);
-	background: var(--bg);
 }
-* {
+:where(.people-page) * {
 	box-sizing: border-box;
 }
-body {
-	margin: 0;
-	background: var(--bg);
-}
-button,
-textarea {
+:where(.people-page) button,
+:where(.people-page) textarea {
 	font: inherit;
 	color: inherit;
 }
-code {
+:where(.people-page) code {
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	font-size: 0.9em;
 	background: var(--accent-soft);
@@ -38,21 +35,15 @@ code {
 .people-page {
 	max-width: 880px;
 	margin: 0 auto;
-	padding: 32px 16px 64px;
+	padding: 0 0 48px;
 	display: grid;
 	gap: 20px;
-}
-.people-page header a {
-	color: var(--accent);
-	font:
-		700 13px Manrope,
-		sans-serif;
-	text-decoration: none;
 }
 .people-page h1 {
 	font:
 		750 26px Manrope,
 		sans-serif;
+	letter-spacing: -0.4px;
 	display: flex;
 	align-items: center;
 	gap: 10px;
@@ -95,12 +86,12 @@ code {
 	border-color: var(--accent);
 	color: var(--accent);
 }
-button:disabled {
+:where(.people-page) button:disabled {
 	opacity: 0.45;
 	cursor: not-allowed;
 }
-button:focus-visible,
-textarea:focus-visible {
+:where(.people-page) button:focus-visible,
+:where(.people-page) textarea:focus-visible {
 	outline: 3px solid #b8a0ea;
 	outline-offset: 2px;
 }
@@ -126,11 +117,11 @@ textarea:focus-visible {
 	display: grid;
 	gap: 2px;
 }
-.good {
+:where(.people-page) .good {
 	background: var(--good-soft);
 	color: var(--good);
 }
-.bad {
+:where(.people-page) .bad {
 	background: var(--bad-soft);
 	color: var(--bad);
 }
