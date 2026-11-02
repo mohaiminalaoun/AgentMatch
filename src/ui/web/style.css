@@ -2082,16 +2082,66 @@ h1 > span {
 	display: block;
 	pointer-events: none;
 }
+/* Each character sets --breath-duration, --blink-duration, --gesture-duration,
+   and --motion-delay inline, so characters side by side never move in step. */
+.character-gesture,
 .character-body {
 	transform-origin: 80px 177px;
 }
+.character-body {
+	animation: character-breathe var(--breath-duration, 3.6s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+.character-shadow {
+	transform-origin: 80px 184px;
+	animation: shadow-breathe var(--breath-duration, 3.6s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
 .character-eyes {
 	transform-origin: 80px 82px;
-	animation: character-blink 6s infinite;
+	animation: character-blink var(--blink-duration, 6s) infinite
+		var(--motion-delay, 0s);
 }
+/* Pitching: waves and bounces on each beat of the wave. */
 .mood-pitching .character-wave-pivot {
 	transform-origin: 0px 0px;
-	animation: shoulder-wave 2.5s ease-in-out infinite;
+	animation: shoulder-wave var(--gesture-duration, 3s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+.mood-pitching .character-gesture {
+	animation: pitch-bounce var(--gesture-duration, 3s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+/* Declining: a polite sway side to side, eyes glancing away. */
+.mood-declining .character-gesture {
+	animation: character-no var(--gesture-duration, 3s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+.mood-declining .character-eyes {
+	animation:
+		character-blink var(--blink-duration, 6s) infinite
+			var(--motion-delay, 0s),
+		eyes-aside var(--gesture-duration, 3s) ease-in-out
+			var(--motion-delay, 0s) infinite;
+}
+/* Matched: a happy hop with squash and stretch, and sparkles drifting up. */
+.mood-matched .character-gesture {
+	animation: character-hop var(--gesture-duration, 3s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+.mood-matched .character-shadow {
+	animation: shadow-hop var(--gesture-duration, 3s) ease-in-out
+		var(--motion-delay, 0s) infinite;
+}
+.character-spark {
+	opacity: 0;
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: spark-rise var(--gesture-duration, 3s) ease-out
+		var(--motion-delay, 0s) infinite;
+}
+.character-spark + .character-spark {
+	animation-delay: calc(var(--motion-delay, 0s) - 0.35s);
 }
 @keyframes shoulder-wave {
 	0%,
@@ -2144,10 +2194,19 @@ h1 > span {
 @keyframes character-breathe {
 	0%,
 	100% {
-		transform: translateY(0);
+		transform: translateY(0) scale(1, 1);
 	}
 	50% {
-		transform: translateY(-3px);
+		transform: translateY(-3px) scale(0.985, 1.015);
+	}
+}
+@keyframes shadow-breathe {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(0.93);
 	}
 }
 @keyframes character-blink {
@@ -2161,44 +2220,93 @@ h1 > span {
 		transform: scaleY(0.12);
 	}
 }
-@keyframes character-wave {
+@keyframes pitch-bounce {
 	0%,
 	45%,
 	100% {
-		rotate: 0deg;
+		transform: translateY(0);
 	}
-	15%,
-	35% {
-		rotate: -30deg;
+	12%,
+	32% {
+		transform: translateY(-4px);
 	}
-	25% {
-		rotate: -8deg;
+	22% {
+		transform: translateY(0);
 	}
 }
 @keyframes character-no {
 	0%,
 	15%,
-	40%,
+	44%,
 	100% {
 		transform: rotate(0deg);
 	}
 	22%,
-	34% {
+	36% {
 		transform: rotate(-4deg);
 	}
-	28% {
+	29% {
 		transform: rotate(4deg);
+	}
+}
+@keyframes eyes-aside {
+	0%,
+	12%,
+	50%,
+	100% {
+		translate: 0 0;
+	}
+	18%,
+	42% {
+		translate: -4px 1px;
 	}
 }
 @keyframes character-hop {
 	0%,
-	10%,
-	30%,
+	36%,
 	100% {
-		transform: translateY(0) scale(1);
+		transform: translateY(0) scale(1, 1);
 	}
-	20% {
-		transform: translateY(-7px) scale(0.98, 1.02);
+	8% {
+		transform: translateY(0) scale(1.05, 0.94);
+	}
+	18% {
+		transform: translateY(-10px) scale(0.96, 1.05);
+	}
+	27% {
+		transform: translateY(0) scale(1.06, 0.93);
+	}
+	32% {
+		transform: translateY(0) scale(0.99, 1.01);
+	}
+}
+@keyframes shadow-hop {
+	0%,
+	8%,
+	27%,
+	100% {
+		transform: scale(1);
+	}
+	18% {
+		transform: scale(0.78);
+	}
+}
+@keyframes spark-rise {
+	0%,
+	16% {
+		opacity: 0;
+		translate: 0 4px;
+		scale: 0.3;
+	}
+	26% {
+		opacity: 1;
+		scale: 1.1;
+	}
+	60%,
+	100% {
+		opacity: 0;
+		translate: 0 -14px;
+		scale: 0.5;
 	}
 }
 @keyframes sprout-sway {
@@ -2346,8 +2454,14 @@ h1 > span {
 	.character-eyes,
 	.character-arm,
 	.character-wave-pivot,
-	.character-sprout {
+	.character-sprout,
+	.character-gesture,
+	.character-shadow,
+	.character-spark {
 		animation: none !important;
+	}
+	.character-spark {
+		opacity: 0.8;
 	}
 }
 @media (min-width: 1051px) {

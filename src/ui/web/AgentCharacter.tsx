@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 export type Mood = "idle" | "pitching" | "declining" | "matched";
 export function AgentCharacter({
 	color = "#28bbae",
@@ -21,7 +21,9 @@ export function AgentCharacter({
 	x?: number;
 	y?: number;
 }) {
-	const gradient = useId().replaceAll(":", "");
+	const id = useId();
+	const gradient = id.replaceAll(":", "");
+	const timing = characterTiming(id);
 	return (
 		<svg
 			viewBox="0 0 160 200"
@@ -30,6 +32,7 @@ export function AgentCharacter({
 			x={x}
 			y={y}
 			className={`agent-character mood-${mood}`}
+			style={timing}
 			aria-hidden="true"
 		>
 			<defs>
@@ -57,41 +60,29 @@ export function AgentCharacter({
 				fill="#33345a"
 				opacity=".13"
 			/>
-			<g className="character-body">
-				{sprout && (
-					<g className="character-sprout">
-						<path
-							d="M80 37 Q79 13 92 5"
-							fill="none"
-							stroke="#45956b"
-							strokeWidth="4"
-							strokeLinecap="round"
-						/>
-						<ellipse
-							cx="95"
-							cy="7"
-							rx="13"
-							ry="6"
-							transform="rotate(-27 95 7)"
-							fill="#7ed797"
-						/>
-					</g>
-				)}
-				<g transform="translate(29 101)">
-					<g transform="rotate(20)">
-						<ellipse cy="14" rx="12" ry="22" fill={color} />
-						<ellipse
-							cy="14"
-							rx="12"
-							ry="22"
-							fill="#143e48"
-							opacity=".18"
-						/>
-					</g>
-				</g>
-				<g transform="translate(131 101)">
-					<g className="character-wave-pivot">
-						<g transform="rotate(-20)">
+			<g className="character-gesture">
+				<g className="character-body">
+					{sprout && (
+						<g className="character-sprout">
+							<path
+								d="M80 37 Q79 13 92 5"
+								fill="none"
+								stroke="#45956b"
+								strokeWidth="4"
+								strokeLinecap="round"
+							/>
+							<ellipse
+								cx="95"
+								cy="7"
+								rx="13"
+								ry="6"
+								transform="rotate(-27 95 7)"
+								fill="#7ed797"
+							/>
+						</g>
+					)}
+					<g transform="translate(29 101)">
+						<g transform="rotate(20)">
 							<ellipse cy="14" rx="12" ry="22" fill={color} />
 							<ellipse
 								cy="14"
@@ -102,115 +93,166 @@ export function AgentCharacter({
 							/>
 						</g>
 					</g>
-				</g>
-				<g fill={color}>
-					<ellipse cx="59" cy="173" rx="13" ry="11" />
-					<ellipse cx="101" cy="173" rx="13" ry="11" />
-				</g>
-				<rect
-					x="27"
-					y="32"
-					width="106"
-					height="142"
-					rx="53"
-					fill={`url(#${gradient})`}
-				/>
-				<ellipse
-					cx="48"
-					cy="52"
-					rx="9"
-					ry="16"
-					transform="rotate(32 48 52)"
-					fill="white"
-					opacity=".4"
-				/>
-				<g className="character-eyes">
-					<ellipse
-						cx="64"
-						cy="82"
-						rx="7"
-						ry={mood === "matched" ? 6 : 7}
-						fill="#172b3c"
-					/>
-					<ellipse
-						cx="96"
-						cy="82"
-						rx="7"
-						ry={mood === "matched" ? 6 : 7}
-						fill="#172b3c"
-					/>
-					<circle cx="66" cy="79" r="2.4" fill="white" />
-					<circle cx="98" cy="79" r="2.4" fill="white" />
-				</g>
-				{mood === "matched" && (
-					<>
-						<ellipse
-							cx="51"
-							cy="98"
-							rx="7"
-							ry="4"
-							fill="#ffdad4"
-							opacity=".55"
-						/>
-						<ellipse
-							cx="109"
-							cy="98"
-							rx="7"
-							ry="4"
-							fill="#ffdad4"
-							opacity=".55"
-						/>
-						<path
-							d="M75 99 Q80 105 85 99"
-							fill="none"
-							stroke="#17404a"
-							strokeWidth="2"
-							strokeLinecap="round"
-						/>
-					</>
-				)}
-				<rect
-					x="51"
-					y="119"
-					width="58"
-					height="30"
-					rx="15"
-					fill="#163b46"
-					opacity=".35"
-				/>
-				{[0, 1, 2].map((i) => (
-					<circle
-						key={i}
-						cx={65 + i * 15}
-						cy="134"
-						r="5.3"
-						fill="white"
-						opacity={i < level ? 1 : 0.3}
-					/>
-				))}
-				{badge && (
-					<g>
-						<circle
-							cx="111"
-							cy="113"
-							r="16"
-							fill="#fff"
-							stroke="#518ce2"
-							strokeWidth="4"
-						/>
-						<text
-							x="111"
-							y="118"
-							textAnchor="middle"
-							fill="#243247"
-							fontSize="14"
-							fontWeight="600"
-						>
-							{badge}
-						</text>
+					<g transform="translate(131 101)">
+						<g className="character-wave-pivot">
+							<g transform="rotate(-20)">
+								<ellipse cy="14" rx="12" ry="22" fill={color} />
+								<ellipse
+									cy="14"
+									rx="12"
+									ry="22"
+									fill="#143e48"
+									opacity=".18"
+								/>
+							</g>
+						</g>
 					</g>
-				)}
+					<g fill={color}>
+						<ellipse cx="59" cy="173" rx="13" ry="11" />
+						<ellipse cx="101" cy="173" rx="13" ry="11" />
+					</g>
+					<rect
+						x="27"
+						y="32"
+						width="106"
+						height="142"
+						rx="53"
+						fill={`url(#${gradient})`}
+					/>
+					<ellipse
+						cx="48"
+						cy="52"
+						rx="9"
+						ry="16"
+						transform="rotate(32 48 52)"
+						fill="white"
+						opacity=".4"
+					/>
+					<g className="character-eyes">
+						<ellipse
+							cx="64"
+							cy="82"
+							rx="7"
+							ry={mood === "matched" ? 6 : 7}
+							fill="#172b3c"
+						/>
+						<ellipse
+							cx="96"
+							cy="82"
+							rx="7"
+							ry={mood === "matched" ? 6 : 7}
+							fill="#172b3c"
+						/>
+						<circle cx="66" cy="79" r="2.4" fill="white" />
+						<circle cx="98" cy="79" r="2.4" fill="white" />
+					</g>
+					{mood === "matched" && (
+						<>
+							<ellipse
+								cx="51"
+								cy="98"
+								rx="7"
+								ry="4"
+								fill="#ffdad4"
+								opacity=".55"
+							/>
+							<ellipse
+								cx="109"
+								cy="98"
+								rx="7"
+								ry="4"
+								fill="#ffdad4"
+								opacity=".55"
+							/>
+							<path
+								d="M75 99 Q80 105 85 99"
+								fill="none"
+								stroke="#17404a"
+								strokeWidth="2"
+								strokeLinecap="round"
+							/>
+						</>
+					)}
+					<rect
+						x="51"
+						y="119"
+						width="58"
+						height="30"
+						rx="15"
+						fill="#163b46"
+						opacity=".35"
+					/>
+					{[0, 1, 2].map((i) => (
+						<circle
+							key={i}
+							cx={65 + i * 15}
+							cy="134"
+							r="5.3"
+							fill="white"
+							opacity={i < level ? 1 : 0.3}
+						/>
+					))}
+					{badge && (
+						<g>
+							<circle
+								cx="111"
+								cy="113"
+								r="16"
+								fill="#fff"
+								stroke="#518ce2"
+								strokeWidth="4"
+							/>
+							<text
+								x="111"
+								y="118"
+								textAnchor="middle"
+								fill="#243247"
+								fontSize="14"
+								fontWeight="600"
+							>
+								{badge}
+							</text>
+						</g>
+					)}
+				</g>
 			</g>
+			{mood === "matched" && (
+				<g className="character-sparks" fill="#f5a524">
+					<path
+						className="character-spark"
+						d={SPARK}
+						transform="translate(124 34) scale(1.5)"
+					/>
+					<path
+						className="character-spark"
+						d={SPARK}
+						transform="translate(14 54) scale(1.1)"
+					/>
+				</g>
+			)}
 		</svg>
 	);
+}
+
+const SPARK = "M8 0 Q9 7 16 8 Q9 9 8 16 Q7 9 0 8 Q7 7 8 0 Z";
+
+/**
+ * Per-character timing, so a row (or a whole network) of characters never
+ * breathes, blinks, or gestures in step. Derived from the instance id, so it
+ * is stable across renders.
+ */
+function characterTiming(id: string): CSSProperties {
+	let hash = 0;
+	for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+	// Mix the bits, so ids that differ in one character spread out.
+	hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b) >>> 0;
+	hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b) >>> 0;
+	const pick = (salt: number, min: number, max: number) =>
+		min + (((hash >>> salt) % 1000) / 1000) * (max - min);
+	return {
+		"--breath-duration": `${pick(0, 3.2, 4.4).toFixed(2)}s`,
+		"--blink-duration": `${pick(3, 5, 7.5).toFixed(2)}s`,
+		"--gesture-duration": `${pick(6, 2.6, 3.4).toFixed(2)}s`,
+		"--motion-delay": `${(-pick(9, 0, 4)).toFixed(2)}s`,
+	} as CSSProperties;
 }
