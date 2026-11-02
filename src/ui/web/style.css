@@ -863,75 +863,6 @@ h1 > span {
 	color: #73677e;
 	background: #fdfbff;
 }
-.disclosure-card {
-	background: linear-gradient(125deg, #fbf9fd, #f8f6fb);
-	border: 1px solid #eee8f4;
-	border-radius: 8px;
-	padding: 13px 12px;
-	margin: 0 0 22px;
-}
-.disclosure-card > div:first-child {
-	display: flex;
-	align-items: center;
-	gap: 7px;
-	color: #776588;
-}
-.disclosure-card strong {
-	font-size: 13px;
-	font-weight: 500;
-}
-.disclosure-card > p {
-	font-size: 11px;
-	color: #72697a;
-	margin: 6px 0 15px 23px;
-}
-.level-row {
-	display: flex;
-	align-items: center;
-	gap: 9px;
-	font-size: 11px;
-	color: #6f6975;
-	padding: 6px 0;
-	position: relative;
-}
-.level-row > span {
-	display: grid;
-	place-items: center;
-	border-radius: 50%;
-	width: 16px;
-	height: 16px;
-	background: #eeebf3;
-	color: #706b76;
-	z-index: 1;
-}
-.level-row:not(:nth-last-child(2)):after {
-	content: "";
-	height: 12px;
-	position: absolute;
-	top: 23px;
-	left: 7px;
-	width: 1px;
-	background: #e6dfee;
-}
-.level-row.unlocked {
-	color: #766686;
-}
-.level-row.unlocked > span {
-	background: #e8e0f2;
-	color: #77658a;
-}
-.level-row small {
-	margin-left: auto;
-	font-size: 10px;
-	color: #716a78;
-}
-.disclosure-footnote {
-	display: block;
-	font-size: 10px;
-	color: #716978;
-	margin-top: 9px;
-	line-height: 1.5;
-}
 .connection-list {
 	margin-top: 8px;
 }
@@ -2003,18 +1934,6 @@ h1 > span {
 .node-label {
 	fill: #766684;
 }
-.level-row {
-	color: #74687e;
-}
-.level-row.unlocked {
-	color: #79628f;
-}
-.disclosure-card > p {
-	color: #766682;
-}
-.disclosure-footnote {
-	color: #766780;
-}
 .inspector-footer {
 	color: #766781;
 }
@@ -2640,4 +2559,109 @@ h1 > span {
 }
 .idea-card .role-cards {
 	margin: 10px 0 12px;
+}
+
+/* The key to the trust levels, at the bottom left of the chart: folded to one line that cycles through
+   the stages, or opened to list them all. */
+.trust-key {
+	position: absolute;
+	left: 16px;
+	bottom: 14px;
+	z-index: 2;
+	display: flex;
+	flex-direction: column-reverse;
+	align-items: flex-start;
+	gap: 6px;
+}
+.trust-key > button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 10px;
+	font-size: 11px;
+	color: #6f6579;
+	background: #fff;
+	border: 1px solid #e7e1ef;
+	border-radius: 999px;
+	cursor: pointer;
+}
+.trust-key > button:hover {
+	background: #faf8fd;
+}
+.trust-key.open > button > svg:last-child {
+	transform: rotate(180deg);
+}
+.trust-cycle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 190px;
+	animation: trust-fade 4s ease-in-out both;
+}
+.trust-cycle small {
+	font-size: 10px;
+	font-weight: 600;
+	color: #6a5d84;
+}
+@keyframes trust-fade {
+	0% {
+		opacity: 0;
+	}
+	14%,
+	86% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+.trust-dots {
+	display: inline-flex;
+	gap: 2px;
+}
+.trust-dots > i {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #e3dcee;
+}
+.trust-dots > i.on {
+	background: #8d79b8;
+}
+.trust-key-card {
+	width: 250px;
+	padding: 10px 12px;
+	background: #fff;
+	border: 1px solid #e7e1ef;
+	border-radius: 10px;
+	box-shadow: 0 6px 20px #3c31511a;
+}
+.trust-key-card p {
+	margin: 0 0 8px;
+	font-size: 11px;
+	color: #6f6579;
+}
+.trust-key-card > div {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 3px 0;
+	font-size: 12px;
+	color: #3f3548;
+}
+.trust-key-card .trust-dots {
+	flex: none;
+	width: 28px;
+}
+.trust-key-card small {
+	flex: none;
+	width: 16px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #6a5d84;
+}
+@media (prefers-reduced-motion: reduce) {
+	.trust-cycle {
+		animation: none;
+	}
 }

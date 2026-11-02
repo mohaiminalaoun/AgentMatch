@@ -92,6 +92,21 @@ const statusText: Record<BoardEntry["status"], [string, string]> = {
 		"The team is built on their idea and still has places, so they stay on the board to fill them.",
 	],
 };
+// What each disclosure level shares; level n lights n + 1 dots in the chart's key.
+const trustLevels = [
+	"Project idea",
+	"Interests & availability",
+	"Skills & preferences",
+	"Identity · after commitment",
+];
+const trustDots = (level: number) => (
+	<span className="trust-dots" aria-hidden="true">
+		{[0, 1, 2, 3].map((i) => (
+			<i key={i} className={i <= level ? "on" : ""} />
+		))}
+	</span>
+);
+
 function App() {
 	const [events, setEvents] = useState<Event[]>(demoEvents),
 		[cursor, setCursor] = useState(68),
@@ -118,6 +133,17 @@ function App() {
 	const chart = useRef<SVGSVGElement>(null);
 	const [unitsPerPx, setUnitsPerPx] = useState(1);
 	const [fullscreen, setFullscreen] = useState(false);
+	// The chart's key to the trust levels: folded to one line that cycles the stages, or opened to list them all.
+	const [trustOpen, setTrustOpen] = useState(false);
+	const [trustStep, setTrustStep] = useState(0);
+	useEffect(() => {
+		if (trustOpen) return;
+		const timer = setInterval(
+			() => setTrustStep((n) => (n + 1) % trustLevels.length),
+			4000,
+		);
+		return () => clearInterval(timer);
+	}, [trustOpen]);
 	// A wider inspector (twice the width) for reading long text; the chart takes the leftover space.
 	const [wide, setWide] = useState(() => {
 		try {
@@ -1143,6 +1169,62 @@ function App() {
 												On a team
 											</span>
 										</div>
+										<div
+											className={`trust-key${trustOpen ? " open" : ""}`}
+										>
+											<button
+												type="button"
+												aria-expanded={trustOpen}
+												title={
+													trustOpen
+														? "Fold the trust levels"
+														: "Show the trust levels"
+												}
+												onClick={() =>
+													setTrustOpen((o) => !o)
+												}
+											>
+												<ShieldCheck size={13} />
+												{trustOpen ? (
+													<span className="trust-key-title">
+														Trust unfolds in stages
+													</span>
+												) : (
+													<span
+														className="trust-cycle"
+														key={trustStep}
+													>
+														{trustDots(trustStep)}
+														<small>
+															L{trustStep}
+														</small>
+														{trustLevels[trustStep]}
+													</span>
+												)}
+												<ChevronDown size={12} />
+											</button>
+											{trustOpen && (
+												<div className="trust-key-card">
+													<p>
+														Shared only after mutual
+														interest.
+													</p>
+													{trustLevels.map(
+														(label, i) => (
+															<div key={label}>
+																{trustDots(i)}
+																<small>
+																	L{i}
+																</small>
+																<span>
+																	{label}
+																</span>
+															</div>
+														),
+													)}
+												</div>
+											)}
+										</div>
 									</>
 								) : view === "board" ? (
 									<div className="teams-view board-view">
@@ -1662,79 +1744,6 @@ function App() {
 															Open to a great idea
 														</p>
 													)}
-												</div>
-												<div className="disclosure-card">
-													<div>
-														<ShieldCheck
-															size={16}
-														/>
-														<strong>
-															Trust unfolds in
-															stages
-														</strong>
-													</div>
-													<p>
-														Shared only after mutual
-														interest.
-													</p>
-													{[
-														"Project idea",
-														"Interests & availability",
-														"Skills & preferences",
-														"Identity · after commitment",
-													].map((label, i) => {
-														const level = Math.max(
-															0,
-															...state.links
-																.filter(
-																	(l) =>
-																		l.a ===
-																			current.id ||
-																		l.b ===
-																			current.id,
-																)
-																.map(
-																	(l) =>
-																		l.level,
-																),
-															teamFor(current.id)
-																? 3
-																: 0,
-														);
-														return (
-															<div
-																className={`level-row ${i <= level ? "unlocked" : ""}`}
-																key={label}
-															>
-																<span>
-																	{i <=
-																	level ? (
-																		<Check
-																			size={
-																				11
-																			}
-																		/>
-																	) : (
-																		<LockKeyhole
-																			size={
-																				10
-																			}
-																		/>
-																	)}
-																</span>
-																<div>
-																	{label}
-																</div>
-																<small>
-																	L{i}
-																</small>
-															</div>
-														);
-													})}
-													<span className="disclosure-footnote">
-														Highest level reached
-														with any connection
-													</span>
 												</div>
 												<div className="detail-label">
 													CONNECTIONS{" "}
