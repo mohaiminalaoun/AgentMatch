@@ -14,7 +14,6 @@ import {
 	Fingerprint,
 	FlaskConical,
 	GitBranch,
-	Layers3,
 	LockKeyhole,
 	Maximize2,
 	Minimize2,
@@ -550,7 +549,7 @@ function App() {
 					title="Import a run"
 					onClick={() => file.current?.click()}
 				>
-					<Layers3 size={21} />
+					<Upload size={21} />
 				</button>
 				<a
 					className="rail-button"
