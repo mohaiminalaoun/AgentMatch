@@ -4,6 +4,7 @@ import { AgentCharacter } from "./AgentCharacter.js";
 import { agentLabel as name, Reasoning } from "./IdeaCard.js";
 import { IdeaTimeline } from "./IdeaTimeline.js";
 import type { Event, teamStory, TeamStep } from "./replay.js";
+import { brains } from "./replay.js";
 import {
 	ideaTimeline,
 	roleName,
@@ -91,6 +92,7 @@ export function TeamStory({
 	onOpenConversation: (a: string, b: string) => void;
 }) {
 	const { owner, founder, idea } = story;
+	const agentBrains = useMemo(() => brains(events), [events]);
 	const timeline = useMemo(() => ideaTimeline(idea, team), [idea, team]);
 	const section = useMemo(
 		() => teamSection(events, story, team, timeline),
@@ -156,6 +158,16 @@ export function TeamStory({
 					{section.members.map((m) => (
 						<li key={m.id}>
 							<AgentCharacter
+								muse={
+									agentBrains.get(m.id)?.kind === "outside" &&
+									(
+										agentBrains.get(m.id) as {
+											name: string;
+										}
+									).name
+										.trim()
+										.toLowerCase() === "muse"
+								}
 								color={colorOf(m.id)}
 								width={30}
 								height={38}

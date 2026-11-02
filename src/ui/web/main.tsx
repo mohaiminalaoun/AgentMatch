@@ -72,7 +72,9 @@ function BrainBadge({ id, brain }: { id: string; brain: Brain | undefined }) {
 			className={`brain-badge ${brain.kind}`}
 			title={brainText(id, brain)}
 		>
-			{brain.kind === "outside" ? "outside agent" : "other model"}
+			{brain.kind === "outside"
+				? `${brain.name} · outside agent`
+				: "other model"}
 		</span>
 	);
 }
@@ -307,6 +309,13 @@ function App() {
 	const current = people.find((p) => p.id === selected);
 	// Agents with a brain of their own, from the whole log: it's known from the start of the run.
 	const agentBrains = useMemo(() => brains(events), [events]);
+	const isMuse = (id: string | undefined) => {
+		const brain = id ? agentBrains.get(id) : undefined;
+		return (
+			brain?.kind === "outside" &&
+			brain.name.trim().toLowerCase() === "muse"
+		);
+	};
 	// Clicking the selected agent again deselects it.
 	const toggleAgent = (id: string) => {
 		setSelected((s) => (s === id ? "" : id));
@@ -710,6 +719,7 @@ function App() {
 						</div>
 						<div className="your-character">
 							<AgentCharacter
+								muse={isMuse(current?.id)}
 								color={
 									current
 										? characterColor(current.id)
@@ -1175,6 +1185,9 @@ function App() {
 																/>
 															)}
 															<AgentCharacter
+																muse={isMuse(
+																	p.id,
+																)}
 																color={characterColor(
 																	p.id,
 																)}
@@ -1916,6 +1929,7 @@ function App() {
 									<div className="profile-header">
 										<div className="profile-avatar">
 											<AgentCharacter
+												muse={isMuse(current.id)}
 												color={characterColor(
 													current.id,
 												)}
