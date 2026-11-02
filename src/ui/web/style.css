@@ -576,6 +576,16 @@ h1 > span {
 		sans-serif;
 	letter-spacing: 0.4px;
 }
+/* A team's name in the network opens its card in the Teams tab. */
+.team-label-link {
+	cursor: pointer;
+}
+.team-label-link:hover,
+.team-label-link:focus-visible {
+	fill: #5a4b73;
+	text-decoration: underline;
+	outline: none;
+}
 .canvas-search {
 	display: flex;
 	align-items: center;
@@ -3374,4 +3384,20 @@ h1 > span {
 }
 .step-version {
 	font-size: 12px;
+}
+
+/* A team card just reached from its name in the network, highlighted for a moment. */
+.team-card.focused {
+	animation: team-card-focus 1.8s ease-out;
+}
+@keyframes team-card-focus {
+	0%,
+	40% {
+		border-color: #8b72c2;
+		box-shadow: 0 0 0 3px #e4dbf3;
+	}
+	100% {
+		border-color: #eae3f0;
+		box-shadow: none;
+	}
 }

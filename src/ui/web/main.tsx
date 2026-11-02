@@ -128,8 +128,23 @@ function App() {
 		// Another agent whose conversation with the selected one fills the Activity tab.
 		[partner, setPartner] = useState(""),
 		// The team whose story is open under its card, if any.
-		[openTeam, setOpenTeam] = useState("");
+		[openTeam, setOpenTeam] = useState(""),
+		// The team a click on its name in the network asked to see, scrolled to and highlighted in the Teams tab.
+		[focusTeam, setFocusTeam] = useState("");
 	const file = useRef<HTMLInputElement>(null);
+	// From the network, show a team's card in the Teams tab: switch tabs, then scroll to it and highlight it.
+	const showTeam = (id: string) => {
+		setFocusTeam(id);
+		setView("teams");
+	};
+	useEffect(() => {
+		if (view !== "teams" || !focusTeam) return;
+		document
+			.getElementById(`team-card-${focusTeam}`)
+			?.scrollIntoView({ behavior: "smooth", block: "center" });
+		const done = setTimeout(() => setFocusTeam(""), 1800);
+		return () => clearTimeout(done);
+	}, [view, focusTeam]);
 	// The network panel and inspector go full screen together, so an open conversation stays visible.
 	const studio = useRef<HTMLDivElement>(null);
 	// Chart units per screen pixel, for drawing the speech bubble at a fixed size.
@@ -868,11 +883,31 @@ function App() {
 														x={circles[i]!.x}
 														y={circles[i]!.titleY}
 														textAnchor="middle"
-														className="team-label"
+														className="team-label team-label-link"
+														role="link"
+														tabIndex={0}
+														aria-label={`See ${t.project.title} in the Teams tab`}
+														onClick={() =>
+															showTeam(t.id)
+														}
+														onKeyDown={(e) => {
+															if (
+																e.key ===
+																	"Enter" ||
+																e.key === " "
+															) {
+																e.preventDefault();
+																showTeam(t.id);
+															}
+														}}
 														style={{
 															fontSize: labelSize,
 														}}
 													>
+														<title>
+															See this team in the
+															Teams tab
+														</title>
 														{t.project.title}
 													</text>
 												</g>
@@ -1440,11 +1475,15 @@ function App() {
 										)}
 										{state.teams.map((t, i) => (
 											<article
-												className={
-													openTeam === t.id
-														? "team-card open"
-														: "team-card"
-												}
+												id={`team-card-${t.id}`}
+												className={[
+													"team-card",
+													openTeam === t.id && "open",
+													focusTeam === t.id &&
+														"focused",
+												]
+													.filter(Boolean)
+													.join(" ")}
 												key={t.id}
 											>
 												<div className="team-card-top">
