@@ -12,7 +12,7 @@ import {
 	type AgentState,
 } from "./agent.js";
 import { brainOf, type LlmClient } from "./client.js";
-import { stillNeeded } from "./commitment.js";
+import { assignTeamRoles, stillNeeded } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure } from "./gate.js";
@@ -130,8 +130,10 @@ export async function runLock(
 		);
 		const unchanged = teams.filter((t) => !changed.includes(t));
 		const reasked = await askAll(changed, 2, dropped);
+		// Whoever dropped out may have left a role open, or let someone else take it.
 		const final = [...unchanged, ...reasked].map((t): Team => ({
 			...t,
+			roles: assignTeamRoles({ ...world, agents }, t),
 			status: "committed",
 		}));
 		for (const team of final) {

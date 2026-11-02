@@ -22,6 +22,7 @@ import {
 	teamOf,
 	commitmentMessages,
 	explainOffers,
+	assignTeamRoles,
 	selectOffers,
 	stillNeeded,
 } from "../../src/engine/commitment.js";
@@ -236,6 +237,8 @@ describe("runCommitment", () => {
 				// The version they agreed on: here, a's listing.
 				project: { title: "a's project", description: "a's project" },
 				rolesNeeded: ["frontend"],
+				// j filled the one role the version needed.
+				roles: { j: "frontend" },
 				status: "tentative",
 			},
 		]);
@@ -1445,6 +1448,7 @@ describe("brainstormed teams", () => {
 					description: "A study-group finder for night owls.",
 				},
 				rolesNeeded: ["backend"],
+				roles: { k: "backend" },
 				status: "tentative",
 			},
 		]);
@@ -1530,5 +1534,39 @@ describe("comparing commitment options", () => {
 		]);
 		expect(system!.content).not.toContain("Option null");
 		expect(system!.content).toContain("use null to decline them all");
+	});
+});
+
+describe("who fills each role", () => {
+	test("each member after the owner gets a different role they shared a skill for", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false, 4, "frontend"),
+			human("k", false, 4, "backend"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		expect(
+			assignTeamRoles(world, {
+				members: ["a", "j", "k"],
+				rolesNeeded: ["backend", "frontend"],
+			}),
+		).toEqual({ j: "frontend", k: "backend" });
+	});
+
+	test("someone whose only role is already taken is left out", () => {
+		const world = createWorld([
+			human("a"),
+			human("j", false, 4, "frontend"),
+			human("k", false, 4, "frontend"),
+		]);
+		ready(world, "a", "j");
+		ready(world, "a", "k");
+		expect(
+			assignTeamRoles(world, {
+				members: ["a", "j", "k"],
+				rolesNeeded: ["frontend"],
+			}),
+		).toEqual({ j: "frontend" });
 	});
 });

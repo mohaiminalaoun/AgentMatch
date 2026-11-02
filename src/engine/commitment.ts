@@ -409,6 +409,25 @@ export function explainOffers(
 	return { kept, dropped };
 }
 
+// Which of a team's needed roles each member after the owner fills, as member id to role: a different role for
+// each member where one exists (members are taken in order, and one who'd leave another without a role is left
+// out). Based on the skills the owner learned from each member.
+export function assignTeamRoles(
+	world: World,
+	team: Pick<Team, "members" | "rolesNeeded">,
+): Record<string, string> {
+	const owner = team.members[0]!;
+	const takers: Taker[] = [];
+	for (const id of team.members.slice(1)) {
+		const taker = { id, roles: fills(world, owner, id, team.rolesNeeded) };
+		if (taker.roles.length > 0 && assignRoles([...takers, taker])) {
+			takers.push(taker);
+		}
+	}
+	const holders = assignRoles(takers) ?? new Map<string, string>();
+	return Object.fromEntries([...holders].map(([role, id]) => [id, role]));
+}
+
 // Someone who needs a role of their own, and the roles they could take.
 type Taker = { id: string; roles: readonly string[] };
 
@@ -1296,6 +1315,7 @@ export async function runCommitment(
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
 			status: "tentative",
 		};
+		updated.roles = assignTeamRoles(current(), updated);
 		teams = [...teams.filter((t) => t !== team), updated];
 		emit({ type: "team", team: updated });
 	}
