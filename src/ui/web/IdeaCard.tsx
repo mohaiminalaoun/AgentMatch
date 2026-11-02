@@ -68,11 +68,17 @@ export function RoleCards({
 	roles,
 	card,
 	before,
+	heading = "ROLES THEY’RE LOOKING FOR",
+	filledBy,
 }: {
 	roles: readonly string[];
 	card: Card;
 	before?: IdeaVersion | undefined;
+	heading?: string;
+	// Who on the team fills each role, as role to agent id, when it's known.
+	filledBy?: Record<string, string> | undefined;
 }) {
+	const [open, setOpen] = useState(true);
 	const dropped = before
 		? before.rolesNeeded.filter((r) => !roles.includes(r))
 		: [];
@@ -91,27 +97,49 @@ export function RoleCards({
 					</strong>
 					{work && <p>{work}</p>}
 				</div>
+				{filledBy && cls !== "dropped" && (
+					<span
+						className={`role-filled${filledBy[role] ? "" : " open"}`}
+					>
+						{filledBy[role] ? name(filledBy[role]) : "No one yet"}
+					</span>
+				)}
 			</div>
 		);
 	};
 	return (
 		<>
-			<div className="detail-label roles-label">
-				<Users size={13} /> ROLES THEY’RE LOOKING FOR{" "}
-				<span>{roles.length}</span>
-			</div>
-			<div className="role-cards">
-				{roles.map((r) =>
-					cardFor(
-						r,
-						before && !before.rolesNeeded.includes(r)
-							? "added"
-							: "",
-						card.roleWork?.[r],
-					),
-				)}
-				{dropped.map((r) => cardFor(r, "dropped", undefined))}
-			</div>
+			<button
+				type="button"
+				className="detail-label roles-label roles-toggle"
+				aria-expanded={open}
+				onClick={() => setOpen((o) => !o)}
+			>
+				<Users size={13} /> {heading} <span>{roles.length}</span>
+				<ChevronDown
+					size={13}
+					className={open ? "roles-chevron open" : "roles-chevron"}
+				/>
+			</button>
+			{!open && (
+				<p className="roles-summary">
+					{roles.map(titleCase).join(" · ")}
+				</p>
+			)}
+			{open && (
+				<div className="role-cards">
+					{roles.map((r) =>
+						cardFor(
+							r,
+							before && !before.rolesNeeded.includes(r)
+								? "added"
+								: "",
+							card.roleWork?.[r],
+						),
+					)}
+					{dropped.map((r) => cardFor(r, "dropped", undefined))}
+				</div>
+			)}
 		</>
 	);
 }
@@ -120,9 +148,13 @@ export function RoleCards({
 function Version({
 	v,
 	before,
+	roleHeading,
+	filledBy,
 }: {
 	v: IdeaVersion;
 	before?: IdeaVersion | undefined;
+	roleHeading?: string;
+	filledBy?: Record<string, string> | undefined;
 }) {
 	const renamed = v.title && v.title !== before?.title;
 	return (
@@ -134,7 +166,13 @@ function Version({
 				<p className="idea-pitch">“{v.pitch}”</p>
 			)}
 			<CardDetails card={v.card} roles={[]} before={before?.card} />
-			<RoleCards roles={v.rolesNeeded} card={v.card} before={before} />
+			<RoleCards
+				roles={v.rolesNeeded}
+				card={v.card}
+				before={before}
+				{...(roleHeading && { heading: roleHeading })}
+				filledBy={filledBy}
+			/>
 		</>
 	);
 }
@@ -269,6 +307,24 @@ function Summary({
 	);
 }
 
+// What the other side did with a version, as a footer under it: a rule separates it from the description above,
+// and a coloured chip says how it went. `by` names whose idea it is, on the left, when worth saying.
+function Outcome({ v, by }: { v: IdeaVersion; by?: string | undefined }) {
+	const tone = good.has(v.status)
+		? "good"
+		: v.status === "countered" || v.status === "kept"
+			? "warn"
+			: v.status === "declined"
+				? "bad"
+				: "wait";
+	return (
+		<div className="version-outcome">
+			{by && <span className="version-by">{by}</span>}
+			<span className={`outcome-chip ${tone}`}>{outcome(v)}</span>
+		</div>
+	);
+}
+
 // The project idea two agents are discussing, read top to bottom: how it started, each change and what
 // the other side did with it, and how it stands now. Updates as the replay plays.
 // With `showWhy`, each version can be opened to show the private reasoning behind it.
@@ -276,10 +332,13 @@ export function IdeaCard({
 	versions,
 	agreed,
 	showWhy = false,
+	filledBy,
 }: {
 	versions: IdeaVersion[];
 	agreed: number | undefined;
 	showWhy?: boolean;
+	// Who on the team fills each role of the final version, as role to agent id, once the team has formed.
+	filledBy?: Record<string, string> | undefined;
 }) {
 	const [collapsed, setCollapsed] = useState(false);
 	const first = versions[0];
@@ -304,6 +363,7 @@ export function IdeaCard({
 	return (
 		<div className="idea-card idea-block">
 			<div className="detail-label">
+				<span className="version-badge">v1</span>
 				STARTED AS
 				<button
 					type="button"
@@ -330,35 +390,33 @@ export function IdeaCard({
 			)}
 			{!collapsed && (
 				<>
-					<Version v={first} />
-					<p className="idea-meta">
-						{name(first.author)}’s idea
-						{first.how === "join" &&
-							` · ${name(first.from)} ${did.join}`}{" "}
-						·{" "}
-						<span className={good.has(first.status) ? "good" : ""}>
-							{outcome(first)}
-						</span>
-					</p>
+					<Version
+						v={first}
+						// With one version, it's also how the idea ends, so this is where who fills each role goes.
+						{...(versions.length === 1 &&
+							filledBy && {
+								roleHeading: "WHO FILLS EACH ROLE",
+								filledBy,
+							})}
+					/>
+					<Outcome
+						v={first}
+						by={`${name(first.author)}’s idea${first.how === "join" ? ` · ${name(first.from)} ${did.join}` : ""}`}
+					/>
 					<Why v={first} show={showWhy} />
 					<Offers v={first} show={showWhy} />
 					{versions.length > 1 && (
 						<ol className="idea-history">
 							{versions.slice(1).map((v, i) => (
 								<li key={i}>
-									<div className="idea-step">
-										v{i + 2} · {name(v.from)} {did[v.how]}
+									<div className="version-head">
+										<span className="version-badge">
+											v{i + 2}
+										</span>
+										{name(v.from)} {did[v.how]}
 									</div>
 									<Version v={v} before={versions[i]} />
-									<p className="idea-meta">
-										<span
-											className={
-												good.has(v.status) ? "good" : ""
-											}
-										>
-											{outcome(v)}
-										</span>
-									</p>
+									<Outcome v={v} />
 									<Why v={v} show={showWhy} />
 									<Offers v={v} show={showWhy} />
 								</li>
@@ -374,7 +432,15 @@ export function IdeaCard({
 								Unchanged since it was proposed
 							</p>
 						) : (
-							<Version v={last} />
+							<Version
+								v={last}
+								roleHeading={
+									filledBy
+										? "WHO FILLS EACH ROLE"
+										: "ROLES THIS PROJECT NEEDS"
+								}
+								filledBy={filledBy}
+							/>
 						)}
 						<p className="idea-meta">{name(last.author)}’s idea</p>
 					</div>

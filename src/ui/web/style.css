@@ -2834,3 +2834,134 @@ h1 > span {
 .activity-panel:fullscreen .activity-heading {
 	padding: 18px 32px;
 }
+
+/* Who fills a role, at the right of its card. */
+.role-filled {
+	flex: none;
+	margin-left: auto;
+	padding: 3px 9px;
+	font-size: 11px;
+	font-weight: 500;
+	color: #5a4b73;
+	background: #efeaf8;
+	border-radius: 999px;
+}
+.role-filled.open {
+	color: #8a7f95;
+	background: none;
+	border: 1px dashed #d9d2e6;
+}
+
+/* A version of the idea, set apart: a header bar where it starts, and a footer where what happened to it begins. */
+.version-badge {
+	flex: none;
+	padding: 1px 7px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	color: #5a4b73;
+	background: #e8e0f2;
+	border-radius: 999px;
+}
+.version-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 6px 0 10px;
+	padding: 6px 10px;
+	font-size: 12px;
+	font-weight: 500;
+	color: #5a4b73;
+	background: #f3effa;
+	border-radius: 7px;
+}
+.idea-history > li {
+	padding-bottom: 18px;
+}
+.version-outcome {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px 10px;
+	margin-top: 12px;
+	padding-top: 9px;
+	border-top: 1px solid #ece6f1;
+}
+.version-by {
+	font-size: 12px;
+	color: #716979;
+}
+.outcome-chip {
+	margin-left: auto;
+	padding: 2px 10px;
+	font-size: 11px;
+	font-weight: 500;
+	border-radius: 999px;
+}
+.outcome-chip.good {
+	color: #2f6a58;
+	background: #e3f2ec;
+}
+.outcome-chip.warn {
+	color: #8a5a1c;
+	background: #fbefd9;
+}
+.outcome-chip.bad {
+	color: #8c3d44;
+	background: #f9e4e6;
+}
+.outcome-chip.wait {
+	color: #716979;
+	background: #f1eff4;
+}
+.detail-label > .version-badge {
+	margin-left: 0;
+	margin-right: 2px;
+	font-size: 10px;
+	letter-spacing: 0.3px;
+	color: #5a4b73;
+}
+
+/* The roles heading folds its cards away. */
+.roles-toggle {
+	width: 100%;
+	padding: 0;
+	text-align: left;
+	cursor: pointer;
+}
+.roles-toggle:hover {
+	color: #5a4b73;
+}
+.roles-chevron {
+	flex: none;
+	margin-left: 2px;
+	transition: transform 0.15s ease;
+}
+.roles-chevron.open {
+	transform: rotate(180deg);
+}
+.roles-summary {
+	margin: 6px 0 18px;
+	font-size: 13px;
+	color: #5a5163;
+}
+
+/* A member who joined an idea they hadn't shaped, with a link to the conversation they'd had instead. */
+.team-story .team-story-joiner {
+	margin: 10px 0 0;
+	padding: 8px 10px;
+	font-size: 12px;
+	line-height: 1.5;
+	color: #5a5163;
+	background: #f7f4fb;
+	border-radius: 7px;
+}
+.team-story-joiner .link-button {
+	display: inline;
+	padding: 0;
+	font-size: inherit;
+	color: #6a5d84;
+	text-decoration: underline;
+	cursor: pointer;
+}

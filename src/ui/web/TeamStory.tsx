@@ -35,13 +35,16 @@ const good = new Set<TeamStep["what"]>(["joined", "stayed", "confirmed"]);
 export function TeamStory({
 	story,
 	members,
+	roles,
 	onOpenConversation,
 }: {
 	story: ReturnType<typeof teamStory>;
 	members: string[];
+	// Which role each member after the owner fills, as member id to role; missing in older logs.
+	roles?: Record<string, string> | undefined;
 	onOpenConversation: (a: string, b: string) => void;
 }) {
-	const { owner, founder, idea, steps } = story;
+	const { owner, founder, idea, steps, joiners } = story;
 	return (
 		<div className="team-story">
 			{founder && idea.versions.length > 0 && (
@@ -50,9 +53,35 @@ export function TeamStory({
 					<p className="team-story-note">
 						In {name(owner)}’s conversation with {name(founder)}
 					</p>
-					<IdeaCard {...idea} showWhy />
+					<IdeaCard
+						{...idea}
+						showWhy
+						filledBy={
+							roles &&
+							Object.fromEntries(
+								Object.entries(roles).map(([id, role]) => [
+									role,
+									id,
+								]),
+							)
+						}
+					/>
 				</>
 			)}
+			{joiners.map((j) => (
+				<p className="team-story-note team-story-joiner" key={j.id}>
+					{name(j.id)} joined the idea as it stood. Their own
+					conversation with {name(owner)} had agreed on{" "}
+					{j.title ? `“${j.title}”` : `“${j.pitch}”`}.{" "}
+					<button
+						type="button"
+						className="link-button"
+						onClick={() => onOpenConversation(owner, j.id)}
+					>
+						Open that conversation
+					</button>
+				</p>
+			))}
 			<div className="detail-label">HOW THE TEAM CAME TOGETHER</div>
 			<ol className="team-steps">
 				{steps.map((step, i) => (

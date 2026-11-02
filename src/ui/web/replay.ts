@@ -691,7 +691,7 @@ export function filterEvents(
 			e.event.type === "sent" &&
 			(e.event.message.from === id || e.event.message.to === id)) ||
 		(e.type === "decision" &&
-			(proposals.get(e.proposalId) ?? []).includes(id)) ||
+			(proposals.get(e.proposalId) ?? ([] as string[])).includes(id)) ||
 		(e.type === "offers" && e.to.includes(id)) ||
 		(e.type === "commitment" && e.offers.includes(id));
 	const kept = new Set<Event>();
@@ -944,6 +944,9 @@ export function teamStory(
 	founder: string | undefined;
 	idea: ReturnType<typeof ideaVersions>;
 	steps: TeamStep[];
+	// Members who joined after the idea was settled with the founder, and what they had agreed with the owner
+	// before being offered the team's version, when that was a different idea.
+	joiners: { id: string; title: string | undefined; pitch: string }[];
 } {
 	const owner = team.members[0]!;
 	const founded = events.find(
@@ -994,6 +997,22 @@ export function teamStory(
 				why: e.rationale,
 			});
 	}
+	const joiners = team.members
+		.filter((id) => id !== owner && id !== founder)
+		.flatMap((id) => {
+			const { versions } = ideaVersions(events, owner, id);
+			// What they had agreed with the owner before the team's version was offered.
+			const own = versions.filter((v) => v.how !== "offer").at(-1);
+			if (!own) return [];
+			const title = versions
+				.slice(0, versions.indexOf(own) + 1)
+				.reverse()
+				.find((v) => v.title)?.title;
+			const same =
+				own.pitch === team.project.description &&
+				(!title || title === team.project.title);
+			return same ? [] : [{ id, title, pitch: own.pitch }];
+		});
 	return {
 		owner,
 		founder,
@@ -1001,6 +1020,7 @@ export function teamStory(
 			? ideaVersions(events, owner, founder)
 			: { versions: [], agreed: undefined },
 		steps,
+		joiners,
 	};
 }
 // Matches each message between two agents to the private reasoning its sender's model gave for it, from the

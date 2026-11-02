@@ -1504,6 +1504,7 @@ function App() {
 															t,
 														)}
 														members={t.members}
+														roles={t.roles}
 														onOpenConversation={
 															openConversation
 														}
