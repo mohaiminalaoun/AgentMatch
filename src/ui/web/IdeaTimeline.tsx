@@ -153,7 +153,8 @@ function Node({
 					show={showPrivate}
 				/>
 				<Outcome v={v} />
-				{answered && (
+				{/* A counter's reasoning is the next version's reason, shown there. */}
+				{answered && v.status !== "countered" && (
 					<Reasoning
 						heading={`Why ${name(v.to)} ${answered}`}
 						text={v.answerWhy}
