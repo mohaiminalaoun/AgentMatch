@@ -1908,11 +1908,8 @@ function App() {
 														EVERY STEP, OLDEST FIRST
 													</div>
 												)}
-												{/* A conversation reads oldest first; an agent's own feed shows the latest first. */}
-												{(partner
-													? activity
-													: activity.slice().reverse()
-												).map((e, i) => (
+												{/* Oldest first, for a conversation and for an agent's own feed. */}
+												{activity.map((e, i) => (
 													<div
 														className="agent-activity"
 														key={i}
