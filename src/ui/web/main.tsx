@@ -47,6 +47,7 @@ import {
 	type BoardEntry,
 	type Brain,
 	type Event,
+	type Person,
 } from "./replay.js";
 import "./style.css";
 import { groupAgents } from "./layout.js";
@@ -301,13 +302,39 @@ function App() {
 			return "pitching";
 		return "idle";
 	};
-	const speechFor = (id: string) =>
-		({
-			matched: "Found my people!",
-			declining: "Not my fit, thank you.",
-			pitching: "I have an idea…",
-			idle: "Let’s get to know each other.",
-		})[moodFor(id)];
+	// The selected agent's bubble: its original idea (the listing's title, or its pitch in older logs with no
+	// titles), or, with no project of its own, that it's looking around. The text wraps at about 28
+	// characters over up to 3 lines (about 8.4 units a character at its 14px size), and the bubble shifts
+	// sideways, its pointer staying on the agent, so it stays inside the 860-wide chart.
+	const speechFor = (p: Person) => {
+		const text = p.listed
+			? (p.title ?? p.pitch)
+			: "Exploring ideas and teams";
+		const lines: string[] = [];
+		for (const word of text.split(/\s+/)) {
+			const last = lines.at(-1);
+			if (last !== undefined && `${last} ${word}`.length <= 28)
+				lines[lines.length - 1] = `${last} ${word}`;
+			else lines.push(word);
+		}
+		if (lines.length > 3) {
+			lines.length = 3;
+			lines[2] = `${lines[2]!.replace(/[\s.,;:]+$/, "")}…`;
+		}
+		return lines;
+	};
+	const bubbleFor = (p: Person, x: number, scale: number) => {
+		const lines = speechFor(p);
+		const width = Math.max(
+			110,
+			Math.round(Math.max(...lines.map((l) => l.length)) * 8.4 + 32),
+		);
+		const height = lines.length * 18 + 16;
+		const min = (6 - x) / scale + width / 2;
+		const max = (854 - x) / scale - width / 2;
+		const dx = Math.min(Math.max(0, min), max);
+		return { lines, width, height, dx, top: -67 - height };
+	};
 
 	async function load(f: File) {
 		try {
@@ -940,32 +967,77 @@ function App() {
 																		: -50
 																}
 															/>
-															{active && (
-																<g className="network-speech">
-																	<rect
-																		x="-74"
-																		y="-94"
-																		width="148"
-																		height="27"
-																		rx="12"
-																		fill="white"
-																		stroke="#e7e1ef"
-																	/>
-																	<path
-																		d="M-6 -67 L0 -60 L6 -67"
-																		fill="white"
-																	/>
-																	<text
-																		x="0"
-																		y="-77"
-																		textAnchor="middle"
-																	>
-																		{speechFor(
-																			p.id,
-																		)}
-																	</text>
-																</g>
-															)}
+															{active &&
+																(() => {
+																	const b =
+																		bubbleFor(
+																			p,
+																			pos.x,
+																			pos.scale,
+																		);
+																	return (
+																		<g className="network-speech">
+																			<rect
+																				x={
+																					b.dx -
+																					b.width /
+																						2
+																				}
+																				y={
+																					b.top
+																				}
+																				width={
+																					b.width
+																				}
+																				height={
+																					b.height
+																				}
+																				rx="12"
+																				fill="white"
+																				stroke="#e7e1ef"
+																			/>
+																			<path
+																				d="M-6 -67 L0 -60 L6 -67"
+																				fill="white"
+																			/>
+																			<text
+																				x={
+																					b.dx
+																				}
+																				y={
+																					b.top +
+																					23
+																				}
+																				textAnchor="middle"
+																			>
+																				{b.lines.map(
+																					(
+																						l,
+																						i,
+																					) => (
+																						<tspan
+																							key={
+																								i
+																							}
+																							x={
+																								b.dx
+																							}
+																							dy={
+																								i
+																									? 18
+																									: 0
+																							}
+																						>
+																							{
+																								l
+																							}
+																						</tspan>
+																					),
+																				)}
+																			</text>
+																		</g>
+																	);
+																})()}
 														</g>
 														<text
 															textAnchor="middle"

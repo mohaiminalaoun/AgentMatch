@@ -8,6 +8,10 @@ export type Person = Card & {
 	pitch: string;
 	roles: string[];
 	name?: string;
+	// The listing's short title, when the log has one.
+	title?: string;
+	// Whether they posted a listing: someone with no project of their own never does.
+	listed?: boolean;
 };
 
 // The project card a version of a project carries from level 0 on, beyond its title, pitch, and roles: the
@@ -1073,6 +1077,8 @@ export function project(events: Event[]) {
 				pitch: e.pitch,
 				roles: e.rolesNeeded,
 				...cardOf(e, e.rolesNeeded),
+				...(e.title && { title: e.title }),
+				listed: true,
 			});
 		if (e.type === "discovery")
 			for (const b of e.approach) {
