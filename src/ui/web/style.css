@@ -478,6 +478,7 @@ h1 > span {
 	position: absolute;
 	top: 25px;
 	left: 24px;
+	right: 290px;
 	font-size: 11px;
 	font-weight: 600;
 	letter-spacing: 1.4px;
@@ -556,17 +557,14 @@ h1 > span {
 	letter-spacing: 0.4px;
 }
 .canvas-search {
-	position: absolute;
-	left: 22px;
-	bottom: 20px;
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	background: #ffffffde;
+	margin: 0 13px 0 auto;
+	background: #fff;
 	border: 1px solid #e7e3ee;
 	border-radius: 7px;
-	padding: 9px 10px;
-	box-shadow: 0 2px 7px #352b4404;
+	padding: 6px 10px;
 	color: #6f6976;
 	width: 204px;
 }
@@ -581,15 +579,14 @@ h1 > span {
 .canvas-search input::placeholder {
 	color: #6f6976;
 }
-.canvas-search > span {
-	font-size: 15px;
-}
 .canvas-legend {
 	display: flex;
 	gap: 15px;
 	position: absolute;
-	bottom: 31px;
-	right: 23px;
+	top: 25px;
+	right: 24px;
+	z-index: 1;
+	pointer-events: none;
 	color: #706977;
 	font-size: 11px;
 }
@@ -1632,8 +1629,6 @@ h1 > span {
 		right: 15px;
 	}
 	.canvas-search {
-		left: 15px;
-		bottom: 17px;
 		width: 175px;
 	}
 	.canvas-search input {
@@ -1725,11 +1720,6 @@ h1 > span {
 	}
 	.canvas-legend {
 		right: 22px;
-		bottom: 29px;
-	}
-	.canvas-search {
-		left: 22px;
-		bottom: 20px;
 	}
 	.team-card {
 		width: calc(50% - 8px);
@@ -1840,17 +1830,31 @@ h1 > span {
 	.canvas-caption {
 		top: 19px;
 		left: 17px;
+		right: 13px;
 	}
+	/* No room beside the caption on a phone, so the legend stays at the bottom. */
 	.canvas-legend {
+		top: auto;
 		bottom: 15px;
 		right: 13px;
 		gap: 7px;
 	}
+	/* The search gets its own row under the tabs. */
+	.panel-toolbar {
+		flex-wrap: wrap;
+		height: auto;
+	}
+	.view-tabs {
+		height: 57px;
+	}
 	.canvas-search {
-		bottom: 39px;
-		left: 14px;
-		width: 165px;
-		padding: 7px;
+		order: 3;
+		width: 100%;
+		margin: 0 0 12px;
+	}
+	.canvas-search input {
+		flex: 1;
+		width: auto;
 	}
 	.playback {
 		height: 72px;

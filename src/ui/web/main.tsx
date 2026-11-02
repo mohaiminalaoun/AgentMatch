@@ -607,6 +607,19 @@ function App() {
 										<span>{listings.length}</span>
 									</button>
 								</div>
+								{view === "network" && (
+									<div className="canvas-search">
+										<Search size={15} />
+										<input
+											aria-label="Find an agent"
+											placeholder="Find an agent or idea…"
+											value={query}
+											onChange={(e) =>
+												setQuery(e.target.value)
+											}
+										/>
+									</div>
+								)}
 								<div className="toolbar-right">
 									<span className="replay-badge">
 										<span />
@@ -995,18 +1008,6 @@ function App() {
 												);
 											})}
 										</svg>
-										<div className="canvas-search">
-											<Search size={15} />
-											<input
-												aria-label="Find an agent"
-												placeholder="Find an agent or idea…"
-												value={query}
-												onChange={(e) =>
-													setQuery(e.target.value)
-												}
-											/>
-											<span>⌕</span>
-										</div>
 										<div className="canvas-legend">
 											<span>
 												<i className="legend-dot" />{" "}
