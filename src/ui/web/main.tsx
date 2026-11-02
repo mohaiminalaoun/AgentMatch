@@ -4,6 +4,8 @@ import {
 	ArrowRight,
 	Check,
 	ChevronDown,
+	ChevronsLeft,
+	ChevronsRight,
 	ChevronRight,
 	CircleHelp,
 	ClipboardList,
@@ -116,6 +118,21 @@ function App() {
 	const chart = useRef<SVGSVGElement>(null);
 	const [unitsPerPx, setUnitsPerPx] = useState(1);
 	const [fullscreen, setFullscreen] = useState(false);
+	// A wider inspector (twice the width) for reading long text; the chart takes the leftover space.
+	const [wide, setWide] = useState(() => {
+		try {
+			return localStorage.getItem("inspector-wide") === "1";
+		} catch {
+			return false;
+		}
+	});
+	const toggleWide = () =>
+		setWide((w) => {
+			try {
+				localStorage.setItem("inspector-wide", w ? "0" : "1");
+			} catch {}
+			return !w;
+		});
 	useEffect(() => {
 		const onChange = () => setFullscreen(!!document.fullscreenElement);
 		document.addEventListener("fullscreenchange", onChange);
@@ -621,7 +638,10 @@ function App() {
 							</div>
 						</div>
 					</section>
-					<div ref={studio} className="studio-grid">
+					<div
+						ref={studio}
+						className={`studio-grid${wide ? " wide" : ""}`}
+					>
 						<section className="network-panel">
 							<div className="panel-toolbar">
 								<div className="view-tabs">
@@ -1534,7 +1554,26 @@ function App() {
 						<aside className="inspector">
 							<div className="inspector-heading">
 								<span>AGENT INSPECTOR</span>
-								<Fingerprint size={17} />
+								<span className="inspector-heading-tools">
+									<button
+										type="button"
+										className="inspector-expand"
+										onClick={toggleWide}
+										aria-pressed={wide}
+										title={
+											wide
+												? "Make the inspector narrower"
+												: "Make the inspector wider"
+										}
+									>
+										{wide ? (
+											<ChevronsRight size={17} />
+										) : (
+											<ChevronsLeft size={17} />
+										)}
+									</button>
+									<Fingerprint size={17} />
+								</span>
 							</div>
 							{current ? (
 								<>

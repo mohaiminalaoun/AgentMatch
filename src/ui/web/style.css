@@ -365,6 +365,27 @@ h1 > span {
 	gap: 20px;
 	align-items: stretch;
 }
+.studio-grid.wide {
+	grid-template-columns: minmax(0, 1fr) clamp(302px, 45vw, 604px);
+}
+.inspector-heading-tools {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.inspector-expand {
+	display: grid;
+	place-items: center;
+	padding: 2px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+.inspector-expand:hover {
+	background: #f1eff6;
+}
 .network-panel {
 	border: 1px solid #e5e3eb;
 	border-radius: 11px;
@@ -1672,8 +1693,12 @@ h1 > span {
 	}
 }
 @media (max-width: 900px) {
-	.studio-grid {
+	.studio-grid,
+	.studio-grid.wide {
 		grid-template-columns: minmax(0, 1fr);
+	}
+	.inspector-expand {
+		display: none;
 	}
 	.inspector {
 		min-height: 0;
