@@ -123,7 +123,7 @@ a {
 	color: #6f6a7c;
 	border-radius: 50%;
 	font-weight: 600;
-	font-size: 12px;
+	font-size: 15px;
 }
 main {
 	width: calc(100% - 73px);
@@ -153,7 +153,7 @@ main {
 }
 .beta {
 	font:
-		600 8px "DM Sans",
+		600 11px "DM Sans",
 		sans-serif;
 	letter-spacing: 1px;
 	border: 1px solid #e6dfee;
@@ -167,7 +167,7 @@ main {
 	display: flex;
 	align-items: center;
 	gap: 13px;
-	font-size: 11px;
+	font-size: 14px;
 	color: #6d6c73;
 }
 .breadcrumb span {
@@ -180,7 +180,7 @@ main {
 	gap: 24px;
 }
 .local-badge {
-	font-size: 11px;
+	font-size: 14px;
 	color: #6e6b76;
 	display: flex;
 	align-items: center;
@@ -223,7 +223,7 @@ main {
 	margin-bottom: 28px;
 }
 .eyebrow {
-	font-size: 9px;
+	font-size: 12px;
 	letter-spacing: 1.6px;
 	color: #72697c;
 	font-weight: 600;
@@ -244,7 +244,7 @@ h1 > span {
 }
 .page-title p {
 	color: #6d6a75;
-	font-size: 12px;
+	font-size: 15px;
 	margin: 0;
 }
 .button {
@@ -256,7 +256,7 @@ h1 > span {
 	background: #fff;
 	border-radius: 7px;
 	padding: 10px 13px;
-	font-size: 11px;
+	font-size: 14px;
 	transition:
 		background 0.15s,
 		transform 0.15s;
@@ -269,7 +269,7 @@ h1 > span {
 	margin-top: 13px;
 }
 .import-button > span {
-	font-size: 9px;
+	font-size: 12px;
 	color: #6e6b74;
 	border-left: 1px solid #e9e5ef;
 	padding-left: 9px;
@@ -306,14 +306,14 @@ h1 > span {
 }
 .run-info strong {
 	font-weight: 550;
-	font-size: 12px;
+	font-size: 15px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	max-width: 400px;
 }
 .run-info > span {
-	font-size: 9px;
+	font-size: 12px;
 	color: #6f6a75;
 	letter-spacing: 0.1px;
 }
@@ -338,7 +338,7 @@ h1 > span {
 }
 .run-stat > span,
 .run-stat div > span {
-	font-size: 9px;
+	font-size: 12px;
 	color: #706974;
 }
 .run-stat.protection {
@@ -355,7 +355,7 @@ h1 > span {
 }
 .run-stat.protection strong {
 	font-family: inherit;
-	font-size: 11px;
+	font-size: 14px;
 	font-weight: 500;
 	color: #5c7065;
 }
@@ -390,7 +390,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 11px;
+	font-size: 14px;
 	color: #6e6b74;
 	position: relative;
 	padding: 0 1px;
@@ -409,7 +409,7 @@ h1 > span {
 }
 .view-tabs button > span {
 	background: #f2eff6;
-	font-size: 9px;
+	font-size: 12px;
 	padding: 2px 5px;
 	border-radius: 4px;
 	color: #73687f;
@@ -420,7 +420,7 @@ h1 > span {
 	gap: 13px;
 }
 .replay-badge {
-	font-size: 8px;
+	font-size: 11px;
 	letter-spacing: 1px;
 	color: #71687a;
 	display: flex;
@@ -478,7 +478,7 @@ h1 > span {
 	position: absolute;
 	top: 25px;
 	left: 24px;
-	font-size: 8px;
+	font-size: 11px;
 	font-weight: 600;
 	letter-spacing: 1.4px;
 	color: #706a77;
@@ -494,7 +494,7 @@ h1 > span {
 	display: block;
 	letter-spacing: 0;
 	font-weight: 400;
-	font-size: 10px;
+	font-size: 13px;
 	color: #6e6a74;
 	padding: 8px 0 0 12px;
 }
@@ -574,7 +574,7 @@ h1 > span {
 	background: none;
 	border: 0;
 	outline: none;
-	font-size: 10px;
+	font-size: 13px;
 	color: #736880;
 	width: 145px;
 }
@@ -582,7 +582,7 @@ h1 > span {
 	color: #6f6976;
 }
 .canvas-search > span {
-	font-size: 12px;
+	font-size: 15px;
 }
 .canvas-legend {
 	display: flex;
@@ -591,7 +591,7 @@ h1 > span {
 	bottom: 31px;
 	right: 23px;
 	color: #706977;
-	font-size: 8px;
+	font-size: 11px;
 }
 .canvas-legend > span {
 	display: flex;
@@ -647,7 +647,7 @@ h1 > span {
 	display: flex;
 	justify-content: space-between;
 	gap: 10px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #72687e;
 	margin-bottom: 7px;
 }
@@ -697,7 +697,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 10px;
+	font-size: 13px;
 	color: #72687d;
 }
 .inspector {
@@ -716,7 +716,7 @@ h1 > span {
 	justify-content: space-between;
 	padding: 0 20px;
 	color: #706977;
-	font-size: 8px;
+	font-size: 11px;
 	letter-spacing: 1.4px;
 }
 .profile-header {
@@ -756,7 +756,7 @@ h1 > span {
 	margin: 11px 0 9px;
 }
 .status-pill {
-	font-size: 8px;
+	font-size: 11px;
 	color: #756784;
 	background: #f5f1fa;
 	border: 1px solid #eee8f5;
@@ -764,7 +764,7 @@ h1 > span {
 	padding: 4px 9px;
 }
 .agent-id {
-	font-size: 8px;
+	font-size: 11px;
 	color: #706a76;
 	margin-top: 11px;
 }
@@ -775,7 +775,7 @@ h1 > span {
 	gap: 26px;
 }
 .inspector-tabs > button {
-	font-size: 10px;
+	font-size: 13px;
 	color: #6f6976;
 	padding: 0 0 12px;
 	position: relative;
@@ -796,7 +796,7 @@ h1 > span {
 	background: #ad95c6;
 }
 .inspector-tabs button > span {
-	font-size: 8px;
+	font-size: 11px;
 	padding: 1px 4px;
 	background: #f2edf7;
 	border-radius: 3px;
@@ -815,17 +815,17 @@ h1 > span {
 	align-items: center;
 	letter-spacing: 1px;
 	color: #72697b;
-	font-size: 8px;
+	font-size: 11px;
 	font-weight: 500;
 }
 .detail-label > span {
 	margin-left: auto;
-	font-size: 7px;
+	font-size: 10px;
 	color: #72687a;
 	letter-spacing: 0.5px;
 }
 .pitch {
-	font-size: 12px;
+	font-size: 15px;
 	line-height: 1.85;
 	color: #746782;
 	margin: 11px 0 22px;
@@ -838,7 +838,7 @@ h1 > span {
 	margin: 10px 0 23px;
 }
 .role-tags > span {
-	font-size: 9px;
+	font-size: 12px;
 	border: 1px solid #ece6f1;
 	border-radius: 4px;
 	padding: 4px 7px;
@@ -859,11 +859,11 @@ h1 > span {
 	color: #776588;
 }
 .disclosure-card strong {
-	font-size: 10px;
+	font-size: 13px;
 	font-weight: 500;
 }
 .disclosure-card > p {
-	font-size: 8px;
+	font-size: 11px;
 	color: #72697a;
 	margin: 6px 0 15px 23px;
 }
@@ -871,7 +871,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 9px;
-	font-size: 8px;
+	font-size: 11px;
 	color: #6f6975;
 	padding: 6px 0;
 	position: relative;
@@ -904,12 +904,12 @@ h1 > span {
 }
 .level-row small {
 	margin-left: auto;
-	font-size: 7px;
+	font-size: 10px;
 	color: #716a78;
 }
 .disclosure-footnote {
 	display: block;
-	font-size: 7px;
+	font-size: 10px;
 	color: #716978;
 	margin-top: 9px;
 	line-height: 1.5;
@@ -934,14 +934,14 @@ h1 > span {
 	border-radius: 9px;
 	display: grid;
 	place-items: center;
-	font-size: 9px;
+	font-size: 12px;
 	color: #766686;
 }
 .connection-list button > div {
-	font-size: 10px;
+	font-size: 13px;
 }
 .connection-list small {
-	font-size: 8px;
+	font-size: 11px;
 	display: block;
 	color: #706976;
 	margin-top: 4px;
@@ -954,7 +954,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 10px;
+	font-size: 13px;
 	color: #7b648d;
 	background: #f6f2fa;
 	border-radius: 8px;
@@ -972,13 +972,13 @@ h1 > span {
 	background: #fdfbff;
 }
 .idea-pitch {
-	font-size: 11px;
+	font-size: 14px;
 	line-height: 1.6;
 	color: #6f5f80;
 	margin: 6px 0 0;
 }
 .idea-same {
-	font-size: 10px;
+	font-size: 13px;
 	font-style: italic;
 	color: #716979;
 	margin: 6px 0 0;
@@ -990,7 +990,7 @@ h1 > span {
 	margin: 6px 0 0;
 }
 .idea-roles > span {
-	font-size: 9px;
+	font-size: 12px;
 	border: 1px solid #ece6f1;
 	border-radius: 4px;
 	padding: 2px 6px;
@@ -1020,7 +1020,7 @@ h1 > span {
 	align-items: baseline;
 }
 .card-details dt {
-	font-size: 8px;
+	font-size: 11px;
 	font-weight: 650;
 	letter-spacing: 0.3px;
 	text-transform: uppercase;
@@ -1029,12 +1029,12 @@ h1 > span {
 .card-details dt.card-role {
 	text-transform: none;
 	letter-spacing: 0;
-	font-size: 9px;
+	font-size: 12px;
 	color: #6a5d84;
 }
 .card-details dd {
 	margin: 0;
-	font-size: 10px;
+	font-size: 13px;
 	line-height: 1.4;
 	color: #4f4a58;
 }
@@ -1042,11 +1042,11 @@ h1 > span {
 	grid-template-columns: 64px 1fr;
 }
 .card-details.compact dd {
-	font-size: 9px;
+	font-size: 12px;
 }
 /* An agent with a brain of its own: an outside agent, or a different model. */
 .brain-badge {
-	font-size: 8px;
+	font-size: 11px;
 	font-weight: 600;
 	border-radius: 4px;
 	padding: 3px 6px;
@@ -1066,7 +1066,7 @@ h1 > span {
 	font-weight: 600;
 }
 .idea-meta {
-	font-size: 9px;
+	font-size: 12px;
 	color: #716979;
 	margin: 6px 0 0;
 }
@@ -1083,7 +1083,7 @@ h1 > span {
 	padding: 0 0 12px 12px;
 }
 .idea-step {
-	font-size: 10px;
+	font-size: 13px;
 	color: #7b648d;
 }
 .idea-end {
@@ -1093,11 +1093,11 @@ h1 > span {
 }
 .pair-bar > button {
 	display: flex;
-	font-size: 9px;
+	font-size: 12px;
 	color: #766686;
 }
 .inspector-footer {
-	font-size: 8px;
+	font-size: 11px;
 	color: #72697a;
 	display: flex;
 	align-items: center;
@@ -1128,11 +1128,11 @@ h1 > span {
 .activity-heading h3 {
 	margin: 0;
 	font-weight: 500;
-	font-size: 11px;
+	font-size: 14px;
 	color: #766680;
 }
 .activity-heading > div > span:last-child {
-	font-size: 8px;
+	font-size: 11px;
 	color: #706877;
 	border: 1px solid #eee8f4;
 	border-radius: 4px;
@@ -1143,7 +1143,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #72687b;
 }
 .activity-feed {
@@ -1160,7 +1160,7 @@ h1 > span {
 	align-items: center;
 	gap: 11px;
 	padding: 10px 0;
-	font-size: 10px;
+	font-size: 13px;
 	color: #73677a;
 	border-bottom: 1px solid #f6f3f9;
 	animation: appear 0.3s ease;
@@ -1190,7 +1190,7 @@ h1 > span {
 }
 .event-type {
 	margin-left: auto;
-	font-size: 8px;
+	font-size: 11px;
 	color: #716978;
 	background: #faf7fd;
 	border: 1px solid #eee7f5;
@@ -1198,7 +1198,7 @@ h1 > span {
 	padding: 3px 7px;
 }
 .feed-row > small {
-	font-size: 8px;
+	font-size: 11px;
 	color: #706975;
 	min-width: 30px;
 	text-align: right;
@@ -1209,7 +1209,7 @@ h1 > span {
 	justify-content: space-between;
 	padding: 22px 0;
 	color: #706976;
-	font-size: 8px;
+	font-size: 11px;
 }
 .page-footer > span {
 	display: flex;
@@ -1217,7 +1217,7 @@ h1 > span {
 	gap: 6px;
 }
 .page-footer > span:last-child {
-	font-size: 7px;
+	font-size: 10px;
 	letter-spacing: 1px;
 }
 .footer-star {
@@ -1227,7 +1227,7 @@ h1 > span {
 }
 .muted {
 	color: #716a78;
-	font-size: 10px;
+	font-size: 13px;
 	line-height: 1.8;
 }
 .teams-view {
@@ -1246,7 +1246,7 @@ h1 > span {
 	color: #65556f;
 }
 .teams-view > p {
-	font-size: 11px;
+	font-size: 14px;
 	color: #73687b;
 	line-height: 1.7;
 	margin-bottom: 24px;
@@ -1270,7 +1270,7 @@ h1 > span {
 	justify-content: space-between;
 }
 .team-card-top > span {
-	font-size: 8px;
+	font-size: 11px;
 	color: #637065;
 	background: #f0f6f1;
 	border-radius: 4px;
@@ -1293,7 +1293,7 @@ h1 > span {
 	margin-bottom: 7px;
 }
 .team-card p {
-	font-size: 10px;
+	font-size: 13px;
 	line-height: 1.7;
 	color: #72677a;
 	min-height: 35px;
@@ -1305,7 +1305,7 @@ h1 > span {
 	margin: 17px 0;
 }
 .team-member-row > button {
-	font-size: 8px;
+	font-size: 11px;
 	border-radius: 4px;
 	padding: 4px 6px;
 	background: #f5f1fa;
@@ -1318,7 +1318,7 @@ h1 > span {
 	gap: 7px;
 }
 .approval-row .button {
-	font-size: 9px;
+	font-size: 12px;
 	padding: 7px 9px;
 }
 .button.primary {
@@ -1333,7 +1333,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #636f66;
 }
 .approval-status > button {
@@ -1348,11 +1348,11 @@ h1 > span {
 }
 .empty-state h3 {
 	font-weight: 500;
-	font-size: 15px;
+	font-size: 17px;
 	color: #76667f;
 }
 .empty-state p {
-	font-size: 11px;
+	font-size: 14px;
 }
 .board-grid {
 	display: grid;
@@ -1389,12 +1389,12 @@ h1 > span {
 }
 .board-card-top > strong {
 	font-family: Manrope, sans-serif;
-	font-size: 13px;
+	font-size: 15px;
 	font-weight: 650;
 	color: #65556f;
 }
 .board-status {
-	font-size: 8px;
+	font-size: 11px;
 	border-radius: 4px;
 	padding: 3px 6px;
 	white-space: nowrap;
@@ -1411,7 +1411,7 @@ h1 > span {
 	background: #fbf3e2;
 }
 .board-card p {
-	font-size: 10px;
+	font-size: 13px;
 	line-height: 1.7;
 	color: #72677a;
 	margin: 10px 0 0;
@@ -1429,7 +1429,7 @@ h1 > span {
 	border: 1px dashed #ddd2ec;
 	background: #f8f5fc;
 	color: #67597a;
-	font-size: 9px;
+	font-size: 12px;
 }
 .board-card .role-tags {
 	margin: 10px 0 0;
@@ -1440,7 +1440,7 @@ h1 > span {
 	align-items: center;
 	margin-top: auto;
 	padding-top: 12px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #716a78;
 }
 .board-card-foot > span {
@@ -1456,7 +1456,7 @@ h1 > span {
 	align-items: center;
 	gap: 7px;
 	color: #766680;
-	font-size: 9px;
+	font-size: 12px;
 	margin-bottom: 17px;
 }
 .toggle {
@@ -1482,7 +1482,7 @@ h1 > span {
 	transform: translateX(12px);
 }
 .private-notice {
-	font-size: 9px;
+	font-size: 12px;
 	line-height: 1.8;
 	background: #faf5ec;
 	color: #796a4f;
@@ -1503,15 +1503,15 @@ h1 > span {
 	border-radius: 50%;
 	background: #b4a0c8;
 	left: -3px;
-	top: 12px;
+	top: 22.5px;
 }
 .agent-activity > p {
-	font-size: 10px;
+	font-size: 13px;
 	line-height: 1.7;
 	color: #776681;
 }
 .agent-activity blockquote {
-	font-size: 9px;
+	font-size: 12px;
 	line-height: 1.8;
 	margin: 5px 0;
 	background: #faf7fd;
@@ -1523,13 +1523,13 @@ h1 > span {
 .agent-activity .code-notes {
 	margin: 5px 0 0;
 	padding-left: 16px;
-	font-size: 9px;
+	font-size: 12px;
 	line-height: 1.7;
 	color: #75667d;
 }
 .agent-activity .agent-facts {
 	margin: 5px 0;
-	font-size: 9px;
+	font-size: 12px;
 	color: #75667d;
 }
 .agent-activity .agent-facts summary {
@@ -1588,7 +1588,7 @@ h1 > span {
 	line-height: 1.4;
 }
 .modal p {
-	font-size: 12px;
+	font-size: 15px;
 	color: #76677d;
 	line-height: 1.8;
 }
@@ -1630,7 +1630,6 @@ h1 > span {
 	.canvas-legend {
 		gap: 8px;
 		right: 15px;
-		font-size: 7px;
 	}
 	.canvas-search {
 		left: 15px;
@@ -1646,9 +1645,6 @@ h1 > span {
 	}
 	.run-stat.protection {
 		min-width: 150px;
-	}
-	.run-info > span {
-		font-size: 8px;
 	}
 	.network-canvas > svg {
 		min-height: 490px;
@@ -1775,9 +1771,6 @@ h1 > span {
 	.top-right {
 		gap: 7px;
 	}
-	.local-badge {
-		font-size: 9px;
-	}
 	main {
 		margin-left: 52px;
 		width: calc(100% - 52px);
@@ -1795,11 +1788,9 @@ h1 > span {
 		letter-spacing: -1.2px;
 	}
 	.eyebrow {
-		font-size: 7px;
 		letter-spacing: 1px;
 	}
 	.page-title p {
-		font-size: 10px;
 		line-height: 1.7;
 		max-width: 270px;
 	}
@@ -1817,11 +1808,9 @@ h1 > span {
 		width: 35px;
 	}
 	.run-info strong {
-		font-size: 10px;
 		max-width: 160px;
 	}
 	.run-info > span {
-		font-size: 7px;
 		line-height: 1.6;
 	}
 	.run-info b {
@@ -1834,14 +1823,10 @@ h1 > span {
 		gap: 14px;
 	}
 	.view-tabs > button {
-		font-size: 9px;
 		gap: 5px;
 	}
 	.toolbar-right {
 		gap: 4px;
-	}
-	.replay-badge {
-		font-size: 7px;
 	}
 	.network-canvas {
 		min-height: 375px;
@@ -1855,25 +1840,17 @@ h1 > span {
 	.canvas-caption {
 		top: 19px;
 		left: 17px;
-		font-size: 7px;
-	}
-	.canvas-caption > span:last-child {
-		font-size: 8px;
 	}
 	.canvas-legend {
 		bottom: 15px;
 		right: 13px;
 		gap: 7px;
-		font-size: 6px;
 	}
 	.canvas-search {
 		bottom: 39px;
 		left: 14px;
 		width: 165px;
 		padding: 7px;
-	}
-	.canvas-search input {
-		font-size: 9px;
 	}
 	.playback {
 		height: 72px;
@@ -1890,9 +1867,6 @@ h1 > span {
 		height: 29px;
 		width: 29px;
 	}
-	.timeline > div {
-		font-size: 8px;
-	}
 	.timeline > div > span:first-child {
 		display: none;
 	}
@@ -1900,7 +1874,6 @@ h1 > span {
 		margin-left: auto;
 	}
 	.speed-button {
-		font-size: 9px;
 		padding: 4px;
 		gap: 3px;
 	}
@@ -1910,23 +1883,16 @@ h1 > span {
 	.activity-heading {
 		padding: 13px;
 	}
-	.activity-heading h3 {
-		font-size: 9px;
-	}
 	.activity-heading > div {
 		gap: 6px;
 	}
 	.activity-heading > div > span:last-child {
 		display: none;
 	}
-	.activity-heading > button {
-		font-size: 8px;
-	}
 	.activity-feed {
 		padding: 5px 12px;
 	}
 	.feed-row {
-		font-size: 9px;
 		gap: 7px;
 	}
 	.feed-row > .event-type {
@@ -1941,7 +1907,6 @@ h1 > span {
 	}
 	.page-footer {
 		padding: 18px 0;
-		font-size: 7px;
 		line-height: 1.6;
 		gap: 15px;
 	}
@@ -2093,13 +2058,13 @@ h1 > span {
 	font-size: 22px;
 }
 .meet-intro p {
-	font-size: 13px;
+	font-size: 15px;
 	line-height: 1.8;
 	color: #606d80;
 }
 .mascot-note {
 	display: block;
-	font-size: 9px;
+	font-size: 12px;
 	color: #656d7a;
 	margin-top: 22px;
 }
@@ -2117,7 +2082,7 @@ h1 > span {
 	margin-top: -6px;
 }
 .your-character > span {
-	font-size: 9px;
+	font-size: 12px;
 	color: #606e81;
 	margin-top: 7px;
 }
@@ -2136,7 +2101,7 @@ h1 > span {
 	padding-top: 6px;
 }
 .character-example > span {
-	font-size: 9px;
+	font-size: 12px;
 	color: #606d80;
 	text-align: center;
 }
@@ -2145,7 +2110,7 @@ h1 > span {
 	color: #29364a;
 	text-align: center;
 	font-weight: 700;
-	font-size: 11px;
+	font-size: 14px;
 	line-height: 1.5;
 	border-radius: 14px;
 	padding: 10px 17px;
@@ -2331,11 +2296,9 @@ h1 > span {
 		min-width: 90px;
 	}
 	.character-example > span {
-		font-size: 8px;
 		max-width: 90px;
 	}
 	.speech-bubble {
-		font-size: 10px;
 		padding: 9px 12px;
 	}
 	.your-character {
@@ -2362,9 +2325,6 @@ h1 > span {
 	.meet-intro h2 {
 		font-size: 25px;
 	}
-	.meet-intro .eyebrow {
-		font-size: 7px;
-	}
 	.your-character {
 		min-width: 135px;
 	}
@@ -2380,12 +2340,8 @@ h1 > span {
 		flex: 1;
 	}
 	.mascot-note {
-		font-size: 8px;
 		max-width: 140px;
 		line-height: 1.7;
-	}
-	.character-example > span {
-		font-size: 8px;
 	}
 	.character-example > svg {
 		width: 80px;
@@ -2399,9 +2355,6 @@ h1 > span {
 	.meet-intro {
 		min-width: 110px;
 	}
-	.meet-intro p {
-		font-size: 11px;
-	}
 	.your-character {
 		min-width: 100px;
 	}
@@ -2412,11 +2365,7 @@ h1 > span {
 	.your-character strong {
 		font-size: 14px;
 	}
-	.your-character > span {
-		font-size: 7px;
-	}
 	.speech-bubble {
-		font-size: 9px;
 		padding: 8px 9px;
 		border-radius: 11px;
 	}
@@ -2428,7 +2377,6 @@ h1 > span {
 		height: 83px;
 	}
 	.character-example > span {
-		font-size: 7px;
 		line-height: 1.5;
 	}
 	.mascot-note {
@@ -2472,11 +2420,11 @@ h1 > span {
 		height: 125px;
 	}
 	.speech-bubble {
-		font-size: 12px;
+		font-size: 15px;
 		padding: 10px 19px;
 	}
 	.character-example > span {
-		font-size: 10px;
+		font-size: 13px;
 	}
 	.your-character > svg {
 		width: 170px;
@@ -2492,7 +2440,7 @@ h1 > span {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #7b648d;
 	margin: -6px 0 13px;
 }
@@ -2509,7 +2457,7 @@ h1 > span {
 	min-height: 0;
 }
 .team-story .team-story-note {
-	font-size: 9px;
+	font-size: 12px;
 	margin: -6px 0 0;
 }
 .team-steps {
@@ -2520,7 +2468,7 @@ h1 > span {
 .team-steps > li {
 	border-left: 2px solid #ece6f1;
 	padding: 0 0 10px 12px;
-	font-size: 10px;
+	font-size: 13px;
 	color: #72677a;
 }
 .team-steps .good {
@@ -2537,7 +2485,7 @@ h1 > span {
 }
 .idea-why {
 	margin-top: 5px;
-	font-size: 9px;
+	font-size: 12px;
 	color: #72677a;
 }
 .idea-why > summary {
@@ -2557,7 +2505,7 @@ h1 > span {
 }
 .idea-title {
 	font-family: Manrope, sans-serif;
-	font-size: 11px;
+	font-size: 14px;
 	font-weight: 600;
 	color: #6b5a7a;
 	margin: 6px 0 0;
