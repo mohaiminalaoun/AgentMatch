@@ -2965,3 +2965,413 @@ h1 > span {
 	text-decoration: underline;
 	cursor: pointer;
 }
+
+/* The Teams tab's timeline of how a team's idea evolved: a header with a step bar that scrolls sideways, and a
+   rail with one node per version. The chosen version is the one rendered in full. */
+.team-story .private-notice {
+	margin: -4px 0 0;
+	line-height: 1.5;
+}
+.team-story .link-button {
+	display: inline;
+	padding: 0;
+	font-size: inherit;
+	color: #6a5d84;
+	text-decoration: underline;
+}
+.idea-timeline {
+	margin-top: 8px;
+	padding: 14px;
+	background: #fbfafd;
+	border: 1px solid #ece6f1;
+	border-radius: 10px;
+}
+.timeline-title-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+.timeline-title-row h4 {
+	margin: 0;
+	font-family: Manrope, sans-serif;
+	font-size: 17px;
+	font-weight: 700;
+	color: #3f3548;
+}
+.timeline-status {
+	padding: 1px 9px;
+	font-size: 11px;
+	color: #5a4b73;
+	background: #ece5f6;
+	border-radius: 999px;
+}
+.team-story .timeline-meta {
+	margin: 4px 0 0;
+	font-size: 12px;
+	color: #716979;
+}
+.timeline-steps {
+	display: flex;
+	gap: 0;
+	margin: 12px 0 0;
+	padding: 0 0 6px;
+	list-style: none;
+	overflow-x: auto;
+	scroll-snap-type: x proximity;
+	overscroll-behavior-x: contain;
+}
+.timeline-step {
+	flex: 0 0 auto;
+	min-width: 112px;
+	max-width: 150px;
+	scroll-snap-align: center;
+	position: relative;
+}
+/* The line joining each step to the next. */
+.timeline-step + .timeline-step::before {
+	content: "";
+	position: absolute;
+	top: 6px;
+	left: -50%;
+	width: 100%;
+	height: 2px;
+	background: #ddd3ea;
+}
+.timeline-step > button {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	width: 100%;
+	padding: 0 6px;
+	text-align: center;
+}
+.step-dot {
+	width: 14px;
+	height: 14px;
+	margin-bottom: 4px;
+	background: #fff;
+	border: 2px solid #9a85bd;
+	border-radius: 50%;
+}
+.timeline-step.chosen .step-dot {
+	background: #6e56a3;
+	border-color: #6e56a3;
+}
+.timeline-step.not-adopted {
+	opacity: 0.55;
+}
+.step-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: #4b3f5c;
+	overflow-wrap: anywhere;
+}
+.step-sub {
+	font-size: 11px;
+	color: #8a7f95;
+}
+.step-chosen {
+	margin-top: 2px;
+	padding: 0 7px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #fff;
+	background: #6e56a3;
+	border-radius: 999px;
+}
+.timeline-rail {
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0 0 0 18px;
+	border-left: 2px solid #e4dbef;
+	margin-left: 13px;
+}
+.timeline-node {
+	position: relative;
+	padding: 0 0 18px 14px;
+	scroll-margin: 16px;
+}
+.timeline-marker {
+	position: absolute;
+	left: -33px;
+	top: 6px;
+	width: 28px;
+	height: 28px;
+	display: grid;
+	place-items: center;
+	font-size: 10px;
+	font-weight: 700;
+	color: #5a4b73;
+	background: #fff;
+	border: 2px solid #d6cbe6;
+	border-radius: 50%;
+}
+.timeline-node.chosen .timeline-marker {
+	color: #fff;
+	background: #6e56a3;
+	border-color: #6e56a3;
+}
+.timeline-body {
+	padding: 12px 14px;
+	background: #fff;
+	border: 1px solid #ece6f1;
+	border-radius: 10px;
+}
+.timeline-node.chosen .timeline-body {
+	border: 2px solid #8b72c2;
+	background: #fcfaff;
+}
+.timeline-node.not-adopted .timeline-body {
+	border-style: dashed;
+	background: #fbfbfc;
+}
+.timeline-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	color: #6b5f78;
+}
+.timeline-tag {
+	margin-left: auto;
+	padding: 1px 8px;
+	font-size: 10px;
+	color: #5a4b73;
+	background: #efe9f7;
+	border-radius: 999px;
+}
+.timeline-tag.chosen {
+	color: #fff;
+	background: #6e56a3;
+}
+.timeline-tag.muted {
+	color: #7d7486;
+	background: #f1eff4;
+}
+.timeline-body .idea-title {
+	margin: 8px 0 0;
+}
+.timeline-body .idea-pitch {
+	margin: 6px 0 10px;
+	color: #3f3548;
+}
+/* Removed words struck through in red, then added words in green. */
+.pitch-diff ins {
+	text-decoration: none;
+	background: #def2e6;
+	color: #1f6b43;
+	border-radius: 3px;
+}
+.pitch-diff del {
+	background: #fbe3e3;
+	color: #a23a3a;
+	text-decoration: line-through;
+	text-decoration-color: #c25454;
+	border-radius: 3px;
+}
+.pitch-rewrite {
+	display: grid;
+	gap: 6px;
+	margin: 6px 0 10px;
+}
+.pitch-rewrite > div {
+	padding: 7px 10px;
+	border-radius: 7px;
+	background: #f6f3fa;
+}
+.pitch-rewrite > div:first-child {
+	background: #fdf0f0;
+}
+.pitch-rewrite > div:last-child {
+	background: #eef8f2;
+}
+.team-story .pitch-rewrite > div:first-child p {
+	color: #a23a3a;
+	text-decoration: line-through;
+	text-decoration-color: #d08a8a;
+}
+.team-story .pitch-rewrite > div:last-child p {
+	color: #1f6b43;
+}
+.pitch-rewrite span {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	color: #8a7f95;
+}
+.team-story .pitch-rewrite p {
+	margin: 2px 0 0;
+	font-size: 13px;
+	line-height: 1.55;
+	color: #3f3548;
+}
+.role-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	margin: 0 0 8px;
+	padding: 0;
+	list-style: none;
+}
+.role-chip {
+	padding: 1px 9px;
+	font-size: 11px;
+	color: #5a5163;
+	background: #fff;
+	border: 1px solid #e0d9e8;
+	border-radius: 999px;
+}
+.role-chip.added {
+	color: #fff;
+	background: #6e56a3;
+	border-color: #6e56a3;
+}
+.role-chip.dropped {
+	color: #9a8fa6;
+	text-decoration: line-through;
+	border-style: dashed;
+}
+.timeline-card {
+	margin: 4px 0 8px;
+	font-size: 12px;
+}
+.timeline-card > summary {
+	cursor: pointer;
+	color: #7b648d;
+	width: fit-content;
+}
+.timeline-card .card-details {
+	margin: 6px 0 0;
+}
+.reason-box {
+	margin-top: 8px;
+	padding: 8px 10px;
+	background: #f7f3fc;
+	border: 1px solid #e7dff2;
+	border-radius: 7px;
+}
+.reason-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 4px 10px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	color: #6b5f78;
+}
+.reason-private {
+	font-weight: 500;
+	text-transform: none;
+	letter-spacing: 0;
+	color: #7b648d;
+}
+.team-story .reason-box p {
+	margin: 4px 0 0;
+	font-size: 12px;
+	line-height: 1.55;
+	color: #4e4559;
+	white-space: pre-wrap;
+}
+.team-story .reason-box p.clamped {
+	display: -webkit-box;
+	-webkit-line-clamp: 4;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+.team-story .reason-more {
+	margin-top: 4px;
+	font-size: 12px;
+}
+.timeline-offers {
+	margin: 10px 0 0;
+	padding: 0 0 0 10px;
+	list-style: none;
+	border-left: 2px solid #e4dde9;
+}
+.timeline-offers > li + li {
+	margin-top: 8px;
+}
+.team-story .timeline-offers p {
+	margin: 0;
+	font-size: 12px;
+	color: #5a5163;
+}
+.timeline-offers .good,
+.team-steps .good {
+	color: #3c7767;
+}
+.team-formed-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.roles-covered {
+	margin-left: auto;
+	padding: 1px 9px;
+	font-size: 10px;
+	letter-spacing: 0.2px;
+	color: #2f6a58;
+	background: #e3f2ec;
+	border-radius: 999px;
+}
+.roles-covered.open {
+	color: #8a5a1c;
+	background: #fbefd9;
+}
+.team-members {
+	display: grid;
+	gap: 8px;
+	margin: 8px 0 12px;
+	padding: 0;
+	list-style: none;
+}
+.team-members > li {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+}
+.team-members > li > svg {
+	flex: none;
+}
+.team-story .member-name {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 6px;
+	margin: 2px 0 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: #3f3548;
+}
+.member-badge {
+	padding: 0 7px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #5a4b73;
+	background: #ece5f6;
+	border-radius: 999px;
+}
+.member-role {
+	font-size: 11px;
+	font-weight: 500;
+	color: #3c7767;
+}
+.team-story .member-origin {
+	margin: 2px 0 0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: #6b6275;
+}
+.step-version {
+	font-size: 12px;
+}

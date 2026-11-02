@@ -1503,8 +1503,17 @@ function App() {
 															visibleEvents,
 															t,
 														)}
-														members={t.members}
-														roles={t.roles}
+														team={t}
+														events={visibleEvents}
+														showPrivate={
+															privateView
+														}
+														onTogglePrivate={() =>
+															setPrivate(
+																(v) => !v,
+															)
+														}
+														colorOf={characterColor}
 														onOpenConversation={
 															openConversation
 														}

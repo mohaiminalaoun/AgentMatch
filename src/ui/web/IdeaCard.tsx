@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
 	Brain,
 	ClipboardList,
@@ -13,6 +13,11 @@ import {
 	Users,
 } from "lucide-react";
 import type { Card, IdeaVersion, OfferStep } from "./replay.js";
+import {
+	roleName,
+	type PitchChange as Change,
+	type RoleChange,
+} from "./timeline.js";
 
 // "a03" → "Agent 03", "p4" → "Agent 04", and a pilot id like "p-c41e" → "Agent c41e".
 export const agentLabel = (id: string) =>
@@ -309,7 +314,13 @@ function Summary({
 
 // What the other side did with a version, as a footer under it: a rule separates it from the description above,
 // and a coloured chip says how it went. `by` names whose idea it is, on the left, when worth saying.
-function Outcome({ v, by }: { v: IdeaVersion; by?: string | undefined }) {
+export function Outcome({
+	v,
+	by,
+}: {
+	v: IdeaVersion;
+	by?: string | undefined;
+}) {
 	const tone = good.has(v.status)
 		? "good"
 		: v.status === "countered" || v.status === "kept"
@@ -445,6 +456,115 @@ export function IdeaCard({
 						<p className="idea-meta">{name(last.author)}’s idea</p>
 					</div>
 				</>
+			)}
+		</div>
+	);
+}
+
+// How a pitch changed from the version before: small edits as a word diff (added words marked, removed ones
+// struck), and a substantial rewrite as the two pitches, before and after.
+export function PitchChange({
+	pitch,
+	change,
+}: {
+	pitch: string;
+	change: Change;
+}) {
+	if (change.mode === "rewrite")
+		return (
+			<div className="pitch-rewrite">
+				<div>
+					<span>Before</span>
+					<p>“{change.before}”</p>
+				</div>
+				<div>
+					<span>After</span>
+					<p>“{change.after}”</p>
+				</div>
+			</div>
+		);
+	if (change.mode === "inline")
+		return (
+			<p className="idea-pitch pitch-diff">
+				“
+				{change.diff.map((d, i) =>
+					d.op === "added" ? (
+						<ins key={i}>{d.text}</ins>
+					) : d.op === "removed" ? (
+						<del key={i}>{d.text}</del>
+					) : (
+						<span key={i}>{d.text}</span>
+					),
+				)}
+				”
+			</p>
+		);
+	return <p className="idea-pitch">“{pitch}”</p>;
+}
+
+// The roles a version needs as small chips, with roles added since the version before marked + and dropped
+// ones struck −.
+export function RoleChips({ roles }: { roles: RoleChange[] }) {
+	if (roles.length === 0) return null;
+	return (
+		<ul className="role-chips">
+			{roles.map((r) => (
+				<li
+					key={`${r.change}-${r.role}`}
+					className={`role-chip ${r.change}`}
+				>
+					{r.change === "added" && "+ "}
+					{r.change === "dropped" && "− "}
+					{roleName(r.role)}
+				</li>
+			))}
+		</ul>
+	);
+}
+
+// An agent's private reasoning, verbatim, under a heading saying whose it is and what it was for. Shown only
+// in the operator's private view. It starts clamped to a few lines; only when that actually cuts the text off
+// (measured, and re-measured as the panel resizes) is there a button to show all of it.
+export function Reasoning({
+	heading,
+	text,
+	show,
+}: {
+	heading: string;
+	text: string | undefined;
+	show: boolean;
+}) {
+	const [open, setOpen] = useState(false);
+	const [cut, setCut] = useState(false);
+	const body = useRef<HTMLParagraphElement>(null);
+	useLayoutEffect(() => {
+		const el = body.current;
+		if (!el || open) return;
+		const measure = () => setCut(el.scrollHeight > el.clientHeight + 1);
+		measure();
+		const watch = new ResizeObserver(measure);
+		watch.observe(el);
+		return () => watch.disconnect();
+	}, [open, text, show]);
+	if (!show || !text) return null;
+	return (
+		<div className="reason-box">
+			<div className="reason-head">
+				<span>{heading}</span>
+				<span className="reason-private">Private reasoning</span>
+			</div>
+			<p ref={body} className={open ? "" : "clamped"}>
+				{text}
+			</p>
+			{(cut || open) && (
+				<button
+					type="button"
+					className="link-button reason-more"
+					aria-expanded={open}
+					onClick={() => setOpen((o) => !o)}
+				>
+					{open ? "Show less" : "Show full reasoning"}
+				</button>
 			)}
 		</div>
 	);
