@@ -1090,7 +1090,13 @@ export function project(events: Event[]) {
 		if (e.type === "level") {
 			ensure(e.other);
 			const key = [e.agent, e.other].sort().join(":");
-			links.set(key, { a: e.agent, b: e.other, level: e.to });
+			// Keep who approached whom: only the level changes once the link exists.
+			const link = links.get(key);
+			links.set(key, {
+				a: link?.a ?? e.agent,
+				b: link?.b ?? e.other,
+				level: e.to,
+			});
 		}
 		// Interest events only carry gate blocks in newer logs.
 		if ("gateBlocks" in e) gates += e.gateBlocks ?? 0;
