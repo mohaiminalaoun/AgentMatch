@@ -9,6 +9,7 @@ import {
 import {
 	DIFF_CAP,
 	ideaTimeline,
+	needsGap,
 	pitchChange,
 	roleChanges,
 	stepLabel,
@@ -166,6 +167,31 @@ describe("pitch changes", () => {
 		const before = words(side, "a");
 		const after = `${words(side, "a")} b`;
 		expect(pitchChange(before, after).mode).toBe("rewrite");
+	});
+});
+
+describe("spacing between replaced words", () => {
+	it("separates a removed word from the word that replaces it", () => {
+		const change = pitchChange(
+			"Practice a crisis press conference in a live voice session with scorecard.",
+			"Practice crisis press conferences with AI reporters, ending with a scorecard.",
+		);
+		const spans = change.mode === "inline" ? change.diff : [];
+		const shown = spans
+			.map((d, i) => d.text + (needsGap(d, spans[i + 1]) ? " " : ""))
+			.join("");
+		expect(shown).not.toMatch(/conferenceconferences/);
+	});
+	it("adds no space after a span that ends in one, or before punctuation or unchanged text", () => {
+		const removed = (text: string) => ({ text, op: "removed" as const });
+		const added = (text: string) => ({ text, op: "added" as const });
+		expect(needsGap(removed("session"), added("ending"))).toBe(true);
+		expect(needsGap(removed("session "), added("ending"))).toBe(false);
+		expect(needsGap(removed(" in a live voice"), added(","))).toBe(false);
+		expect(
+			needsGap(removed("session"), { text: " with", op: "same" }),
+		).toBe(false);
+		expect(needsGap(removed("session"), undefined)).toBe(false);
 	});
 });
 

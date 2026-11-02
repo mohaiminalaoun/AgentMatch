@@ -93,6 +93,19 @@ export function pitchChange(before: string, after: string): PitchChange {
 	return { mode: "inline", diff };
 }
 
+// Whether a changed span needs a space after it when shown: a removed word right next to the word replacing it
+// (or the other way round) would otherwise run together on screen and when copied. Not before punctuation,
+// which attaches to the word before it.
+export function needsGap(span: DiffSpan, next: DiffSpan | undefined): boolean {
+	return (
+		span.op !== "same" &&
+		next !== undefined &&
+		next.op !== "same" &&
+		!/\s$/.test(span.text) &&
+		!/^[\s.,;:!?)\]]/.test(next.text)
+	);
+}
+
 export type RoleChange = { role: string; change: "kept" | "added" | "dropped" };
 // Each role a version needs, marked added if `before` didn't need it, then the roles `before` needed that it
 // dropped. With no `before`, every role is kept; a reorder alone changes nothing.

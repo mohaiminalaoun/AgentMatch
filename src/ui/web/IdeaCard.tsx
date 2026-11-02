@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Card, IdeaVersion, OfferStep } from "./replay.js";
 import {
+	needsGap,
 	roleName,
 	type PitchChange as Change,
 	type RoleChange,
@@ -277,8 +278,10 @@ function Offers({ v, show }: { v: IdeaVersion; show: boolean }) {
 }
 
 // The private reasoning behind a version and behind the answer to it, folded away until opened.
+// A counter's reasoning is the reason for the version it sends, so it shows there, not here too.
 function Why({ v, show }: { v: IdeaVersion; show: boolean }) {
-	if (!show || (!v.why && !v.answerWhy)) return null;
+	const answerWhy = v.status === "countered" ? undefined : v.answerWhy;
+	if (!show || (!v.why && !answerWhy)) return null;
 	return (
 		<details className="idea-why">
 			<summary>Private reasoning</summary>
@@ -287,9 +290,9 @@ function Why({ v, show }: { v: IdeaVersion; show: boolean }) {
 					<strong>{name(v.from)}:</strong> {v.why}
 				</p>
 			)}
-			{v.answerWhy && (
+			{answerWhy && (
 				<p>
-					<strong>{name(v.to)}:</strong> {v.answerWhy}
+					<strong>{name(v.to)}:</strong> {answerWhy}
 				</p>
 			)}
 		</details>
@@ -487,15 +490,22 @@ export function PitchChange({
 		return (
 			<p className="idea-pitch pitch-diff">
 				“
-				{change.diff.map((d, i) =>
-					d.op === "added" ? (
-						<ins key={i}>{d.text}</ins>
+				{change.diff.map((d, i) => {
+					const gap = needsGap(d, change.diff[i + 1]) ? " " : "";
+					return d.op === "added" ? (
+						<React.Fragment key={i}>
+							<ins>{d.text}</ins>
+							{gap}
+						</React.Fragment>
 					) : d.op === "removed" ? (
-						<del key={i}>{d.text}</del>
+						<React.Fragment key={i}>
+							<del>{d.text}</del>
+							{gap}
+						</React.Fragment>
 					) : (
 						<span key={i}>{d.text}</span>
-					),
-				)}
+					);
+				})}
 				”
 			</p>
 		);
