@@ -2708,3 +2708,129 @@ h1 > span {
 	margin-top: 12px;
 	padding-top: 12px;
 }
+
+/* The conversation feed: a filter box in its heading, and full screen. */
+.activity-heading {
+	gap: 10px;
+}
+.feed-filter {
+	position: relative;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+	margin-left: auto;
+	padding: 4px 28px 4px 9px;
+	width: 350px;
+	background: #fff;
+	border: 1px solid #e7e3ee;
+	border-radius: 7px;
+	color: #6f6976;
+}
+.feed-filter:focus-within {
+	border-color: #c9bde0;
+}
+.feed-filter input {
+	flex: 1;
+	min-width: 70px;
+	border: 0;
+	outline: 0;
+	background: none;
+	font: inherit;
+	font-size: 12px;
+	color: #3f3548;
+	padding: 2px 0;
+}
+.feed-filter button {
+	display: grid;
+	place-items: center;
+	padding: 1px;
+	color: inherit;
+}
+.feed-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 3px 2px 8px;
+	font-size: 11px;
+	color: #5a4b73;
+	background: #efeaf8;
+	border-radius: 999px;
+}
+.feed-pill button {
+	border-radius: 50%;
+}
+.feed-pill button:hover {
+	background: #ddd3ee;
+}
+.feed-clear {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+}
+.feed-options {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	z-index: 5;
+	max-height: 240px;
+	overflow-y: auto;
+	padding: 4px;
+	background: #fff;
+	border: 1px solid #e7e1ef;
+	border-radius: 9px;
+	box-shadow: 0 8px 24px #3c31511f;
+}
+.feed-options > button {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	width: 100%;
+	padding: 6px 8px;
+	text-align: left;
+	font-size: 12px;
+	color: #3f3548;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.feed-options > button:hover {
+	background: #f6f3fa;
+}
+.feed-options small {
+	display: block;
+	margin-top: 1px;
+	max-width: 190px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 10px;
+	color: #716a78;
+}
+.feed-options > p {
+	margin: 0;
+	padding: 8px;
+	font-size: 11px;
+	color: #716a78;
+}
+.feed-filter + .feed-toggle {
+	margin-left: 0;
+}
+.activity-panel:fullscreen {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	border: 0;
+	border-radius: 0;
+	background: #fff;
+}
+.activity-panel:fullscreen .activity-feed {
+	flex: 1;
+	min-height: 0;
+	max-height: none;
+	padding: 5px 32px 24px;
+}
+.activity-panel:fullscreen .activity-heading {
+	padding: 18px 32px;
+}

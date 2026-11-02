@@ -42,6 +42,7 @@ import {
 	describe,
 	factsFor,
 	eventTimes,
+	filterEvents,
 	formatElapsed,
 	ideaVersions,
 	pairEvents,
@@ -135,6 +136,13 @@ function App() {
 	const chart = useRef<SVGSVGElement>(null);
 	const [unitsPerPx, setUnitsPerPx] = useState(1);
 	const [fullscreen, setFullscreen] = useState(false);
+	// The conversation feed goes full screen on its own, and can be narrowed to some agents.
+	const feedPanel = useRef<HTMLElement>(null);
+	const [feedFullscreen, setFeedFullscreen] = useState(false);
+	// Up to two agents picked as pills (one: all they did; two: what passed between them), and words typed.
+	const [feedAgents, setFeedAgents] = useState<string[]>([]);
+	const [feedFilter, setFeedFilter] = useState("");
+	const [feedPicking, setFeedPicking] = useState(false);
 	// The chart's key to the trust levels: folded to one line that cycles the stages, or opened to list them all.
 	const [trustOpen, setTrustOpen] = useState(false);
 	const [trustStep, setTrustStep] = useState(0);
@@ -162,7 +170,10 @@ function App() {
 			return !w;
 		});
 	useEffect(() => {
-		const onChange = () => setFullscreen(!!document.fullscreenElement);
+		const onChange = () => {
+			setFullscreen(document.fullscreenElement === studio.current);
+			setFeedFullscreen(document.fullscreenElement === feedPanel.current);
+		};
 		document.addEventListener("fullscreenchange", onChange);
 		return () => document.removeEventListener("fullscreenchange", onChange);
 	}, []);
@@ -248,12 +259,40 @@ function App() {
 	const visibleEvents = events
 		.slice(0, cursor)
 		.filter((e) => e.type !== "exchange");
-	const feedRows = events
+	// The filter takes picked agents and words that each event's description must contain. Asking for an
+	// agent shows its messages too, whatever the toggle says.
+	const feedWords = feedFilter
+		.toLowerCase()
+		.split(/[\s,]+/)
+		.filter(Boolean);
+	const feedIds = feedAgents.filter((id) => people.some((p) => p.id === id));
+	const feedFiltered = feedIds.length > 0 || feedWords.length > 0;
+	// Agents the dropdown offers: not yet picked, and matching what's typed.
+	const feedOptions = people.filter(
+		(p) =>
+			!feedIds.includes(p.id) &&
+			(!feedFilter.trim() ||
+				p.id.toLowerCase().includes(feedFilter.trim().toLowerCase()) ||
+				`agent ${short(p.id)}`.includes(
+					feedFilter.trim().toLowerCase(),
+				)),
+	);
+	const pickFeedAgent = (id: string) => {
+		setFeedAgents((a) =>
+			a.includes(id) || a.length >= 2 ? a : [...a, id],
+		);
+		setFeedFilter("");
+	};
+	const feedKept = feedFiltered
+		? filterEvents(events.slice(0, cursor), feedIds, feedWords)
+		: undefined;
+	const feedAll = events
 		.slice(0, cursor)
 		.map((e, i) => ({ e, n: i + 1 }))
-		.filter(
-			({ e }) =>
-				e.type !== "exchange" && (showMessages || e.type !== "bus"),
+		.filter(({ e }) => e.type !== "exchange");
+	const feedRows = feedAll
+		.filter(({ e }) =>
+			feedKept ? feedKept.has(e) : showMessages || e.type !== "bus",
 		)
 		.reverse();
 	const related = current
@@ -2028,12 +2067,120 @@ function App() {
 							</div>
 						</aside>
 					</div>
-					<section className="activity-panel">
+					<section className="activity-panel" ref={feedPanel}>
 						<div className="activity-heading">
 							<div>
 								<span className="live-dot" />
 								<h3>The conversation, unfolding</h3>
-								<span>{feedRows.length} events</span>
+								<span>
+									{feedFiltered
+										? `${feedRows.length} of ${feedAll.length} events`
+										: `${feedRows.length} events`}
+								</span>
+							</div>
+							<div className="feed-filter">
+								<Search size={13} />
+								{feedIds.map((id) => (
+									<span className="feed-pill" key={id}>
+										Agent {short(id).padStart(2, "0")}
+										<button
+											type="button"
+											aria-label={`Remove ${id} from the filter`}
+											onClick={() =>
+												setFeedAgents((a) =>
+													a.filter((x) => x !== id),
+												)
+											}
+										>
+											<X size={10} />
+										</button>
+									</span>
+								))}
+								<input
+									value={feedFilter}
+									onChange={(e) =>
+										setFeedFilter(e.target.value)
+									}
+									onFocus={() => setFeedPicking(true)}
+									onBlur={() => setFeedPicking(false)}
+									onKeyDown={(e) => {
+										if (
+											e.key === "Backspace" &&
+											!feedFilter &&
+											feedIds.length
+										)
+											setFeedAgents(feedIds.slice(0, -1));
+										if (e.key === "Escape")
+											e.currentTarget.blur();
+										if (e.key === "Enter" && feedOptions[0])
+											pickFeedAgent(feedOptions[0].id);
+									}}
+									placeholder={
+										feedIds.length
+											? "Add a word"
+											: "Pick agents or type a word"
+									}
+									aria-label="Filter the conversation by agents or words"
+									spellCheck={false}
+								/>
+								{(feedIds.length > 0 || feedFilter) && (
+									<button
+										type="button"
+										className="feed-clear"
+										aria-label="Clear the filter"
+										onClick={() => {
+											setFeedAgents([]);
+											setFeedFilter("");
+										}}
+									>
+										<X size={12} />
+									</button>
+								)}
+								{feedPicking && (
+									<div
+										className="feed-options"
+										role="listbox"
+										onMouseDown={(e) => e.preventDefault()}
+									>
+										{feedIds.length >= 2 ? (
+											<p>
+												Two agents picked: showing what
+												passed between them.
+											</p>
+										) : feedOptions.length ? (
+											feedOptions.map((p) => (
+												<button
+													type="button"
+													role="option"
+													aria-selected={false}
+													key={p.id}
+													onClick={() =>
+														pickFeedAgent(p.id)
+													}
+												>
+													<span className="tiny-avatar">
+														{short(p.id).padStart(
+															2,
+															"0",
+														)}
+													</span>
+													<span>
+														Agent{" "}
+														{short(p.id).padStart(
+															2,
+															"0",
+														)}
+														<small>
+															{p.title ?? p.pitch}
+														</small>
+													</span>
+												</button>
+											))
+										) : (
+											<p>No agent matches.</p>
+										)}
+									</div>
+								)}
 							</div>
 							<button
 								className="feed-toggle"
@@ -2051,6 +2198,26 @@ function App() {
 								}}
 							>
 								Jump to end <ArrowRight size={14} />
+							</button>
+							<button
+								className="icon-button"
+								title={
+									feedFullscreen
+										? "Exit full screen"
+										: "Full screen"
+								}
+								onClick={() => {
+									if (document.fullscreenElement)
+										void document.exitFullscreen();
+									else
+										void feedPanel.current?.requestFullscreen();
+								}}
+							>
+								{feedFullscreen ? (
+									<Minimize2 size={15} />
+								) : (
+									<Maximize2 size={15} />
+								)}
 							</button>
 						</div>
 						<div className="activity-feed">
@@ -2076,7 +2243,9 @@ function App() {
 							))}
 							{!feedRows.length && (
 								<div className="feed-row muted">
-									Press play. Let serendipity do its thing.
+									{feedFiltered
+										? "Nothing matches that filter yet."
+										: "Press play. Let serendipity do its thing."}
 								</div>
 							)}
 						</div>

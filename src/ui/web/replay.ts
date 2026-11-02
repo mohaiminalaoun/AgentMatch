@@ -663,6 +663,45 @@ export function describeMessage(m: AgentMessage): string {
 }
 // Everything between agents `a` and `b`, in order: the messages they sent each other, each one's
 // decisions on the other's proposals, and the checks, hunches, and levels one ran about the other.
+// Which events a feed filter lets through. `ids` are agents: one keeps everything that agent did or was sent,
+// two keep only what passed between those two. `words` must each appear in the event's description.
+export function filterEvents(
+	events: Event[],
+	ids: string[],
+	words: string[],
+): Set<Event> {
+	const [a, b] = ids;
+	const between = a && b ? new Set(pairEvents(events, a, b)) : undefined;
+	// Decisions name only a proposal id, so remember who each proposal was between.
+	const proposals = new Map<string, [string, string]>();
+	for (const e of events)
+		if (
+			e.type === "bus" &&
+			e.event.type === "sent" &&
+			"id" in e.event.message
+		)
+			proposals.set(e.event.message.id, [
+				e.event.message.from,
+				e.event.message.to,
+			]);
+	const involves = (e: Event, id: string) =>
+		("agent" in e && e.agent === id) ||
+		("other" in e && e.other === id) ||
+		(e.type === "bus" &&
+			e.event.type === "sent" &&
+			(e.event.message.from === id || e.event.message.to === id)) ||
+		(e.type === "decision" &&
+			(proposals.get(e.proposalId) ?? []).includes(id)) ||
+		(e.type === "offers" && e.to.includes(id)) ||
+		(e.type === "commitment" && e.offers.includes(id));
+	const kept = new Set<Event>();
+	for (const e of events) {
+		if (between ? !between.has(e) : a && !involves(e, a)) continue;
+		const text = describe(e).toLowerCase();
+		if (words.every((w) => text.includes(w))) kept.add(e);
+	}
+	return kept;
+}
 export function pairEvents(events: Event[], a: string, b: string): Event[] {
 	const isPair = (x: string, y: string) =>
 		(x === a && y === b) || (x === b && y === a);
