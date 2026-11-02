@@ -1913,6 +1913,9 @@ function App() {
 													<div
 														className="agent-activity"
 														key={i}
+													>
+														<span className="activity-marker" />
+														<p>{describe(e)}</p>
 														{times.get(e) && (
 															<time
 																className="activity-time"
@@ -1940,9 +1943,6 @@ function App() {
 																)}
 															</time>
 														)}
-													>
-														<span className="activity-marker" />
-														<p>{describe(e)}</p>
 														{privateView &&
 															"rationale" in e &&
 															e.rationale && (
