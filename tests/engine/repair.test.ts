@@ -3,6 +3,7 @@ import { learn, raiseLevel } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import { RunEvent } from "../../src/engine/events.js";
 import {
+	RepairVote,
 	repairProblems,
 	repairMessages,
 	repairVoteMessages,
@@ -98,6 +99,10 @@ function fake(
 						: {
 								rationale: `Private vote from ${who}`,
 								approve: votes[who] ?? true,
+								cardConsistent: true,
+								...(typeof votes[who] === "object"
+									? (votes[who] as object)
+									: {}),
 							};
 				return Response.json({
 					choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -133,6 +138,53 @@ describe("bounded scope repair", () => {
 		).toHaveLength(2);
 		expect(events.every((e) => RunEvent.safeParse(e).success)).toBe(true);
 	});
+	test("an inconsistent card cannot receive approval, but an honest smaller card can", () => {
+		expect(
+			RepairVote.safeParse({
+				rationale: "Upload is removed but promised in pitch",
+				cardConsistent: false,
+				approve: true,
+			}).success,
+		).toBe(false);
+		expect(
+			RepairVote.safeParse({
+				rationale: "Conflicting upload promises",
+				cardConsistent: false,
+				approve: false,
+			}).success,
+		).toBe(true);
+		expect(
+			RepairVote.safeParse({
+				rationale: "Bundled images consistently described",
+				cardConsistent: true,
+				approve: true,
+			}).success,
+		).toBe(true);
+	});
+
+	test("a member finding a contradictory card prevents adoption and records the assessment", async () => {
+		const world = group();
+		const { client } = fake(proposal, {
+			b: { approve: false, cardConsistent: false },
+		});
+		const events: RunEvent[] = [];
+		const result = await runRepair(client, world, {
+			onEvent: (e) => events.push(e),
+		});
+		expect(result.applied).toBe(0);
+		expect(result.world.teams).toEqual(world.teams);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "repair",
+				agent: "b",
+				step: "vote",
+				approve: false,
+				cardConsistent: false,
+				fellBack: false,
+			}),
+		);
+	});
+
 	test("final confirmation sees the adopted build and can independently accept it", async () => {
 		const { client, calls } = fake();
 		const repaired = await runRepair(client, group());

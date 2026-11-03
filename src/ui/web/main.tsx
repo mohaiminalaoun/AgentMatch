@@ -533,6 +533,7 @@ function App() {
 			const next = parseLog(await f.text());
 			project(next);
 			setEvents(next);
+			setPrivate(false);
 			setCursor(Math.min(next.length, 20));
 			setSource(f.name.replace(".jsonl", ""));
 			setPlaying(false);

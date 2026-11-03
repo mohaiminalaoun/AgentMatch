@@ -40,10 +40,19 @@ export const RepairProposal = z.object({
 		.default([]),
 });
 export type RepairProposal = z.infer<typeof RepairProposal>;
-export const RepairVote = z.object({
-	rationale: z.string().min(1),
-	approve: z.boolean(),
-});
+export const RepairVote = z
+	.object({
+		rationale: z.string().min(1),
+		cardConsistent: z.boolean(),
+		approve: z.boolean(),
+	})
+	.refine((vote) => !vote.approve || vote.cardConsistent, {
+		message:
+			"An inconsistent project card cannot be approved. Correct the card in a future proposal; vote approve false here.",
+	});
+
+export const SCOPE_CONSISTENCY =
+	"Check the proposed title, pitch, problem, build, roleWork and removedWork together. Set cardConsistent false if any field promises functionality that another field explicitly removes or replaces: for example a pitch offering image uploads while removedWork says bundled images only, or live adaptive reporters after replacing them with fixed prompts. A bundled/local demo is valid when all fields describe it honestly. Role removal alone is not a contradiction if the work remains with the owner. Do not reject just because a demo is smaller than the full user problem. When inconsistent, quote the conflicting project phrases in your private rationale and vote approve false. This is a semantic judgment, not a keyword test.";
 
 function privateContext(agent: AgentState, team: Team): string[] {
 	return [
@@ -71,7 +80,7 @@ export function repairMessages(
 				...privateContext(owner, team),
 				"Propose a smaller version that preserves the original user problem and a credible contribution for every existing member. Use only known skills. No new roles, recruits, roster changes, or changes to anyone's team-size requirements are possible here.",
 				"For every removed role, removedWork must describe the concrete work removed or simplified and how the demo changes. Do not merely rename a role or declare essential work optional. Every remaining teammate role must have known coverage on the current roster. Keep rolesNeeded for teammates' work, not work the owner already takes.",
-				"The revision includes title, pitch, problem, build, rolesNeeded, and roleWork for exactly those roles. If no credible smaller build exists, omit revision and leave removedWork empty. A proposal is not applied unless every member approves it.",
+				"Update every affected project field together. The pitch must describe the reduced demo honestly: do not retain promises such as uploads, accounts, live interaction or adaptive feedback after removing them. The revision includes title, pitch, problem, build, rolesNeeded, and roleWork for exactly those roles. If no credible smaller build exists, omit revision and leave removedWork empty. A proposal is not applied unless every member approves it.",
 				"The revision and removedWork are sent to the whole team: describe only the project, never personal facts or information learned from another member. Keep the proposal safe to show publicly; use your private knowledge only for judgment. Your rationale stays private.",
 				CITE_FACTS,
 			].join("\n\n"),
@@ -95,7 +104,8 @@ export function repairVoteMessages(
 				"You are deciding whether to adopt one pre-deadline scope repair. Apply the same personal-fit standard as final confirmation. You will still be free to withdraw afterward; approval does not bind your human.",
 				...privateContext(agent, team),
 				FINAL_TEAM,
-				"Approve only if the smaller build still solves a worthwhile version of the original problem, the removedWork genuinely removes its dependencies, and your human retains a credible contribution consistent with their requirements. Evaluate interest in this exact project, standing instructions, concrete contribution, hours, and current team size now. Do not approve a technically feasible repair that your human would already reject at final confirmation. A different role label alone is not a repair. Unknown coverage is unverified. Declining keeps the original project; it does not remove you from the roster. Your answer is only a boolean; your rationale is private.",
+				SCOPE_CONSISTENCY,
+				"Approve only if the smaller build still solves a worthwhile version of the original problem, the removedWork genuinely removes its dependencies, and your human retains a credible contribution consistent with their requirements. Evaluate interest in this exact project, standing instructions, concrete contribution, hours, and current team size now. Do not approve a technically feasible repair that your human would already reject at final confirmation. A different role label alone is not a repair. Unknown coverage is unverified. Declining keeps the original project; it does not remove you from the roster. Return cardConsistent and approve; your rationale is private.",
 				CITE_FACTS,
 			].join("\n\n"),
 		},
@@ -311,6 +321,7 @@ export async function runRepair(
 							agent: id,
 							step: "vote",
 							approve: data.approve,
+							cardConsistent: data.cardConsistent,
 							rationale: data.rationale,
 							fellBack: false,
 						});

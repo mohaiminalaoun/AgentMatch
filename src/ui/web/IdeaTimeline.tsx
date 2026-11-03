@@ -7,6 +7,7 @@ import {
 	Reasoning,
 	RoleCards,
 	RoleChips,
+	ScopeRepairDetails,
 } from "./IdeaCard.js";
 import type { IdeaVersion, OfferStep } from "./replay.js";
 import {
@@ -76,8 +77,9 @@ function Node({
 }) {
 	const { v, before, n, state } = node;
 	const chosen = state === "chosen";
-	const heading =
-		n > 1 && v.how === "proposal"
+	const heading = v.scopeRepair
+		? `${name(v.from)} proposed a pre-deadline scope repair`
+		: n > 1 && v.how === "proposal"
 			? `${name(v.from)} proposed a new idea`
 			: n === 1 || v.how === "join"
 				? v.how === "join"
@@ -113,6 +115,7 @@ function Node({
 					<p className="idea-title">{node.title}</p>
 				)}
 				<PitchChange pitch={v.pitch} change={node.pitch} />
+				<ScopeRepairDetails v={v} />
 				{chosen ? (
 					<>
 						<CardDetails card={card} roles={[]} />
@@ -121,7 +124,7 @@ function Node({
 							card={card}
 							heading={
 								filledBy
-									? "WHO FILLS EACH ROLE"
+									? "RECORDED ROLE ASSIGNMENTS"
 									: "ROLES THIS PROJECT NEEDS"
 							}
 							filledBy={filledBy}
@@ -152,7 +155,7 @@ function Node({
 					text={v.why}
 					show={showPrivate}
 				/>
-				<Outcome v={v} />
+				{!v.scopeRepair && <Outcome v={v} />}
 				{/* A counter's reasoning is the next version's reason, shown there. */}
 				{answered && v.status !== "countered" && (
 					<Reasoning
@@ -242,7 +245,11 @@ export function IdeaTimeline({
 			<div className="timeline-header">
 				<div className="timeline-title-row">
 					<h4>{timeline.title ?? "Untitled project"}</h4>
-					<span className="timeline-status">{status}</span>
+					<span className="timeline-status">
+						{status === "committed"
+							? "Confirmed by agents"
+							: "Tentative team"}
+					</span>
 				</div>
 				<p className="timeline-meta">
 					In {name(owner)}’s conversation with {name(founder)} ·{" "}

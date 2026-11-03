@@ -31,8 +31,30 @@ const did: Record<IdeaVersion["how"], string> = {
 	revision: "reshaped it",
 	offer: "offered it as the team’s project",
 };
+export function ScopeRepairDetails({ v }: { v: IdeaVersion }) {
+	if (!v.scopeRepair) return null;
+	return (
+		<section className="scope-repair-details" aria-label="Scope repair">
+			<strong>What changed in the demo</strong>
+			<ul>
+				{v.scopeRepair.removedWork.map((item) => (
+					<li key={item.role}>
+						<strong>{item.role}: </strong>
+						{item.change}
+					</li>
+				))}
+			</ul>
+			<p>
+				All {v.scopeRepair.approvedBy.length} team members approved this
+				scope. Final team confirmation follows separately.
+			</p>
+		</section>
+	);
+}
+
 // What the other side did with a version, as a sentence.
 function outcome(v: IdeaVersion): string {
+	if (v.scopeRepair) return "Scope approved unanimously";
 	const to = name(v.to);
 	switch (v.status) {
 		case "open":
@@ -107,7 +129,9 @@ export function RoleCards({
 					<span
 						className={`role-filled${filledBy[role] ? "" : " open"}`}
 					>
-						{filledBy[role] ? name(filledBy[role]) : "No one yet"}
+						{filledBy[role]
+							? name(filledBy[role])
+							: "Not separately assigned"}
 					</span>
 				)}
 			</div>
@@ -427,9 +451,13 @@ export function IdeaCard({
 										<span className="version-badge">
 											v{i + 2}
 										</span>
-										{name(v.from)} {did[v.how]}
+										{name(v.from)}{" "}
+										{v.scopeRepair
+											? "proposed a pre-deadline scope repair"
+											: did[v.how]}
 									</div>
 									<Version v={v} before={versions[i]} />
+									<ScopeRepairDetails v={v} />
 									<Outcome v={v} />
 									<Why v={v} show={showWhy} />
 									<Offers v={v} show={showWhy} />

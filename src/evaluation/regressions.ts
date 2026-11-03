@@ -22,6 +22,7 @@ import { decideOnProposal, decisionPrompt } from "../engine/decision.js";
 import { checkInterest, interestMessages } from "../engine/interest.js";
 import type { Message } from "../engine/llm.js";
 import { AgentConfidence, lockMessages } from "../engine/lock.js";
+import { RepairVote, repairVoteMessages } from "../engine/repair.js";
 import { getHunch, hunchMessages } from "../engine/hunch.js";
 import type { Profile } from "../engine/profile.js";
 import {
@@ -317,8 +318,90 @@ export const PROJECT_SEARCH_CASES: readonly RegressionCase[] = [
 	},
 ];
 
+async function scopeCardCase(
+	client: LlmClient,
+	kind: "uploads" | "adaptive" | "valid",
+): Promise<CaseRun> {
+	const profile = person("card-owner", "Avery", {
+		skills: [{ name: "backend", level: "expert" }],
+		interests: ["education"],
+	});
+	const teammate = person("card-peer", "Blair", {
+		skills: [{ name: "ml", level: "expert" }],
+		interests: ["education"],
+	});
+	const agent = learn(
+		raiseLevel(createAgent(profile), teammate.id, 2),
+		teammate.id,
+		teammate,
+	);
+	const team = {
+		id: "team-card-owner",
+		members: [profile.id, teammate.id],
+		project: {
+			title: "Practice",
+			description: "Voice practice with uploaded exercises.",
+		},
+		rolesNeeded: ["ml", "frontend"],
+		status: "tentative" as const,
+	};
+	const revision = {
+		title: "Practice Lite",
+		problem: "Learners need practice with feedback.",
+		pitch:
+			kind === "uploads"
+				? "Upload an exercise for voice practice."
+				: kind === "adaptive"
+					? "Live adaptive reporters follow up on each answer."
+					: "Practice five bundled exercises with voice feedback.",
+		build:
+			kind === "adaptive"
+				? "Fixed scripted reporter prompts with a scorecard."
+				: "Five bundled exercises with voice feedback and local progress.",
+		rolesNeeded: ["ml" as const],
+		roleWork: { ml: "speech recognition and spoken exercise feedback" },
+	};
+	const prompt = repairVoteMessages(agent, team, {
+		rationale: "PRIVATE NOT SHARED",
+		revision,
+		removedWork: [
+			{
+				role: "frontend",
+				change:
+					kind === "adaptive"
+						? "Remove live adaptive follow-ups; use fixed scripted prompts."
+						: "Remove upload screen and image upload; use bundled exercises only.",
+			},
+		],
+	});
+	const { data } = await client.chatJson(prompt, RepairVote);
+	return {
+		prompt,
+		decision: `cardConsistent=${data.cardConsistent}; approve=${data.approve}`,
+		rationale: data.rationale,
+	};
+}
+
+export const SCOPE_CARD_CASES: readonly RegressionCase[] = (
+	["uploads", "adaptive", "valid"] as const
+).map((kind) => ({
+	name: `scope card ${kind}`,
+	failure:
+		"Approving contradictory promises, or treating a consistently described smaller demo as contradictory.",
+	expected:
+		kind === "valid"
+			? "Marks the honest bundled demo consistent."
+			: "Marks the conflicting card inconsistent and rejects approval.",
+	run: (client) => scopeCardCase(client, kind),
+	question:
+		kind === "valid"
+			? "Does the decision mark cardConsistent=false even though every field consistently describes a bundled demo?"
+			: "Does the decision mark cardConsistent=true or approve=true despite the explicit conflict between promised and removed functionality?",
+}));
+
 export const REGRESSION_CASES: readonly RegressionCase[] = [
 	...PROJECT_SEARCH_CASES,
+	...SCOPE_CARD_CASES,
 	{
 		name: "role omission",
 		failure:

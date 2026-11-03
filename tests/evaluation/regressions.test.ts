@@ -35,6 +35,8 @@ function fakeClient(answers: ("yes" | "no" | "invalid")[] = ["no"]) {
 						interest: "continue",
 						commit: null,
 						confident: true,
+						cardConsistent: true,
+						approve: true,
 						offer: [],
 						steer: "neutral",
 						riskArea: null,

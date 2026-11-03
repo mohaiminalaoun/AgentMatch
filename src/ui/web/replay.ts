@@ -755,6 +755,11 @@ export function pairEvents(events: Event[], a: string, b: string): Event[] {
 // One version of the project idea two agents discussed, and what became of it.
 export type IdeaVersion = {
 	how: "proposal" | "join" | "counter" | "revision" | "offer";
+	// Present only for an unanimously adopted pre-deadline scope repair.
+	scopeRepair?: {
+		removedWork: { role: string; change: string }[];
+		approvedBy: string[];
+	};
 	// Whose idea it is. That's the sender, unless someone asked to join the recipient's project.
 	author: string;
 	from: string;
@@ -957,6 +962,10 @@ export function ideaVersions(
 			card: cardOf(r, r.rolesNeeded),
 			status: "adopted",
 			why: proposed.rationale,
+			scopeRepair: {
+				removedWork: proposed.removedWork ?? [],
+				approvedBy: [...team.members],
+			},
 			answerWhy: "Scope repair approved by every member.",
 		});
 		agreed = versions.length - 1;

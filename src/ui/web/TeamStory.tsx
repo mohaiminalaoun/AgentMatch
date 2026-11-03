@@ -98,6 +98,10 @@ export function TeamStory({
 		() => teamSection(events, story, team, timeline),
 		[events, story, team, timeline],
 	);
+	const outsideName = (id: string) => {
+		const brain = agentBrains.get(id);
+		return brain?.kind === "outside" ? brain.name : undefined;
+	};
 	const filledBy =
 		team.roles &&
 		Object.fromEntries(
@@ -149,8 +153,8 @@ export function TeamStory({
 							className={`roles-covered${section.rolesCovered ? "" : " open"}`}
 						>
 							{section.rolesCovered
-								? "All roles covered"
-								: "Roles still open"}
+								? "Required roles assigned"
+								: "Additional work not separately assigned"}
 						</span>
 					)}
 				</div>
@@ -175,6 +179,12 @@ export function TeamStory({
 							<div>
 								<p className="member-name">
 									{name(m.id)}
+									{agentBrains.get(m.id)?.kind ===
+										"outside" && (
+										<span className="member-badge">
+											{outsideName(m.id)} · outside agent
+										</span>
+									)}
 									{m.owner && (
 										<span className="member-badge">
 											Idea owner

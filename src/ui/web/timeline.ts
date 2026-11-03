@@ -133,7 +133,8 @@ const verbs: Record<IdeaVersion["how"], string> = {
 	offer: "offered",
 };
 // What the sender of a version did, for the step bar: "countered", "reshaped".
-export const stepVerb = (v: IdeaVersion) => verbs[v.how];
+export const stepVerb = (v: IdeaVersion) =>
+	v.scopeRepair ? "repaired scope" : verbs[v.how];
 
 // Whether a version is a new idea rather than a change to the one before: a proposal or join request, which
 // starts afresh even when the pair had discussed another idea earlier.

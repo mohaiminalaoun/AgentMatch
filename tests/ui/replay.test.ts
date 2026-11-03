@@ -885,6 +885,10 @@ describe("scope repair replay", () => {
 			card: { build: revision.build },
 			rolesNeeded: ["ml"],
 		});
+		expect(result.versions[0]?.scopeRepair).toEqual({
+			removedWork: [{ role: "backend", change: "Use local state." }],
+			approvedBy: before.members,
+		});
 		expect(describeEvent(events[2]!)).toContain("adopted unanimously");
 		expect(project(events).teams).toHaveLength(1);
 		expect(project(events).teams[0]?.project.title).toBe("Local Tutor");

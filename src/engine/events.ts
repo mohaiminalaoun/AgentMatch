@@ -226,6 +226,7 @@ export const RunEvent = z.discriminatedUnion("type", [
 			.array(z.object({ role: z.string(), change: z.string() }))
 			.optional(),
 		approve: z.boolean().optional(),
+		cardConsistent: z.boolean().optional(),
 		applied: z.boolean().optional(),
 		reason: z
 			.enum([
