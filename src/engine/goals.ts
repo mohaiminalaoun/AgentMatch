@@ -33,3 +33,7 @@ export const EXPLORE_FIT =
 
 export const BRAINSTORM_DIRECTIONS =
 	"When choosing a first project in a brainstorm, privately consider one direction based on an existing idea and one substantially different direction combining known capabilities or motivations around another user problem. Choose the more compelling, buildable direction, not automatically your original idea. Do not report discarded alternatives or invent facts about people. At early levels contributions remain tentative until skills are shared.";
+
+// Team requirements describe work sought from teammates, not the owner's own contribution.
+export const OWNER_WORK =
+	"rolesNeeded and roleWork list work requested from people other than the project owner; they are not a complete list of all project work. The owner's work is intentionally omitted. Do not conclude the owner's skills are unused because their role is absent from those lists. Identify their concrete work from the agreed build and known skills, without inventing tasks or assuming skill possession means ownership. The same distinction applies when judging a proposed repair.";

@@ -4,6 +4,7 @@ import { createLlmClient } from "../../src/engine/client.js";
 import { RunEvent } from "../../src/engine/events.js";
 import {
 	repairProblems,
+	repairMessages,
 	repairVoteMessages,
 	runRepair,
 	type RepairProposal,
@@ -243,6 +244,91 @@ describe("bounded scope repair", () => {
 			"Proposal contains non-public information learned from another person",
 		);
 	});
+	test("repeated ML terminology and unchanged health/research project text can survive a scope reduction", () => {
+		const world = group();
+		const team = world.teams[0]!;
+		world.agents.a!.profile.skills.push({
+			name: "ml",
+			level: "intermediate",
+		});
+		world.agents.a!.profile.interests.push("health", "research");
+		team.project.description =
+			"Satellite flood alerts and an ML-tagged photo log with export.";
+		team.problem = "Health science needs research practice.";
+		team.build =
+			"Regional flood signal plus alert demo and ML-tagged photo log with export.";
+		const candidate = {
+			...proposal,
+			revision: {
+				...proposal.revision!,
+				pitch: "Satellite flood alerts and an ML-tagged photo log with export, shown without map UI.",
+				problem: team.problem,
+				build: "Regional flood signal plus alert demo and ML-tagged photo log with export via script.",
+			},
+		};
+		expect(repairProblems(world, team, candidate)).toEqual([]);
+		expect(
+			repairProblems(world, team, {
+				...candidate,
+				revision: {
+					...candidate.revision,
+					pitch: "I have ML expertise and health research experience.",
+				},
+			}),
+		).not.toEqual([]);
+		expect(
+			repairProblems(world, team, {
+				...candidate,
+				revision: {
+					...candidate.revision,
+					pitch: "The other member has ML expertise.",
+				},
+			}),
+		).toContain(
+			"Repairs must describe project work, not people or personal claims",
+		);
+	});
+	test("an owner's original listing is not assumed to be the current team's shared project context", () => {
+		const world = group();
+		const owner = world.agents.a!;
+		const team = world.teams[0]!;
+		owner.profile.skills.push({ name: "ml", level: "intermediate" });
+		owner.listing = {
+			title: "Original",
+			pitch: "ML security expertise for scanning networks.",
+			rolesNeeded: ["ml"],
+		};
+		expect(
+			repairProblems(world, team, {
+				...proposal,
+				revision: {
+					...proposal.revision!,
+					pitch: "ML security expertise for scanning networks.",
+				},
+			}),
+		).toContain(
+			"Proposal contains a non-public owner fact or invalid role",
+		);
+	});
+	test("owner work is explicit even when no owner role appears in teammate requirements", () => {
+		const world = group();
+		const team = world.teams[0]!;
+		const owner = repairVoteMessages(world.agents.a!, team, proposal);
+		const member = repairVoteMessages(world.agents.b!, team, proposal);
+		expect(owner[0]!.content).toContain(
+			"The owner's work is intentionally omitted",
+		);
+		expect(owner.at(-1)!.content).toContain(
+			'"projectOwnerIsYourHuman":true',
+		);
+		expect(member.at(-1)!.content).toContain(
+			'"projectOwnerIsYourHuman":false',
+		);
+		expect(
+			repairMessages(world.agents.a!, team, ["backend"])[0]!.content,
+		).toContain("not a complete list of all project work");
+	});
+
 	test("approval prompts never receive the owner's rationale or another member's private facts", () => {
 		const world = group();
 		const c = person(

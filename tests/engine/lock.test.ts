@@ -193,8 +193,22 @@ describe("lockMessages", () => {
 		expect(system!.content).toContain("Facts about you and a");
 		expect(system!.content).not.toContain("Facts about you and k");
 		expect(user!.content).toBe(
-			'Your group: {"project":{"title":"Tutor","description":"An AI tutor."},"agreedBuild":{"title":"Tutor","pitch":"An AI tutor.","rolesNeeded":["frontend","design"]},"size":3,"rolesStillNeeded":["design"]}',
+			'Your group: {"project":{"title":"Tutor","description":"An AI tutor."},"projectOwnerIsYourHuman":false,"agreedBuild":{"title":"Tutor","pitch":"An AI tutor.","rolesNeeded":["frontend","design"]},"size":3,"rolesStillNeeded":["design"]}',
 		);
+	});
+
+	test("the owner judges concrete build work rather than requiring their own role in rolesNeeded", () => {
+		const world = group(["a", "j"]);
+		const [system, user] = lockMessages(
+			world.agents.a!,
+			world.teams[0]!,
+			[],
+			1,
+		);
+		expect(system!.content).toContain(
+			"The owner's work is intentionally omitted",
+		);
+		expect(user!.content).toContain('"projectOwnerIsYourHuman":true');
 	});
 
 	test("the re-ask says the group changed", () => {

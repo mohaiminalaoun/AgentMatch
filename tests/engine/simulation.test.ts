@@ -391,6 +391,59 @@ describe("summarize", () => {
 		expect(summary.fallbacks).toBe(0);
 	});
 
+	test("counts repair and deadline fallbacks without counting transport diagnostics twice", async () => {
+		const { world, events } = await simulate();
+		const failures: RunEvent[] = [
+			{
+				type: "repair",
+				team: "t1",
+				agent: "a",
+				step: "result",
+				applied: false,
+				reason: "invalid_or_unavailable",
+				fellBack: true,
+			},
+			{
+				type: "repair",
+				team: "t2",
+				agent: "b",
+				step: "vote",
+				approve: false,
+				fellBack: true,
+			},
+			{
+				type: "lock",
+				team: "t3",
+				agent: "c",
+				ask: 1,
+				confident: false,
+				fellBack: true,
+			},
+			{
+				type: "mailbox",
+				time: "t",
+				agent: "grokbot",
+				requestId: "r",
+				kind: "repair-vote",
+				level: 2,
+				attempt: 1,
+				elapsedMs: 480000,
+				status: "fallback",
+				reason: "timeout",
+			},
+			{
+				type: "repair",
+				team: "t2",
+				agent: "a",
+				step: "result",
+				applied: false,
+				reason: "rejected",
+				fellBack: false,
+			},
+		];
+		expect(summarize(world, [...events, ...failures]).fallbacks).toBe(3);
+	});
+
 	test("the same scripted run gives the same summary every time", async () => {
 		const first = (await simulate()).summary;
 		const second = (await simulate()).summary;

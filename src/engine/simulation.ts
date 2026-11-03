@@ -364,20 +364,10 @@ export function summarize(
 		} else if (event.type === "interest") {
 			gateBlocks += event.gateBlocks ?? 0;
 		}
-		if (
-			(event.type === "decision" ||
-				event.type === "listing" ||
-				event.type === "interest" ||
-				event.type === "discovery" ||
-				event.type === "offers" ||
-				event.type === "commitment" ||
-				event.type === "recheck" ||
-				event.type === "revisionAnswer" ||
-				event.type === "hunch") &&
-			event.fellBack
-		) {
-			fallbacks++;
-		}
+		// Each logical model decision emits one fallback-bearing event. Transport
+		// diagnostics have no fellBack field and must not count the same failure twice.
+		if ("fellBack" in event && event.fellBack) fallbacks++;
+
 		if (event.type === "exchange") {
 			calls++;
 			usage.input += event.usage?.input ?? 0;

@@ -16,7 +16,7 @@ import { assignTeamRoles, stillNeeded, teamTerms } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
+import { CITE_FACTS, GOOD_TEAM, OWNER_WORK } from "./goals.js";
 import {
 	StructuredOutputError,
 	type ChatOptions,
@@ -73,6 +73,7 @@ export function lockMessages(
 				aboutHuman(agent, 2),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				OWNER_WORK,
 				[
 					ask === 1
 						? "Matching is over: this is the deadline. Your human is in the group below, and every member is now asked whether they're confident in it."
@@ -94,6 +95,7 @@ export function lockMessages(
 			role: "user",
 			content: `Your group: ${JSON.stringify({
 				project: team.project,
+				projectOwnerIsYourHuman: team.members[0] === agent.id,
 				agreedBuild: teamTerms(team),
 				size: team.members.length,
 				rolesStillNeeded: needed,

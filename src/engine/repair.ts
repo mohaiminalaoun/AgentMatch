@@ -7,12 +7,16 @@ import { assignTeamRoles, stillNeeded, teamTerms } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, checkThirdParty, draftOf } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM } from "./goals.js";
+import { CITE_FACTS, GOOD_TEAM, OWNER_WORK } from "./goals.js";
 import { StructuredOutputError, type Message } from "./llm.js";
 import { aboutHuman, guidance } from "./notes.js";
+import {
+	containsPersonalClaim,
+	undisclosedProjectText,
+} from "./project-context.js";
 import { ROLES } from "./profile.js";
-import { Terms, termsTexts, type Terms as ProjectTerms } from "./proposal.js";
-import { publicPitch, type World } from "./round.js";
+import { Terms, termsTexts } from "./proposal.js";
+import type { World } from "./round.js";
 import type { Team } from "./team.js";
 
 const Revision = Terms.extend({
@@ -45,6 +49,7 @@ function privateContext(agent: AgentState, team: Team): string[] {
 		aboutHuman(agent, 2),
 		...(guidance(agent) ? [guidance(agent)] : []),
 		GOOD_TEAM,
+		OWNER_WORK,
 		...team.members
 			.filter((id) => id !== agent.id && contactOf(agent, id).level >= 2)
 			.map((id) => factsText(fitFacts(agent, id))),
@@ -94,7 +99,7 @@ export function repairVoteMessages(
 		},
 		{
 			role: "user",
-			content: `Approve scope repair: ${JSON.stringify({ current: teamTerms(team), proposed: proposal.revision, removedWork: proposal.removedWork, size: team.members.length })}`,
+			content: `Approve scope repair: ${JSON.stringify({ current: teamTerms(team), projectOwnerIsYourHuman: team.members[0] === agent.id, proposed: proposal.revision, removedWork: proposal.removedWork, size: team.members.length })}`,
 		},
 	];
 }
@@ -131,11 +136,28 @@ export function repairProblems(
 	draft.texts.removedWork = proposal.removedWork
 		.map((change) => change.change)
 		.join("; ");
-	const known = JSON.stringify([
-		termsTexts(teamTerms(team)),
-		termsTexts(publicPitch(owner) ?? teamTerms(team)),
-	]);
+	// Only the current agreed team scope is shared by every member. The owner's
+	// original listing may contain a different project and is not an exemption here.
+	const agreed = Object.values(termsTexts(teamTerms(team)));
+	const personal = Object.values(draft.texts).some(
+		(text) => text && containsPersonalClaim(text),
+	);
+	const texts = Object.fromEntries(
+		Object.entries(draft.texts).map(([where, text]) => [
+			where,
+			text === undefined || personal
+				? text
+				: undisclosedProjectText(text, agreed),
+		]),
+	);
+	const checkedDraft = { ...draft, texts };
+
 	return [
+		...(personal
+			? [
+					"Repairs must describe project work, not people or personal claims",
+				]
+			: []),
 		...(revision.rolesNeeded.some(
 			(role) => !team.rolesNeeded.includes(role),
 		)
@@ -162,13 +184,13 @@ export function repairProblems(
 		) || revision.rolesNeeded.some((role) => !revision.roleWork[role])
 			? ["roleWork must describe exactly the remaining roles"]
 			: []),
-		...checkDisclosure(owner.profile, 0, draft).map(
+		...checkDisclosure(owner.profile, 0, checkedDraft).map(
 			() => "Proposal contains a non-public owner fact or invalid role",
 		),
 		...checkThirdParty(
-			draft.texts,
+			texts,
 			Object.values(owner.contacts).map((contact) => contact.learned),
-			known,
+			"",
 		).map(
 			() =>
 				"Proposal contains non-public information learned from another person",
