@@ -45,6 +45,8 @@ export function formatEvent(
 	const reasoning = (text: string | undefined) =>
 		rationale ? ` · private: ${text ?? "(none)"}` : "";
 	switch (event.type) {
+		case "mailbox":
+			return `  ${event.agent} · ${event.kind} level ${event.level} · ${event.status}${event.reason ? `: ${event.reason}` : ""} · request ${event.requestId} · attempt ${event.attempt} · ${Math.round(event.elapsedMs / 1000)}s${event.status === "fallback" ? " · arena safe default; not an agent decision" : ""}`;
 		case "round":
 			return `round · ${event.time} · ${event.model} · agents: ${event.agents.join(", ")}`;
 		case "listing":

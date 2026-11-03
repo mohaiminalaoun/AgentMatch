@@ -120,3 +120,15 @@ Copy `.env.example` to `.env` and set an OpenAI-compatible endpoint, key, and mo
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## External Grokbot agent
+
+Grokbot can answer for one participant through a webhook-triggered routine. The arena stores each full request in the authenticated mailbox, sends only its ID to the routine, then validates the returned answer with the same schema and disclosure checks as internal agents. No scheduled worker is needed.
+
+See [Grokbot setup and routine instructions](docs/grokbot.md). With credentials configured locally:
+
+```sh
+npm run pilot:run -- profiles --cast 14 --rounds 4 --outside p-bwwbwk=grokbot --answer-minutes 8
+```
+
+Replace the participant ID with one present in your profile directory. This command makes paid model calls. Grokbot answers are checked every two seconds by default; use `--poll-seconds 5` for less frequent mailbox checks. Other outside agents retain the 15-second default.

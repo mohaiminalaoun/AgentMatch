@@ -64,6 +64,8 @@ export class StructuredOutputError extends LlmError {
 
 // One round trip: everything sent to the model, the text it replied with, and what it cost.
 export type Exchange = {
+	// Correlates an outside response with its mailbox diagnostics.
+	requestId?: string;
 	messages: readonly Message[];
 	reply: string;
 	usage: TokenUsage | undefined;

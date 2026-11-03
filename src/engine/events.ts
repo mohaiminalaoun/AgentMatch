@@ -32,10 +32,45 @@ const LoggedBusEvent = z.discriminatedUnion("type", [
 	}),
 ]);
 
+// Transport diagnostics contain identifiers and categories, never prompts, replies, or credentials.
+export const MailboxDiagnostic = z.object({
+	type: z.literal("mailbox"),
+	time: z.string(),
+	agent: z.string(),
+	requestId: z.string(),
+	kind: z.string(),
+	level: z.number().int(),
+	attempt: z.number().int().positive(),
+	elapsedMs: z.number().nonnegative(),
+	status: z.enum([
+		"pending",
+		"notified",
+		"notification_failed",
+		"answered",
+		"retry",
+		"poll_error",
+		"fallback",
+		"completed",
+	]),
+	reason: z
+		.enum([
+			"timeout",
+			"mailbox_error",
+			"webhook_error",
+			"invalid_json",
+			"schema_failure",
+			"disclosure_rejection",
+			"rule_rejection",
+		])
+		.optional(),
+});
+export type MailboxDiagnostic = z.infer<typeof MailboxDiagnostic>;
+
 // Everything that happens in a run, in order. `runRound` emits these; a run log is a list of them,
 // and the UI and replay will read the same stream. Rationales are private to each agent's human:
 // this is the operator's complete view, which is why logs stay out of git.
 export const RunEvent = z.discriminatedUnion("type", [
+	MailboxDiagnostic,
 	// A call to runRound began.
 	z.object({
 		type: z.literal("round"),
@@ -200,6 +235,7 @@ export const RunEvent = z.discriminatedUnion("type", [
 	// One model call: everything sent, the reply, and its cost.
 	z.object({
 		type: z.literal("exchange"),
+		requestId: z.string().optional(),
 		time: z.string(),
 		messages: z.array(
 			z.object({
@@ -228,6 +264,7 @@ export type RunEvent = z.infer<typeof RunEvent>;
 export function exchangeEvent(exchange: Exchange): RunEvent {
 	return {
 		type: "exchange",
+		...(exchange.requestId ? { requestId: exchange.requestId } : {}),
 		time: new Date().toISOString(),
 		messages: [...exchange.messages],
 		reply: exchange.reply,

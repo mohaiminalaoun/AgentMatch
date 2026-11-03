@@ -14,6 +14,7 @@ import type {
 	StoredAnswer,
 } from "../../mailbox/api/_mailbox.js";
 import type { ClientStats, LlmClient } from "./client.js";
+import type { MailboxDiagnostic } from "./events.js";
 import type { Config } from "./config.js";
 import {
 	chatJson,
@@ -37,6 +38,9 @@ export type MailboxBrainOptions = {
 	pollMs?: number;
 	// Tells requests from different runs apart.
 	runId?: string;
+	// Optional wake notification; the full prompt stays in the authenticated mailbox.
+	webhook?: { url: string; key: string };
+	onDiagnostic?: (event: MailboxDiagnostic) => void;
 	// Swapped in tests.
 	fetch?: typeof fetch;
 	sleep?: (ms: number) => Promise<void>;
@@ -74,6 +78,8 @@ export function createMailboxBrain(
 		agent,
 		answerMs,
 		pollMs = DEFAULT_POLL_MS,
+		onDiagnostic,
+		webhook,
 		runId = Date.now().toString(36),
 		fetch: fetchFn = fetch,
 		sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -94,6 +100,7 @@ export function createMailboxBrain(
 		string,
 		{
 			deadline: Date;
+			onPollError: () => void;
 			resolve: (answer: StoredAnswer) => void;
 			reject: (error: Error) => void;
 		}
@@ -105,6 +112,8 @@ export function createMailboxBrain(
 		try {
 			const response = await fetchFn(new URL(path, settings.url), {
 				method: "POST",
+				redirect: "error",
+				signal: AbortSignal.timeout(15_000),
 				headers: {
 					authorization: `Bearer ${settings.engineKey}`,
 					"content-type": "application/json",
@@ -135,6 +144,7 @@ export function createMailboxBrain(
 				} catch {
 					// A failed check is just a missed poll; the next one tries again.
 					stats.retries++;
+					for (const id of ids) waiting.get(id)?.onPollError();
 				}
 				const time = now();
 				for (const id of ids) {
@@ -159,6 +169,11 @@ export function createMailboxBrain(
 		messages: readonly Message[],
 		replySchema: Record<string, unknown>,
 		options: ChatOptions,
+		track: (request: PendingRequest) => void,
+		emit: (
+			status: MailboxDiagnostic["status"],
+			reason?: MailboxDiagnostic["reason"],
+		) => void,
 	): Promise<ChatReply> {
 		count++;
 		const deadline = new Date(now().getTime() + answerMs);
@@ -171,23 +186,52 @@ export function createMailboxBrain(
 			replySchema,
 			deadline: deadline.toISOString(),
 		};
+		track(request);
+		emit("pending");
 		try {
 			await engine("/engine/requests", { requests: [request] });
 		} catch (error) {
 			throw new MailboxUnavailable((error as Error).message);
 		}
+		if (webhook) {
+			try {
+				const response = await fetchFn(webhook.url, {
+					method: "POST",
+					redirect: "error",
+					signal: AbortSignal.timeout(30_000),
+					headers: {
+						authorization: `Bearer ${webhook.key}`,
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({ request_id: request.id }),
+				});
+				if (!response.ok) throw new Error("notification rejected");
+				emit("notified");
+			} catch {
+				// Delivery may have succeeded despite a timeout. Never retry a wake blindly.
+				// Keep waiting: a notification failure is not an agent's decline.
+				emit("notification_failed", "webhook_error");
+			}
+		}
 		const answered = new Promise<StoredAnswer>((resolve, reject) => {
-			waiting.set(request.id, { deadline, resolve, reject });
+			waiting.set(request.id, {
+				deadline,
+				resolve,
+				reject,
+				onPollError: () => emit("poll_error", "mailbox_error"),
+			});
 		});
 		stats.peakInFlight = Math.max(stats.peakInFlight, waiting.size);
 		void poll();
 		const { reply } = await answered;
+		emit("answered");
 		const content = JSON.stringify(reply);
 		options.onExchange?.({
 			messages,
 			reply: content,
 			usage: undefined,
 			model,
+			requestId: request.id,
 		});
 		return { content, usage: undefined };
 	}
@@ -199,18 +243,84 @@ export function createMailboxBrain(
 			);
 		},
 		chatJson: async (messages, schema, options = {}) => {
+			const started = now().getTime();
+			let current: PendingRequest | undefined;
+			let attempt = 0;
+			const emit = (
+				status: MailboxDiagnostic["status"],
+				reason?: MailboxDiagnostic["reason"],
+			) => {
+				if (!current) return;
+				onDiagnostic?.({
+					type: "mailbox",
+					time: now().toISOString(),
+					agent,
+					requestId: current.id,
+					kind: current.kind,
+					level: current.level,
+					attempt,
+					elapsedMs: Math.max(0, now().getTime() - started),
+					status,
+					...(reason ? { reason } : {}),
+				});
+			};
+			const category = (
+				error: StructuredOutputError,
+			): MailboxDiagnostic["reason"] =>
+				error.kind === "rule"
+					? error.problems.some((p) =>
+							/which isn't public|which you may not share at level/i.test(
+								p,
+							),
+						)
+						? "disclosure_rejection"
+						: "rule_rejection"
+					: error.message.includes("not valid JSON")
+						? "invalid_json"
+						: "schema_failure";
 			const replySchema = zod.toJSONSchema(schema as z.ZodType, {
 				io: "input",
 				unrepresentable: "any",
 			}) as Record<string, unknown>;
 			try {
 				// `config` is unused: every attempt goes through `send`.
-				return await chatJson({} as Config, messages, schema, {
+				const result = await chatJson({} as Config, messages, schema, {
 					...options,
 					send: (sent, sendOptions) =>
-						send(sent, replySchema, sendOptions),
+						send(
+							sent,
+							replySchema,
+							sendOptions,
+							(request) => {
+								current = request;
+								attempt++;
+							},
+							emit,
+						),
+					onRetry: (error, n) => {
+						emit("retry", category(error));
+						options.onRetry?.(error, n);
+					},
 				});
+				emit("completed");
+				return result;
 			} catch (error) {
+				if (!(
+					error instanceof MissedDeadline ||
+					error instanceof MailboxUnavailable ||
+					error instanceof StructuredOutputError
+				))
+					throw error;
+				emit(
+					"fallback",
+					error instanceof MissedDeadline
+						? "timeout"
+						: error instanceof MailboxUnavailable
+							? "mailbox_error"
+							: error instanceof StructuredOutputError
+								? category(error)
+								: "mailbox_error",
+				);
 				if (error instanceof MissedDeadline) {
 					throw new StructuredOutputError(
 						"no answer before the deadline",

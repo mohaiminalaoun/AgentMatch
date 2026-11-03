@@ -1,4 +1,4 @@
-// Entry point for `npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M]`:
+// Entry point for `npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S]`:
 // the whole system on real people,
 // one .json file each in <dir> (copy profiles/example.json), plus N generated people so the board isn't too
 // thin. Refuses a model the provider trains on. Prints a live status line, then where each real person ended
@@ -10,7 +10,7 @@ import { formatSummary } from "./describe.js";
 import { z } from "zod";
 import { brainsEvent, createLlmClient, withBrains } from "./engine/client.js";
 import { loadConfig, readEnvFile } from "./engine/config.js";
-import type { RunEvent } from "./engine/events.js";
+import type { MailboxDiagnostic, RunEvent } from "./engine/events.js";
 import { createMailboxBrain } from "./engine/mailbox-brain.js";
 import { createRunLog } from "./engine/runlog.js";
 import { summarize } from "./engine/simulation.js";
@@ -34,7 +34,7 @@ function flag(name: string, fallback: number, min = 1): number {
 const dir = process.argv[2];
 if (!dir || dir.startsWith("--")) {
 	console.error(
-		"Usage: npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M]",
+		"Usage: npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S]",
 	);
 	process.exit(1);
 }
@@ -59,6 +59,9 @@ if (outsideIndex !== -1 && !outside) {
 	process.exit(1);
 }
 
+// Grokbot is woken by webhook; check returned answers promptly without a worker polling loop.
+const pollSeconds = flag("poll-seconds", outside?.agent === "grokbot" ? 2 : 15);
+
 const MailboxEnv = z.object({
 	MAILBOX_URL: z.url(),
 	MAILBOX_ENGINE_KEY: z.string().min(16),
@@ -71,6 +74,38 @@ try {
 	const people = loadPeople(dir);
 	const log = createRunLog("pilot");
 	const shared = createLlmClient(config);
+	const pending = new Map<
+		string,
+		{ event: MailboxDiagnostic; since: number }
+	>();
+	const started = performance.now();
+	const status = createStatus(started, () =>
+		[...pending.values()]
+			.map(
+				({ event, since }) =>
+					`waiting for ${event.agent}: ${event.kind} level ${event.level} · attempt ${event.attempt} · ${Math.floor((Date.now() - since) / 1000)}s pending`,
+			)
+			.join("; "),
+	);
+	const diagnostic = (event: MailboxDiagnostic) => {
+		log.write(event);
+		if (event.status === "pending")
+			pending.set(event.requestId, { event, since: Date.now() });
+		if (["answered", "fallback", "completed"].includes(event.status))
+			pending.delete(event.requestId);
+		if (event.status === "fallback")
+			status.print(
+				`⚠ ${event.agent}: no valid response for ${event.kind} level ${event.level} (${event.reason}); arena safe default, not an agent decision · request ${event.requestId} · ${event.attempt} attempt(s) · ${Math.round(event.elapsedMs / 1000)}s`,
+			);
+		if (event.status === "notification_failed")
+			status.print(
+				`⚠ ${event.agent}: webhook notification failed; delivery may be unknown, still waiting for mailbox answer · ${event.requestId}`,
+			);
+		if (event.status === "retry")
+			status.print(
+				`↻ ${event.agent}: ${event.reason}; requesting correction · ${event.requestId}`,
+			);
+	};
 	let client = shared;
 	if (outside) {
 		const person = outside.person!;
@@ -83,22 +118,41 @@ try {
 				"--outside needs MAILBOX_URL and MAILBOX_ENGINE_KEY in .env",
 			);
 		}
+		let webhook: { url: string; key: string } | undefined;
+		if (outside.agent === "grokbot") {
+			const url = process.env.GROKBOT_WEBHOOK_URL;
+			const key = process.env.GROKBOT_WEBHOOK_KEY;
+			if (!url || !key)
+				throw new Error(
+					"--outside with grokbot requires GROKBOT_WEBHOOK_URL and GROKBOT_WEBHOOK_KEY",
+				);
+			try {
+				if (new URL(url).protocol !== "https:") throw new Error();
+			} catch {
+				throw new Error("GROKBOT_WEBHOOK_URL must be an HTTPS URL");
+			}
+			webhook = { url, key };
+		}
 		client = withBrains(shared, {
 			[person]: createMailboxBrain(
 				{
 					url: mailbox.data.MAILBOX_URL,
 					engineKey: mailbox.data.MAILBOX_ENGINE_KEY,
 				},
-				{ agent: outside.agent!, answerMs: answerMinutes * 60_000 },
+				{
+					agent: outside.agent!,
+					answerMs: answerMinutes * 60_000,
+					pollMs: pollSeconds * 1000,
+					onDiagnostic: diagnostic,
+					...(webhook ? { webhook } : {}),
+				},
 			),
 		});
 	}
 	const events: RunEvent[] = [];
-	const started = performance.now();
-	const status = createStatus(started);
 
 	console.log(
-		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request)` : ""}\n`,
+		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request, answers checked every ${pollSeconds}s${outside.agent === "grokbot" ? ", webhook wake" : ""})` : ""}\n`,
 	);
 	const onEvent = (event: RunEvent) => {
 		events.push(event);

@@ -24,6 +24,18 @@ const team = (id: string, members: string[]): RunEvent => ({
 // A run with a, b, and c touching every kind of event. a and b talk and form a team that c joins and
 // then leaves; b and c also talk to each other, which a never sees.
 const run: RunEvent[] = [
+	{
+		type: "mailbox",
+		time: "t",
+		agent: "a",
+		requestId: "operator-only-request",
+		kind: "interest",
+		level: 2,
+		attempt: 1,
+		elapsedMs: 480000,
+		status: "fallback",
+		reason: "timeout",
+	},
 	// c's agent is an outside one, which only c may know.
 	{ type: "brains", agents: { c: "mailbox:muse" } },
 	{ type: "round", time: "t", model: "m", agents: ["a", "b", "c"] },
@@ -181,6 +193,8 @@ describe("eventsFor", () => {
 				expect(text).not.toContain(secret(other));
 			}
 			expect(view.some((e) => e.type === "exchange")).toBe(false);
+			expect(view.some((e) => e.type === "mailbox")).toBe(false);
+			expect(text).not.toContain("operator-only-request");
 		},
 	);
 

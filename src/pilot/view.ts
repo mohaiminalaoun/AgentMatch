@@ -37,6 +37,7 @@ export function eventsFor(id: string, events: readonly RunEvent[]): RunEvent[] {
 				return event.agents.includes(id)
 					? [{ ...event, agents: [id] }]
 					: [];
+			case "mailbox":
 			case "exchange":
 				return [];
 			// Whether someone else's agent is an outside one isn't public yet; their own entry is theirs.
