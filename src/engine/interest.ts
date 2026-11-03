@@ -14,7 +14,13 @@ import { describeViolation, disclosureRules } from "./decision.js";
 import type { DisclosureLevel } from "./disclosure.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, draftOf } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
+import {
+	CITE_FACTS,
+	GOOD_TEAM,
+	PROJECT_EXPLORATION,
+	EXPLORE_FIT,
+	BRAINSTORM_DIRECTIONS,
+} from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	StructuredOutputError,
@@ -198,6 +204,7 @@ export function interestMessages(
 				aboutHuman(agent, level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				EXPLORE_FIT,
 				factsText(fitFacts(agent, otherId)),
 				[
 					`You and agent ${otherId} both agreed to keep talking and are now at level ${level}.`,
@@ -214,6 +221,9 @@ export function interestMessages(
 					CITE_FACTS,
 				].join("\n"),
 				...(revise ? [PROJECT_EXPLORATION] : []),
+				...(revise && agreed?.pitch === BRAINSTORM_PITCH
+					? [BRAINSTORM_DIRECTIONS]
+					: []),
 				...(revise
 					? [
 							[

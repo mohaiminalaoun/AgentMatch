@@ -215,6 +215,29 @@ export const RunEvent = z.discriminatedUnion("type", [
 		rationale: z.string().optional(),
 		fellBack: z.boolean(),
 	}),
+	// A bounded pre-deadline scope repair; rationales remain private to the acting agent.
+	z.object({
+		type: z.literal("repair"),
+		team: z.string(),
+		agent: z.string(),
+		step: z.enum(["proposal", "vote", "result"]),
+		revision: Terms.optional(),
+		removedWork: z
+			.array(z.object({ role: z.string(), change: z.string() }))
+			.optional(),
+		approve: z.boolean().optional(),
+		applied: z.boolean().optional(),
+		reason: z
+			.enum([
+				"no_revision",
+				"rejected",
+				"unanimous",
+				"invalid_or_unavailable",
+			])
+			.optional(),
+		rationale: z.string().optional(),
+		fellBack: z.boolean(),
+	}),
 	// A team formed, gained a member, or lost one.
 	z.object({ type: z.literal("team"), team: Team }),
 	// Agents that think with a brain of their own instead of the shared model, by id: "mailbox:<name>" for an

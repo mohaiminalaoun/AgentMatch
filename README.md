@@ -18,8 +18,9 @@ Forming a team usually means one of two things: hand everything to a central mat
 4. **Reshaping the idea.** At levels 1 and 2, either side may propose a reshaped version of the project. The other adopts it or keeps the current one. Every version carries its own title, so adopting a version adopts its name.
 5. **Groups.** Project owners offer places to the people they're ready with. An owner who is also offered a place first decides whether to lead its own group or join the other. Offers settle by deferred acceptance, and an offer is only sent if it reveals nothing the owner learned from someone else. Groups stay tentative: they keep recruiting, and post their current version and still-open roles on the board, until the deadline.
 6. **Brainstorm.** People still without a group after things settle can meet each other with no idea yet and build one together.
-7. **The deadline.** Each member is asked whether they're confident in their group. Anyone who isn't drops out; if the group changed, the rest are asked once more. Groups of two or more become teams.
-8. **Names last.** Teammates swap names only after the deadline, and in the pilot only after people approve.
+7. **Scope repair.** Before final confirmation, each tentative team with uncovered required roles gets one opportunity to propose a smaller build. Every removed role needs a concrete work change, remaining roles must have known coverage, and every member must approve. A rejection or failed response keeps the original project. Recruitment is not reopened.
+8. **The deadline.** Each member is asked whether they're confident in their group. Anyone who isn't drops out; if the group changed, the rest are asked once more. Groups of two or more become teams.
+9. **Names last.** Teammates swap names only after the deadline, and in the pilot only after people approve.
 
 Agents never call each other. Every message goes through a bus that validates it, and every step is emitted as an event, so a run can be replayed later as a timeline.
 
@@ -27,8 +28,8 @@ Agents never call each other. Every message goes through a bus that validates it
 
 Early versions let each prompt carry its own rule of thumb, and agents explained decisions with claims their prompts didn't support. Now:
 
-- **One standard.** Every decision, from whom to approach to whether to stay at the deadline, is judged by the same definition of a good team: a project the human wants, overlapping interests, logistics that work, every role covered by someone with the time, and the human's skills in use.
-- **Computed facts, labelled.** Code works out what it can from the agent's own profile and what the other side has shared: time zones and each side's evening on the other's clock, hours, skills, the team sizes that suit both. It labels each item as a fact, an estimate (a 9-to-5 overlap, stated as an assumption), or unknown. Rationales must rest on the facts and never state an unknown as fact.
+- **One standard.** Every decision, from whom to approach to whether to stay at the deadline, is judged by the same definition of a good team: a project the human wants, a grounded reason for each person to participate, feasible collaboration, essential work covered by people with the time, and the human's skills in use. Exploration can leave questions open; final confirmation judges the actual roster.
+- **Computed facts, labelled.** Code works out what it can from the agent's own profile and what the other side has shared: time zones and each side's evening on the other's clock, hours, skills, the team sizes that suit both. Actual work schedules and synchronous collaboration needs remain unknown unless stated; time-zone differences alone do not establish a conflict. Rationales must rest on the facts and never state an unknown as fact.
 - **Code checks claims and decisions.** A reshaped project must say who covers each role, checked against the profiles. Offers give each chosen person a different role. An owner bringing people together sees how they fit each other, not just itself. A private hunch must cite the note it rests on, or it counts for nothing.
 - **Every override is logged.** When code drops someone the model chose, or someone never becomes an offer, the run log says who and why.
 
@@ -132,3 +133,9 @@ npm run pilot:run -- profiles --cast 14 --rounds 4 --outside p-bwwbwk=grokbot --
 ```
 
 Replace the participant ID with one present in your profile directory. This command makes paid model calls. Grokbot answers are checked every two seconds by default; use `--poll-seconds 5` for less frequent mailbox checks. Other outside agents retain the 15-second default.
+
+### Bounded pre-deadline repair
+
+Repair preserves the roster and original user problem. It does not merge teams, relax minimum team sizes, or silently declare work optional. The owner can make one proposal (at most two validation attempts); each member, including the owner, gets one approval attempt. Only unanimous approval updates the stored project card and role requirements. Final confidence is still checked independently afterward. Missing or invalid answers fail closed to the original project.
+
+Repair prompts use each agent's own profile and only facts it has learned. The proposal is checked against owner disclosure rules and third-party leakage before any teammate reads it; voting rationales stay private. Code checks role changes and known coverage, but whether the proposed simplification really solves the user problem remains an agent judgment, not a proven fact. No live matching improvement is claimed until this is evaluated on a new run.

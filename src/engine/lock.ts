@@ -12,7 +12,7 @@ import {
 	type AgentState,
 } from "./agent.js";
 import { brainOf, type LlmClient } from "./client.js";
-import { assignTeamRoles, stillNeeded } from "./commitment.js";
+import { assignTeamRoles, stillNeeded, teamTerms } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure } from "./gate.js";
@@ -78,7 +78,7 @@ export function lockMessages(
 						? "Matching is over: this is the deadline. Your human is in the group below, and every member is now asked whether they're confident in it."
 						: "Someone dropped out of your human's group at the deadline, so it changed. Every remaining member is asked once more whether they're confident in it as it is now.",
 					"The group can't grow any more: judge it as it is. Answer confident true to stay: your human joins the team, and names are shared among everyone who stays. Answer false to drop out: your human ends with no team this time.",
-					"Stay unless the group is clearly wrong for your human: a project they wouldn't want, logistics that can't work, or their skills going unused. A missing role or a small team is a cost to weigh, not a reason on its own.",
+					"Confirm only if this exact project and roster are credible for your human: identify their concrete contribution, who can cover each essential part of the build from known skills, and whether available hours support the scope and personal requirements. Do not justify essential gaps or an unmet required team size by hoping someone joins later: recruitment is over. Unknown skill coverage is unverified, not covered. A missing optional role need not block a working demo, but explain why that work is optional for the agreed build. You cannot silently narrow or change the agreed project at this confirmation step. Drop out if essential work has no credible coverage or a known personal requirement is unmet; unknown schedules alone do not establish incompatibility.",
 					...(strangers > 0
 						? [
 								`You haven't talked with ${strangers === 1 ? "one member" : `${strangers} members`}; nothing about them is known yet.`,
@@ -94,6 +94,7 @@ export function lockMessages(
 			role: "user",
 			content: `Your group: ${JSON.stringify({
 				project: team.project,
+				agreedBuild: teamTerms(team),
 				size: team.members.length,
 				rolesStillNeeded: needed,
 			})}`,

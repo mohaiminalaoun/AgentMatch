@@ -826,3 +826,88 @@ describe("browser replay", () => {
 		);
 	});
 });
+
+describe("scope repair replay", () => {
+	const before: Extract<Event, { type: "team" }>["team"] = {
+		id: "team-a",
+		members: ["a", "b"],
+		project: {
+			title: "Tutor",
+			description: "Lessons with server sessions.",
+		},
+		rolesNeeded: ["ml", "backend"],
+		status: "tentative",
+	};
+	const revision = {
+		title: "Local Tutor",
+		pitch: "Lessons locally.",
+		problem: "Practice lessons.",
+		build: "Bundled exercises and local session state.",
+		rolesNeeded: ["ml"],
+		roleWork: { ml: "classify exercises" },
+	};
+	const proposal: Event = {
+		type: "repair",
+		team: "team-a",
+		agent: "a",
+		step: "proposal",
+		revision,
+		removedWork: [{ role: "backend", change: "Use local state." }],
+		rationale: "Simpler",
+		fellBack: false,
+	};
+	it("shows the adopted scope and card as the team's final version", () => {
+		const after = {
+			...before,
+			project: { title: revision.title, description: revision.pitch },
+			rolesNeeded: revision.rolesNeeded,
+			build: revision.build,
+		};
+		const events: Event[] = [
+			{ type: "team", team: before },
+			proposal,
+			{
+				type: "repair",
+				team: "team-a",
+				agent: "a",
+				step: "result",
+				applied: true,
+				reason: "unanimous",
+				fellBack: false,
+			},
+			{ type: "team", team: after },
+		];
+		const result = ideaVersions(events, "a", "b");
+		expect(result.agreed).toBe(0);
+		expect(result.versions[0]).toMatchObject({
+			title: "Local Tutor",
+			status: "adopted",
+			card: { build: revision.build },
+			rolesNeeded: ["ml"],
+		});
+		expect(describeEvent(events[2]!)).toContain("adopted unanimously");
+		expect(project(events).teams).toHaveLength(1);
+		expect(project(events).teams[0]?.project.title).toBe("Local Tutor");
+	});
+	it("never treats a rejected repair as an agreed version", () => {
+		const result = ideaVersions(
+			[
+				{ type: "team", team: before },
+				proposal,
+				{
+					type: "repair",
+					team: "team-a",
+					agent: "a",
+					step: "result",
+					applied: false,
+					reason: "rejected",
+					fellBack: false,
+				},
+			],
+			"a",
+			"b",
+		);
+		expect(result.versions).toEqual([]);
+		expect(result.agreed).toBeUndefined();
+	});
+});

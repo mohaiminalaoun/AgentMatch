@@ -193,7 +193,7 @@ describe("lockMessages", () => {
 		expect(system!.content).toContain("Facts about you and a");
 		expect(system!.content).not.toContain("Facts about you and k");
 		expect(user!.content).toBe(
-			'Your group: {"project":{"title":"Tutor","description":"An AI tutor."},"size":3,"rolesStillNeeded":["design"]}',
+			'Your group: {"project":{"title":"Tutor","description":"An AI tutor."},"agreedBuild":{"title":"Tutor","pitch":"An AI tutor.","rolesNeeded":["frontend","design"]},"size":3,"rolesStillNeeded":["design"]}',
 		);
 	});
 

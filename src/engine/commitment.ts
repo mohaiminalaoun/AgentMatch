@@ -96,11 +96,14 @@ function membersOf(world: World, owner: string): string[] {
 }
 
 // The team's version of its project, once there's a team.
-function teamTerms(team: Team): Terms {
+export function teamTerms(team: Team): Terms {
 	return {
 		title: team.project.title,
 		pitch: team.project.description,
 		rolesNeeded: team.rolesNeeded,
+		...(team.problem !== undefined && { problem: team.problem }),
+		...(team.build !== undefined && { build: team.build }),
+		...(team.roleWork !== undefined && { roleWork: team.roleWork }),
 	};
 }
 
@@ -636,7 +639,7 @@ export function offerMessages(
 				...(together
 					? [
 							together,
-							"The people you choose, and anyone already in the group, may never have talked to each other: you're the only one who can see how they fit together. Weigh how they fit each other, not just your human, especially time zones.",
+							"The people you choose, and anyone already in the group, may never have talked to each other: you're the only one who can see how they fit together. Weigh how they fit each other, not just your human, using known project contributions, capacity, and personal requirements; do not assume synchronous work or scheduling conflicts from time zones alone.",
 						]
 					: []),
 				[
@@ -1301,6 +1304,7 @@ export async function runCommitment(
 	// existing group keeps its version. Nobody swaps names yet: that waits for the deadline.
 	function addMember(owner: string, member: string, version: Terms) {
 		const team = teams.find((t) => t.members[0] === owner);
+		const agreedCard = team ? teamTerms(team) : version;
 		const updated: Team = {
 			id: teamId(owner),
 			members: [...(team?.members ?? [owner]), member],
@@ -1316,6 +1320,13 @@ export async function runCommitment(
 				description: version.pitch,
 			},
 			rolesNeeded: team?.rolesNeeded ?? version.rolesNeeded,
+			...(agreedCard.problem !== undefined && {
+				problem: agreedCard.problem,
+			}),
+			...(agreedCard.build !== undefined && { build: agreedCard.build }),
+			...(agreedCard.roleWork !== undefined && {
+				roleWork: agreedCard.roleWork,
+			}),
 			status: "tentative",
 		};
 		updated.roles = assignTeamRoles(current(), updated);

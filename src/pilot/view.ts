@@ -37,6 +37,13 @@ export function eventsFor(id: string, events: readonly RunEvent[]): RunEvent[] {
 				return event.agents.includes(id)
 					? [{ ...event, agents: [id] }]
 					: [];
+			case "repair": {
+				if (event.agent === id) return [event];
+				if (event.step === "vote" || !theirTeams.has(event.team))
+					return [];
+				const { rationale: _, ...shared } = event;
+				return [shared];
+			}
 			case "mailbox":
 			case "exchange":
 				return [];

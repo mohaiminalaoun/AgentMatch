@@ -293,6 +293,17 @@ const id = z.string().min(1);
 const ids = z.array(id);
 const rationale = { rationale: z.string().optional() };
 const schemas: Record<string, z.ZodType> = {
+	repair: z
+		.object({
+			agent: id,
+			team: id,
+			step: z.enum(["proposal", "vote", "result"]),
+			approve: z.boolean().optional(),
+			applied: z.boolean().optional(),
+			fellBack: z.boolean(),
+			...rationale,
+		})
+		.passthrough(),
 	listing: z
 		.object({
 			agent: id,
@@ -474,6 +485,8 @@ export function formatElapsed(ms: number): string {
 
 export function describe(e: Event): string {
 	switch (e.type) {
+		case "repair":
+			return `${e.team} scope repair: ${e.step === "proposal" ? (e.revision?.title ?? "no revision") : e.step === "vote" ? `${e.agent} ${e.approve ? "approved" : "rejected"}` : e.applied ? "adopted unanimously" : "kept original"}`;
 		// Listings are the public board, so the feed shows them in full.
 		case "listing":
 			return `${e.agent} posted: “${e.pitch}”${e.rolesNeeded.length ? ` · needs ${e.rolesNeeded.join(", ")}` : ""}`;
@@ -913,6 +926,40 @@ export function ideaVersions(
 			} else settle(offer?.i, status);
 			if (m.answer === "commit") agreed = offer?.i;
 		}
+	}
+	// An adopted group repair is a settled project revision, rather than an unrecorded title change.
+	const teams = new Map<string, Extract<Event, { type: "team" }>["team"]>();
+	const repairs = new Map<string, Extract<Event, { type: "repair" }>>();
+	for (const e of events) {
+		if (e.type === "team") teams.set(e.team.id, e.team);
+		if (e.type !== "repair") continue;
+		if (e.step === "proposal") repairs.set(e.team, e);
+		if (e.step !== "result" || !e.applied) continue;
+		const team = teams.get(e.team);
+		const proposed = repairs.get(e.team);
+		if (
+			!team ||
+			!proposed?.revision ||
+			!team.members.includes(a) ||
+			!team.members.includes(b) ||
+			![a, b].includes(proposed.agent)
+		)
+			continue;
+		const r = proposed.revision;
+		versions.push({
+			how: "revision",
+			author: proposed.agent,
+			from: proposed.agent,
+			to: proposed.agent === a ? b : a,
+			title: r.title,
+			pitch: r.pitch,
+			rolesNeeded: r.rolesNeeded,
+			card: cardOf(r, r.rolesNeeded),
+			status: "adopted",
+			why: proposed.rationale,
+			answerWhy: "Scope repair approved by every member.",
+		});
+		agreed = versions.length - 1;
 	}
 	return { versions, agreed };
 }

@@ -12,6 +12,7 @@ import type { RunEvent } from "./events.js";
 import type { TokenUsage } from "./llm.js";
 import type { Note } from "./notes.js";
 import { writeListings } from "./listing.js";
+import { runRepair } from "./repair.js";
 import { runLock } from "./lock.js";
 import { CORE_ROLES, type Profile } from "./profile.js";
 import {
@@ -218,6 +219,13 @@ export async function runSimulation(
 		}
 		if (done) {
 			onEvent?.({ type: "stopped", rounds: round, reason: stopped! });
+			const repaired = await runRepair(client, world, {
+				...(onEvent && { onEvent }),
+			});
+			world = repaired.world;
+			onPhase?.(
+				`repair: ${repaired.proposed} scope proposals → ${repaired.applied} unanimously adopted`,
+			);
 			// The deadline: every member confirms their group or drops out, and only then are names shared.
 			onPhase?.(
 				"deadline: every member confirms their group or drops out",

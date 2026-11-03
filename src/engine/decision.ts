@@ -15,7 +15,13 @@ import {
 	type TokenUsage,
 } from "./llm.js";
 import { factsText, fitFacts } from "./fit.js";
-import { CITE_FACTS, GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
+import {
+	CITE_FACTS,
+	GOOD_TEAM,
+	PROJECT_EXPLORATION,
+	EXPLORE_FIT,
+	BRAINSTORM_DIRECTIONS,
+} from "./goals.js";
 import { steerText, type Hunch } from "./hunch.js";
 import {
 	BRAINSTORM_PITCH,
@@ -109,7 +115,11 @@ export function decisionMessages(
 				aboutHuman(agent, contact.level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				EXPLORE_FIT,
 				...(countersLeft ? [PROJECT_EXPLORATION] : []),
+				...(countersLeft && proposal.pitch === BRAINSTORM_PITCH
+					? [BRAINSTORM_DIRECTIONS]
+					: []),
 				factsText(fitFacts(agent, proposal.from)),
 				disclosureRules(contact.level),
 				[
@@ -179,6 +189,7 @@ export function joinRequestMessages(
 				aboutHuman(agent, contact.level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				EXPLORE_FIT,
 				factsText(fitFacts(agent, proposal.from)),
 				[
 					`Agent ${proposal.from} has no project of its own and asks to join your human's project. The pitch and roles below are your human's own listing: the roles are what your human's project needs from others, not what ${proposal.from} offers.`,

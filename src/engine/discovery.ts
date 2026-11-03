@@ -10,7 +10,12 @@ import {
 	type Exchange,
 	type Message,
 } from "./llm.js";
-import { GOOD_TEAM, PROJECT_EXPLORATION } from "./goals.js";
+import {
+	GOOD_TEAM,
+	PROJECT_EXPLORATION,
+	EXPLORE_FIT,
+	BRAINSTORM_DIRECTIONS,
+} from "./goals.js";
 import {
 	BRAINSTORM_PITCH,
 	JOIN_PREFIX,
@@ -127,6 +132,7 @@ export function discoveryMessages(
 				aboutHuman(agent, 0),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				EXPLORE_FIT,
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
 					"Approach people with whom a good team could plausibly form, judging from what's public: your human could fill a role their project lists, or they could fill one your human's project needs, and it's a project your human would want to build. Roles a pitch doesn't list are unknown, not open: its author may cover them. One person may cover several roles.",
@@ -347,7 +353,9 @@ export function brainstormMessages(
 				aboutHuman(agent, 0),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				EXPLORE_FIT,
 				PROJECT_EXPLORATION,
+				BRAINSTORM_DIRECTIONS,
 				[
 					"Everyone below is still without a team, and so is your human. Instead of joining an existing project, you can come up with a new one together.",
 					`Pick up to ${perAgent} people to brainstorm with, best first, by their id: people whose roles would complement your human's (rolesNeeded is what each lacks), and who might share an idea worth building. An idea, where shown, is their own project idea.`,

@@ -148,6 +148,38 @@ const run: RunEvent[] = [
 		fellBack: false,
 	})),
 	team("team-a", ["a", "b"]),
+	{
+		type: "repair",
+		team: "team-a",
+		agent: "b",
+		step: "proposal",
+		revision: {
+			title: "Smaller",
+			pitch: "A smaller project.",
+			rolesNeeded: ["frontend"],
+		},
+		removedWork: [{ role: "backend", change: "Use local state." }],
+		rationale: secret("b"),
+		fellBack: false,
+	},
+	{
+		type: "repair",
+		team: "team-a",
+		agent: "b",
+		step: "vote",
+		approve: false,
+		rationale: secret("b"),
+		fellBack: false,
+	},
+	{
+		type: "repair",
+		team: "team-a",
+		agent: "b",
+		step: "result",
+		applied: false,
+		reason: "rejected",
+		fellBack: false,
+	},
 	team("team-a", ["a", "b", "c"]),
 	{
 		type: "recheck",
@@ -197,6 +229,18 @@ describe("eventsFor", () => {
 			expect(text).not.toContain("operator-only-request");
 		},
 	);
+
+	test("team repair proposals and outcomes are visible without leaking other members' rationales or votes", () => {
+		const a = eventsFor("a", run).filter((e) => e.type === "repair");
+		expect(a.map((e) => e.step)).toEqual(["proposal", "result"]);
+		expect(JSON.stringify(a)).not.toContain(secret("b"));
+		expect(
+			eventsFor("b", run).filter((e) => e.type === "repair"),
+		).toHaveLength(3);
+		expect(eventsFor("z", run).filter((e) => e.type === "repair")).toEqual(
+			[],
+		);
+	});
 
 	test("a sees their own reasoning, their conversations, the public board, and their team", () => {
 		const view = eventsFor("a", run);

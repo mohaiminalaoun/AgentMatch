@@ -208,6 +208,7 @@ describe("runSimulation", () => {
 				/^round 2: conversations finished in \d+ ticks$/,
 			),
 			"round 2: 1 offers → 1 commits in 2 passes · teams: 1",
+			"repair: 0 scope proposals → 0 unanimously adopted",
 			"deadline: every member confirms their group or drops out",
 			"deadline: 0 dropped out · teams: 1",
 		]);

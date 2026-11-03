@@ -18,6 +18,10 @@ export const Team = z.object({
 	project: ProjectIdea,
 	// The roles that version needs from people other than the owner.
 	rolesNeeded: z.array(z.string().min(1)),
+	// Preserve the agreed build so repair and final confirmation judge the same scope.
+	problem: z.string().min(1).max(200).optional(),
+	build: z.string().min(1).max(200).optional(),
+	roleWork: z.record(z.string(), z.string().max(160)).optional(),
 	// Which of those roles each member other than the owner fills, as member id to role, worked out by code from
 	// the skills each member shared. Someone who fills no role the team needs isn't listed. Missing in older logs.
 	roles: z.record(z.string(), z.string()).optional(),
