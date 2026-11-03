@@ -3,7 +3,11 @@ import { contactOf, recordMessage } from "../../src/engine/agent.js";
 import { createLlmClient } from "../../src/engine/client.js";
 import type { Config } from "../../src/engine/config.js";
 import type { RunEvent } from "../../src/engine/events.js";
-import { lockMessages, runLock } from "../../src/engine/lock.js";
+import {
+	confirmationProblems,
+	lockMessages,
+	runLock,
+} from "../../src/engine/lock.js";
 import type { Profile } from "../../src/engine/profile.js";
 import { createWorld, type World } from "../../src/engine/round.js";
 import type { Team } from "../../src/engine/team.js";
@@ -20,6 +24,10 @@ function human(id: string, skill = "frontend"): Profile {
 	return {
 		...person(id, [{ name: skill, level: "expert" }], ["education"], 0),
 		name: `Name of ${id}`,
+		skills: [
+			{ name: skill, level: "expert" },
+			{ name: "design", level: "intermediate" },
+		],
 	};
 }
 
@@ -97,6 +105,30 @@ describe("runLock", () => {
 		expect(
 			events.filter((e) => e.type === "lock").map((e) => e.agent),
 		).toEqual(["a", "j", "k"]);
+	});
+
+	test("cannot silently waive an uncovered required role, even if every model confirms", async () => {
+		const original = group();
+		original.teams[0]!.rolesNeeded.push("backend");
+		const { world, events } = await lock(original);
+		expect(world.teams).toEqual([]);
+		expect(
+			events
+				.filter((e) => e.type === "lock")
+				.every((e) => !e.confident && e.fellBack),
+		).toBe(true);
+		expect(original.teams[0]!.rolesNeeded).toContain("backend");
+	});
+
+	test("coverage uses the deciding agent's known facts and includes owner skills", () => {
+		const world = group();
+		const team = world.teams[0]!;
+		team.rolesNeeded = ["ml"];
+		world.agents.k!.profile.skills.push({ name: "ml", level: "expert" });
+		expect(confirmationProblems(world.agents.a!, team)).toHaveLength(1);
+		expect(confirmationProblems(world.agents.k!, team)).toEqual([]);
+		world.agents.a!.profile.skills.push({ name: "ml", level: "expert" });
+		expect(confirmationProblems(world.agents.a!, team)).toEqual([]);
 	});
 
 	test("a 'no' drops just that person; the rest are asked once more and stay a team", async () => {

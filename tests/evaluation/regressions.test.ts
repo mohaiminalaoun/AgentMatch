@@ -67,6 +67,24 @@ describe("regression cases", () => {
 		}
 	});
 
+	test("project-search cases exercise real revisions with disclosed skills and personal motivation", async () => {
+		for (const name of [
+			"creative motivation pivot",
+			"creative preserve outcome",
+			"creative keep strong fit",
+		]) {
+			const run = await byName(name).run(fakeClient());
+			const text = run.prompt.map((m) => m.content).join("\n");
+			expect(text).toContain("now at level 2");
+			expect(text).toContain("Your human's standing guidance");
+			expect(text).toContain(
+				"A rationale alone does not propose a change",
+			);
+			expect(text).toContain('"skills"');
+			expect(text).toContain("Claim only skills that are listed");
+		}
+	});
+
 	test("each scenario puts the agent where the failure happened", async () => {
 		const text = async (name: string) =>
 			(await byName(name).run(fakeClient())).prompt

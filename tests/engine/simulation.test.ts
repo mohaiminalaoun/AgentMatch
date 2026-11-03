@@ -33,6 +33,14 @@ const profiles = [
 	agent("e", "product"),
 ];
 
+// Members have not met each other. The known owner can cover every required
+// role at confirmation; recruitment still seeks complementary teammates.
+profiles[0]!.skills.push(
+	{ name: "data", level: "intermediate" },
+	{ name: "frontend", level: "intermediate" },
+	{ name: "product", level: "intermediate" },
+);
+
 // Every person() prefers backend (copied from the sample profile), so no listing may ask for it.
 const listings: Record<string, string[]> = {
 	// b fills frontend in round 1; e fills product in round 2.

@@ -288,6 +288,53 @@ describe("bounded scope repair", () => {
 			"Repairs must describe project work, not people or personal claims",
 		);
 	});
+	test.each([
+		"Physio patients forget their home exercises between appointments.",
+		"Computer-use agents claim success on tasks they did not complete.",
+	])("unchanged project pronouns do not block repairs: %s", (problem) => {
+		const world = group();
+		const team = world.teams[0]!;
+		team.problem = problem;
+		expect(
+			repairProblems(world, team, {
+				...proposal,
+				revision: { ...proposal.revision!, problem },
+			}),
+		).toEqual([]);
+		// Shared passages cannot authorize newly attached personal assertions.
+		expect(
+			repairProblems(world, team, {
+				...proposal,
+				revision: {
+					...proposal.revision!,
+					problem,
+					pitch: "My human can classify exercises.",
+				},
+			}),
+		).toContain(
+			"Repairs must describe project work, not people or personal claims",
+		);
+	});
+
+	test("repair consent uses final personal-fit criteria with recruitment closed", () => {
+		const world = group();
+		const prompt = repairVoteMessages(
+			world.agents.b!,
+			world.teams[0]!,
+			proposal,
+		)[0]!.content;
+		expect(prompt).toContain("Recruitment has ended.");
+		expect(prompt).toContain(
+			"standing instructions and project interest now",
+		);
+		expect(prompt).toContain(
+			"Do not approve a technically feasible repair",
+		);
+		expect(prompt).toContain(
+			"Every role still listed in rolesNeeded remains required work",
+		);
+	});
+
 	test("an owner's original listing is not assumed to be the current team's shared project context", () => {
 		const world = group();
 		const owner = world.agents.a!;

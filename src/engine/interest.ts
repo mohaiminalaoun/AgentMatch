@@ -17,6 +17,7 @@ import { checkDisclosure, draftOf } from "./gate.js";
 import {
 	CITE_FACTS,
 	GOOD_TEAM,
+	MOTIVATION_FIT,
 	PROJECT_EXPLORATION,
 	EXPLORE_FIT,
 	BRAINSTORM_DIRECTIONS,
@@ -196,6 +197,16 @@ export function interestMessages(
 	const author = agreedVersion(agent, otherId)?.author;
 	const reshape = reshaping(agent, otherId, level);
 	const strong = strongRoles(agent, otherId);
+	const knownRoles = new Set([
+		...agent.profile.skills.map((skill) => skill.name),
+		...(contact.learned.skills ?? []).map((skill) => skill.name),
+	]);
+	const gaps =
+		level === 2
+			? (agreed?.rolesNeeded ?? []).filter(
+					(role) => role !== "any" && !knownRoles.has(role),
+				)
+			: [];
 	return [
 		{
 			role: "system",
@@ -204,6 +215,7 @@ export function interestMessages(
 				aboutHuman(agent, level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				EXPLORE_FIT,
 				factsText(fitFacts(agent, otherId)),
 				[
@@ -258,6 +270,11 @@ export function interestMessages(
 								`The version you've agreed on was written by ${author === agent.id ? "your human" : `agent ${otherId}`}, and its roles (${agreed.rolesNeeded.join(", ")}) are what it needs from other people. An offer can follow if ${author === agent.id ? `agent ${otherId}` : "your human"} can do at least one of them. One is enough: roles neither of you can do don't block the team, since its owner can offer them to other people later. If ${author === agent.id ? `agent ${otherId}` : "your human"} can do none of them, a revision may change the roles only when the work itself changes, and its pitch must say how; don't relabel roles just so an offer becomes possible. Otherwise withdraw: no offer can follow, however well you get along.`,
 							]
 						: []),
+				...(revise && gaps.length > 0
+					? [
+							`Current-pair capability gaps (from listed skills only): ${gaps.join(", ")}. Before continuing unchanged, compare recruiting for these with changing the build to remove unnecessary dependencies while retaining the motivating user outcome. If a concrete useful version can remove these gaps with known capabilities, continue with that revision now, including covers and the changed demo. If the missing work is essential or the smaller version would be less worthwhile, keep it explicitly open for recruitment or withdraw for a genuine personal mismatch. Do not merely assume someone will join, relabel work, or simplify away the reason either person wants the project.`,
+						]
+					: []),
 				...(steer ? [steer] : []),
 				"Keep going, or withdraw?",
 			].join("\n"),
@@ -394,10 +411,11 @@ export function revisionMessages(
 				aboutHuman(agent, contact.level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				factsText(fitFacts(agent, revision.from)),
 				[
 					`Agent ${revision.from} proposes a reshaped version of the project you've been discussing.`,
-					"Adopt it if it's a better project for your human to build with them; otherwise keep the current version. Keeping doesn't end the conversation.",
+					"Adopt it if it is a better project for your human to build with them: compare personal motivation, substantive contribution and the user outcome against the current version. Do not adopt solely because your role appears, and do not reject solely because it differs from your original idea. Check that simplification preserves what makes the project worth building. Otherwise keep the current version; keeping does not end the conversation.",
 					"Only adopt or keep is sent; your rationale is private.",
 					CITE_FACTS,
 				].join("\n"),

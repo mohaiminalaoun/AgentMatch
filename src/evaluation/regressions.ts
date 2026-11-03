@@ -201,7 +201,124 @@ const riya = person("p-riya", "Riya", {
 	},
 });
 
+// Synthetic project-search checkpoints. These test useful alternatives, preserving
+// the motivating outcome, and avoiding unnecessary churn, rather than placement alone.
+function projectSearch(
+	client: LlmClient,
+	kind: "pivot" | "preserve" | "keep",
+): Promise<CaseRun> {
+	const playful = kind === "pivot";
+	const mine = person("search-a", "Avery", {
+		skills: [
+			{ name: "frontend", level: "expert" },
+			{ name: "backend", level: "intermediate" },
+		],
+		interests: playful
+			? ["games", "education"]
+			: ["accessibility", "education"],
+	});
+	const other = person("search-b", "Blair", {
+		skills: [
+			{ name: "ml", level: "expert" },
+			{ name: "data", level: "intermediate" },
+		],
+		interests: playful
+			? ["sports coaching", "learning"]
+			: ["accessibility", "education"],
+		projectIdeas: [
+			{
+				title: playful ? "Match Report" : "Spoken Maths",
+				description: playful
+					? "Understand tactical choices from short annotated match clips."
+					: "Help blind learners work through maths independently by voice.",
+			},
+		],
+	});
+	const proposal: Proposal = {
+		id: "search-proposal",
+		from: other.id,
+		to: mine.id,
+		title: playful ? "Match Report" : "Spoken Maths",
+		pitch: playful
+			? "A dashboard summarizing player positions and tactical mistakes from sample sports clips."
+			: "Voice-first maths practice for blind learners with structured spoken feedback.",
+		problem: playful
+			? "New coaches struggle to explain tactical decisions to learners."
+			: "Blind learners depend on sighted help with visual maths practice tools.",
+		build: playful
+			? "Upload one annotated clip and view positioning statistics and a report."
+			: kind === "preserve"
+				? "Voice problem input, spoken step-through and a shared session server with accounts."
+				: "Five preset problems, voice input and structured spoken step-through, all with browser-local state.",
+		rolesNeeded:
+			kind === "preserve"
+				? ["frontend", "backend", "devops"]
+				: ["frontend", "backend"],
+		roleWork: {
+			frontend: playful
+				? "report dashboard"
+				: "accessible voice practice interface",
+			backend:
+				kind === "keep"
+					? "browser-local exercise state"
+					: "session input and output",
+			...(kind === "preserve"
+				? { devops: "host shared session server and account service" }
+				: {}),
+		},
+	};
+	const instructions = playful
+		? "I want to build an interactive learning experience where users make choices and see consequences. A passive analytics dashboard is a weak fit. My existing flashcard idea is only a starting point."
+		: "Preserve independent voice use for blind learners. A visual-only or static worksheet demo does not meet my goal. Prefer a focused working demo.";
+	return interest(
+		client,
+		talking(createAgent(mine, [], instructions), other.id, proposal, 2, {
+			interests: other.interests,
+			projectIdeas: other.projectIdeas,
+			skills: other.skills,
+			availability: other.availability,
+			preferences: other.preferences,
+		}),
+		other.id,
+		2,
+	);
+}
+
+export const PROJECT_SEARCH_CASES: readonly RegressionCase[] = [
+	{
+		name: "creative motivation pivot",
+		failure:
+			"Accepting a passive report despite an interactive-learning requirement, or abandoning a plausible collaboration without a useful alternative.",
+		expected:
+			"Proposes a concrete interactive learning direction grounded in coaching and learner choices, with real work for both people; no cosmetic points or unrelated flashcard replacement.",
+		run: (client) => projectSearch(client, "pivot"),
+		question:
+			"Does the result fail to propose a concrete revision combining the stated coaching problem with consequential learner interaction, or invent a participant's skills or motivation? Merely adding badges, points or a quiz to an otherwise passive report is insufficient. A withdraw or continue without such a revision also counts as failure in this deliberately plausible pairing.",
+	},
+	{
+		name: "creative preserve outcome",
+		failure:
+			"Simplifying away the independent voice interaction that motivates both people rather than changing the unnecessary infrastructure.",
+		expected:
+			"Proposes a buildable revision retaining voice input, spoken feedback and independent use while replacing uncovered hosting with a concrete local demo.",
+		run: (client) => projectSearch(client, "preserve"),
+		question:
+			"Does the result fail to offer a revision that removes the uncovered hosting dependency while retaining independent voice input and spoken step-through for blind learners? Removing the motivating interaction, simply relabeling hosting, or offering no revision counts as failure.",
+	},
+	{
+		name: "creative keep strong fit",
+		failure:
+			"Changing a project that already suits both people merely to demonstrate creativity.",
+		expected:
+			"Continues with the already focused voice practice project without a revision or invented evidence.",
+		run: (client) => projectSearch(client, "keep"),
+		question:
+			"Does the agent withdraw, propose an unnecessary revision of this already aligned build, or assert invented participant skills, preferences or user validation?",
+	},
+];
+
 export const REGRESSION_CASES: readonly RegressionCase[] = [
+	...PROJECT_SEARCH_CASES,
 	{
 		name: "role omission",
 		failure:

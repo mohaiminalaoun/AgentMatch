@@ -16,7 +16,7 @@ import { assignTeamRoles, stillNeeded, teamTerms } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM, OWNER_WORK } from "./goals.js";
+import { CITE_FACTS, FINAL_TEAM, GOOD_TEAM, OWNER_WORK } from "./goals.js";
 import {
 	StructuredOutputError,
 	type ChatOptions,
@@ -74,12 +74,13 @@ export function lockMessages(
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
 				OWNER_WORK,
+				FINAL_TEAM,
 				[
 					ask === 1
 						? "Matching is over: this is the deadline. Your human is in the group below, and every member is now asked whether they're confident in it."
 						: "Someone dropped out of your human's group at the deadline, so it changed. Every remaining member is asked once more whether they're confident in it as it is now.",
 					"The group can't grow any more: judge it as it is. Answer confident true to stay: your human joins the team, and names are shared among everyone who stays. Answer false to drop out: your human ends with no team this time.",
-					"Confirm only if this exact project and roster are credible for your human: identify their concrete contribution, who can cover each essential part of the build from known skills, and whether available hours support the scope and personal requirements. Do not justify essential gaps or an unmet required team size by hoping someone joins later: recruitment is over. Unknown skill coverage is unverified, not covered. A missing optional role need not block a working demo, but explain why that work is optional for the agreed build. You cannot silently narrow or change the agreed project at this confirmation step. Drop out if essential work has no credible coverage or a known personal requirement is unmet; unknown schedules alone do not establish incompatibility.",
+					"Confirm only if this exact project and roster are credible for your human: identify their concrete contribution, who can cover each essential part of the build from known skills, and whether available hours support the scope and personal requirements. Do not justify essential gaps or an unmet required team size by hoping someone joins later: recruitment is over. Unknown skill coverage is unverified, not covered. You cannot silently narrow or change the agreed project at this confirmation step. Drop out if essential work has no credible coverage or a known personal requirement is unmet; unknown schedules alone do not establish incompatibility.",
 					...(strangers > 0
 						? [
 								`You haven't talked with ${strangers === 1 ? "one member" : `${strangers} members`}; nothing about them is known yet.`,
@@ -232,7 +233,15 @@ export async function runLock(
 					ask,
 				),
 				AgentConfidence,
-				{ ...llmOptions, about: { kind: "deadline", level: 2 } },
+				{
+					...llmOptions,
+					about: { kind: "deadline", level: 2 },
+					maxAttempts: 2,
+					check: (value) =>
+						value.confident
+							? confirmationProblems(agents[member]!, team)
+							: [],
+				},
 			);
 			return {
 				confident: data.confident,
@@ -290,4 +299,24 @@ export async function runLock(
 			["name"],
 		);
 	}
+}
+
+// Validate against only facts available to this deciding agent, never hidden
+// world profiles. A model cannot retire agreed requirements in its rationale.
+export function confirmationProblems(agent: AgentState, team: Team): string[] {
+	const skills = [
+		...agent.profile.skills,
+		...team.members
+			.filter((id) => id !== agent.id)
+			.flatMap((id) => contactOf(agent, id).learned.skills ?? []),
+	];
+	return team.rolesNeeded
+		.filter(
+			(role) =>
+				role !== "any" && !skills.some((skill) => skill.name === role),
+		)
+		.map(
+			(role) =>
+				`Required ${role} has no known coverage. Confirm false or identify coverage already present in the supplied facts; confirmation cannot remove or simplify agreed work.`,
+		);
 }

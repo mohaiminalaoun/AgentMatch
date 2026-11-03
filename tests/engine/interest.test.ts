@@ -222,6 +222,18 @@ describe("level 2 and the roles a team needs", () => {
 			},
 		);
 
+	test("capability-gap feedback uses known skills only and is delayed until level 2", () => {
+		const agent = agreedAt(2);
+		const text = interestMessages(agent, "p9", 2)[1]!.content;
+		expect(text).toContain(
+			"Current-pair capability gaps (from listed skills only):",
+		);
+		expect(text).toContain("continue with that revision now");
+		expect(
+			interestMessages(agreedAt(1), "p9", 1)[1]!.content,
+		).not.toContain("Current-pair capability gaps");
+	});
+
 	test("at level 2, the check says an offer needs whoever didn't write the version to fill one of its roles, not all", () => {
 		const [, user] = interestMessages(agreedAt(2), "p9", 2);
 		expect(user!.content).toContain(

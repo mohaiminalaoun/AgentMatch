@@ -18,6 +18,7 @@ import { factsText, fitFacts } from "./fit.js";
 import {
 	CITE_FACTS,
 	GOOD_TEAM,
+	MOTIVATION_FIT,
 	PROJECT_EXPLORATION,
 	EXPLORE_FIT,
 	BRAINSTORM_DIRECTIONS,
@@ -115,6 +116,7 @@ export function decisionMessages(
 				aboutHuman(agent, contact.level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				EXPLORE_FIT,
 				...(countersLeft ? [PROJECT_EXPLORATION] : []),
 				...(countersLeft && proposal.pitch === BRAINSTORM_PITCH
@@ -125,7 +127,7 @@ export function decisionMessages(
 				[
 					"How to decide:",
 					"- accept if a good team could plausibly come of it: your human could fill a role the project lists, and it's something they'd want to build. Nothing is binding yet; accepting opens the next level of sharing.",
-					'- counter if it is a partial fit and one concrete change would make it work: put the changed project in the pitch, describing the project itself, not a message to them (no questions, no "how about"), and give it a short new title, 1 to 4 words, if the change makes the old one wrong.',
+					'- counter if a concrete alternative would resolve a partial fit: put the changed project in the pitch, describing the project itself, not a message to them (no questions, no "how about"), and give it a short new title, 1 to 4 words, if the change makes the old one wrong.',
 					"- rolesNeeded lists work teammates would own, not work your human is already taking. A teammate may own work in a role your human also knows; possessing a skill is not an assignment.",
 					`- a counter also gives the changed project's card:\n${CARD_FIELDS}`,
 					"- decline otherwise. Declines carry no message: if a change could make it work, counter instead.",
@@ -189,6 +191,7 @@ export function joinRequestMessages(
 				aboutHuman(agent, contact.level),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				EXPLORE_FIT,
 				factsText(fitFacts(agent, proposal.from)),
 				[

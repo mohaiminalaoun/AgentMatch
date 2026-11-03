@@ -12,6 +12,7 @@ import {
 } from "./llm.js";
 import {
 	GOOD_TEAM,
+	MOTIVATION_FIT,
 	PROJECT_EXPLORATION,
 	EXPLORE_FIT,
 	BRAINSTORM_DIRECTIONS,
@@ -132,6 +133,7 @@ export function discoveryMessages(
 				aboutHuman(agent, 0),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				EXPLORE_FIT,
 				[
 					`Below is the public board: other people's project pitches and the roles they need. Choose up to ${perAgent} you most want to approach, best first, by their id.`,
@@ -151,7 +153,7 @@ export function discoveryMessages(
 								"leftTeams on an entry is how many committed teams that person has left before; weigh their reliability.",
 							]
 						: []),
-					"Be selective: an empty list is fine if nothing fits. Your rationale is private.",
+					"A public pitch is a starting direction, not a fixed destination. Include a plausible partial fit when a concrete alternative could give both people a reason to build together; briefly identify that bridge privately. Do not select on skills alone or assume hidden interests. Be selective: an empty list is fine if nothing fits. Your rationale is private.",
 				].join("\n"),
 			].join("\n\n"),
 		},
@@ -353,6 +355,7 @@ export function brainstormMessages(
 				aboutHuman(agent, 0),
 				...(guidance(agent) ? [guidance(agent)] : []),
 				GOOD_TEAM,
+				MOTIVATION_FIT,
 				EXPLORE_FIT,
 				PROJECT_EXPLORATION,
 				BRAINSTORM_DIRECTIONS,

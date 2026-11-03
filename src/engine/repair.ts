@@ -7,8 +7,9 @@ import { assignTeamRoles, stillNeeded, teamTerms } from "./commitment.js";
 import { exchangeEvent, type RunEvent } from "./events.js";
 import { factsText, fitFacts } from "./fit.js";
 import { checkDisclosure, checkThirdParty, draftOf } from "./gate.js";
-import { CITE_FACTS, GOOD_TEAM, OWNER_WORK } from "./goals.js";
+import { CITE_FACTS, FINAL_TEAM, GOOD_TEAM, OWNER_WORK } from "./goals.js";
 import { StructuredOutputError, type Message } from "./llm.js";
+import { confirmationProblems } from "./lock.js";
 import { aboutHuman, guidance } from "./notes.js";
 import {
 	containsPersonalClaim,
@@ -91,9 +92,10 @@ export function repairVoteMessages(
 		{
 			role: "system",
 			content: [
-				"You are deciding whether to adopt one pre-deadline scope repair. This is not final confirmation; you will still be asked whether to stay in the team afterward.",
+				"You are deciding whether to adopt one pre-deadline scope repair. Apply the same personal-fit standard as final confirmation. You will still be free to withdraw afterward; approval does not bind your human.",
 				...privateContext(agent, team),
-				"Approve only if the smaller build still solves a worthwhile version of the original problem, the removedWork genuinely removes its dependencies, and your human retains a credible contribution consistent with their requirements. A different role label alone is not a repair. Unknown coverage is unverified. Declining keeps the original project; it does not remove you from the roster. Your answer is only a boolean; your rationale is private.",
+				FINAL_TEAM,
+				"Approve only if the smaller build still solves a worthwhile version of the original problem, the removedWork genuinely removes its dependencies, and your human retains a credible contribution consistent with their requirements. Evaluate interest in this exact project, standing instructions, concrete contribution, hours, and current team size now. Do not approve a technically feasible repair that your human would already reject at final confirmation. A different role label alone is not a repair. Unknown coverage is unverified. Declining keeps the original project; it does not remove you from the roster. Your answer is only a boolean; your rationale is private.",
 				CITE_FACTS,
 			].join("\n\n"),
 		},
@@ -139,13 +141,21 @@ export function repairProblems(
 	// Only the current agreed team scope is shared by every member. The owner's
 	// original listing may contain a different project and is not an exemption here.
 	const agreed = Object.values(termsTexts(teamTerms(team)));
+	// Exact agreed fields are already public project context, including pronouns
+	// referring to patients or software agents. New personal wording is still
+	// checked before passage masking, so copied phrases cannot hide new claims.
 	const personal = Object.values(draft.texts).some(
-		(text) => text && containsPersonalClaim(text),
+		(text) =>
+			text &&
+			!agreed.some((source) => source.trim() === text.trim()) &&
+			containsPersonalClaim(text),
 	);
 	const texts = Object.fromEntries(
 		Object.entries(draft.texts).map(([where, text]) => [
 			where,
-			text === undefined || personal
+			text === undefined ||
+			(containsPersonalClaim(text) &&
+				!agreed.some((source) => source.trim() === text.trim()))
 				? text
 				: undisclosedProjectText(text, agreed),
 		]),
@@ -280,6 +290,18 @@ export async function runRepair(
 							{
 								...options,
 								about: { kind: "repair-vote", level: 2 },
+								check: (value) =>
+									value.approve
+										? confirmationProblems(
+												world.agents[id]!,
+												{
+													...team,
+													rolesNeeded:
+														proposal.revision!
+															.rolesNeeded,
+												},
+											)
+										: [],
 								maxAttempts: 1,
 							},
 						);
