@@ -221,7 +221,7 @@ describe("decideOnProposal", () => {
 		expect(contactOf(ada, proposal.from).history).toEqual([]);
 	});
 
-	test("a counter listing your own role is redrafted, and the feedback names the roles list", async () => {
+	test("a counter can request a known role overlapping the sender's skills without disclosing them", async () => {
 		const { client, sent } = fakeModel(
 			{
 				rationale: "Partial fit.",
@@ -234,11 +234,11 @@ describe("decideOnProposal", () => {
 			counter("Make it a household carbon tracker instead."),
 		);
 		const result = await decideOnProposal(client, ada, proposal);
-		expect(result.gateBlocks).toBe(1);
-		expect(result.decision).toMatchObject({ rolesNeeded: ["frontend"] });
-		const feedback = sent[1]!.at(-1)!.content;
-		expect(feedback).toContain("your roles needed list mentions");
-		expect(feedback).toContain('"backend"');
+		expect(result.gateBlocks).toBe(0);
+		expect(result.decision).toMatchObject({
+			rolesNeeded: ["frontend", "backend"],
+		});
+		expect(sent).toHaveLength(1);
 	});
 
 	test("after two counters, a third is refused and the model must accept or decline", async () => {
@@ -294,7 +294,7 @@ describe("decideOnProposal", () => {
 	test("the prompt says roles needed are for others to fill", () => {
 		const [system] = decisionMessages(ada, proposal);
 		expect(system!.content).toContain(
-			"rolesNeeded lists roles you need others to fill",
+			"rolesNeeded lists work teammates would own",
 		);
 	});
 });

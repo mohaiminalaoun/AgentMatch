@@ -214,11 +214,17 @@ describe("draftOf", () => {
 		expect(draftOf({ decision: "decline" })).toEqual({ texts: {} });
 	});
 
-	test("a counter's or proposal's pitch and roles are the text to check", () => {
+	test("keeps project roles structured and checks the project text", () => {
 		const terms = { pitch: "A climate app.", rolesNeeded: ["frontend"] };
-		const texts = { pitch: "A climate app.", roles: "frontend" };
-		expect(draftOf({ decision: "counter", ...terms })).toEqual({ texts });
-		expect(draftOf(terms)).toEqual({ texts });
+		const texts = { pitch: "A climate app." };
+		expect(draftOf({ decision: "counter", ...terms })).toEqual({
+			texts,
+			rolesNeeded: terms.rolesNeeded,
+		});
+		expect(draftOf(terms)).toEqual({
+			texts,
+			rolesNeeded: terms.rolesNeeded,
+		});
 	});
 
 	test("an accept has no text", () => {
@@ -255,58 +261,92 @@ describe("fieldsMentioned", () => {
 	});
 });
 
-describe("roles as a side channel", () => {
-	// Nia's real counter from the live run, checked against Ben's profile: he does backend.
-	const roles = (rolesNeeded: string[]) =>
+describe("project requirements versus personal claims", () => {
+	const project = (
+		rolesNeeded: string[],
+		roleWork?: Record<string, string>,
+	) =>
 		draftOf({
-			decision: "counter",
-			pitch: "AI note-taking app with dyslexia-friendly tools.",
+			pitch: "Review records.",
 			rolesNeeded,
+			...(roleWork ? { roleWork } : {}),
 		});
-
-	test("listing your own skill as a role needed is blocked below level 2", () => {
-		const violations = checkDisclosure(
-			ben,
-			0,
-			roles(["frontend", "design", "product", "backend"]),
-		);
-		expect(violations).toContainEqual({
-			field: "skills",
-			where: "roles",
-			match: "backend",
-		});
-	});
-
-	test("the same roles pass once skills are shared", () => {
+	test.each([0, 1, 2] as const)(
+		"project role names do not disclose the sender's skills or preferences at level %s",
+		(level) => {
+			expect(
+				checkDisclosure(
+					ben,
+					level,
+					project(["backend", "ml", "frontend"]),
+				),
+			).toEqual([]);
+		},
+	);
+	test("known role-work labels are structural, while their values stay checked", () => {
 		expect(
 			checkDisclosure(
 				ben,
-				2,
-				roles(["frontend", "design", "product", "backend"]),
+				0,
+				project(["ml"], { ml: "classify records" }),
 			),
 		).toEqual([]);
-	});
-
-	test("a synonym of your own skill is caught in the roles list too", () => {
 		expect(
-			fields(checkDisclosure(ben, 0, roles(["server-side"]))),
-		).toContain("skills");
-	});
-
-	test("roles you don't have pass", () => {
-		expect(checkDisclosure(ben, 0, roles(["frontend", "design"]))).toEqual(
-			[],
+			checkDisclosure(
+				ben,
+				0,
+				project(["ml"], { ml: "My human is Ben, a backend engineer" }),
+			),
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ field: "name", where: "roleWork" }),
+				expect.objectContaining({ field: "skills", where: "roleWork" }),
+			]),
 		);
 	});
-
-	test("a role that's public through your project idea passes", () => {
-		const withIdea = {
-			...ben,
-			projectIdeas: [
-				{ title: "An ML tutor", description: "ML for students." },
-			],
-		};
-		expect(checkDisclosure(withIdea, 0, roles(["ml"]))).toEqual([]);
+	test("skill words in free-text work descriptions remain conservative below level 2", () => {
+		expect(
+			checkDisclosure(
+				ben,
+				0,
+				project(["backend"], { backend: "ML classifier service" }),
+			),
+		).toContainEqual({ field: "skills", where: "roleWork", match: "ml" });
+	});
+	test.each(["wizard", "server-side", "Ben", "ml expert named Ben"])(
+		"unrecognized or injected role %s is rejected",
+		(role) => {
+			expect(checkDisclosure(ben, 0, project([role]))).toContainEqual({
+				field: "rolesNeeded",
+				where: "roles",
+				match: `unknown role: ${role}`,
+			});
+		},
+	);
+	test("the existing generic any role remains available", () => {
+		expect(checkDisclosure(ben, 0, project(["any"]))).toEqual([]);
+	});
+	test("personal claims in pitch and structured profile shares remain blocked", () => {
+		expect(
+			checkDisclosure(
+				ben,
+				0,
+				draftOf({
+					pitch: "I have backend experience.",
+					rolesNeeded: ["frontend"],
+				}),
+			),
+		).toContainEqual({ field: "skills", where: "pitch", match: "backend" });
+		expect(
+			checkDisclosure(ben, 0, {
+				...project(["backend"]),
+				shared: { skills: ben.skills },
+			}),
+		).toContainEqual({
+			field: "skills",
+			where: "shared",
+			match: "needs level 2",
+		});
 	});
 });
 

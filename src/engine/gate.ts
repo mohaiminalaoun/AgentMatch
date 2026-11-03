@@ -5,13 +5,15 @@ import {
 	type DisclosureLevel,
 	type ProfileField,
 } from "./disclosure.js";
-import type { Profile } from "./profile.js";
+import { ROLES, type Profile } from "./profile.js";
 import { termsTexts, type Decision, type Terms } from "./proposal.js";
 
 // What an agent is about to send: free-text parts by name (such as a pitch) and any structured profile data.
 export type Draft = {
 	texts: Record<string, string | undefined>;
 	shared?: Partial<Profile>;
+	// Structured project requirements, not assertions about the sender.
+	rolesNeeded?: readonly string[];
 };
 
 // One thing a draft reveals that the current level doesn't allow.
@@ -46,19 +48,39 @@ export function checkDisclosure(
 	return [
 		...checkShared(sender, level, draft.shared ?? {}),
 		...checkTexts(sender, level, draft.texts),
+		...(draft.rolesNeeded ?? [])
+			.filter(
+				(role) =>
+					role !== "any" &&
+					!(ROLES as readonly string[]).includes(role),
+			)
+			.map((role) => ({
+				field: "rolesNeeded",
+				where: "roles",
+				match: `unknown role: ${role}`,
+			})),
 	];
 }
 
-// The model-written parts of a decision or proposal, for checking before it's sent: the pitch, and the
-// roles list, since listing a role your human would fill reveals their skill as surely as saying it.
+// Project role names are validated separately from free text: needing a role does not claim the sender has it.
+// Role-work values remain checked; only known structural role labels are excluded from text matching.
 // Accepts and declines carry nothing the model wrote.
 export function draftOf(message: Decision | Terms): Draft {
 	return "pitch" in message
 		? {
 				texts: {
 					...termsTexts(message),
-					roles: message.rolesNeeded.join(", "),
+					...(message.roleWork && {
+						roleWork: Object.entries(message.roleWork)
+							.map(([role, work]) =>
+								(ROLES as readonly string[]).includes(role)
+									? work
+									: `${role}: ${work}`,
+							)
+							.join("; "),
+					}),
 				},
+				rolesNeeded: message.rolesNeeded,
 			}
 		: { texts: {} };
 }

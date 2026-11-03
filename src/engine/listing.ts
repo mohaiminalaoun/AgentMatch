@@ -40,7 +40,7 @@ export function listingMessages(agent: AgentState): Message[] {
 					"Write your human's listing for the public board, which everyone sees before any conversation:",
 					"- title: a short, memorable name for the project, 1 to 4 words, like a product name (their idea's title is fine if it's good).",
 					"- pitch: one line describing the project idea itself, not a message to anyone. You may sharpen the wording, but mention nothing beyond the project idea: not their skills, interests, availability, preferences, or name.",
-					`- rolesNeeded: the roles the project needs teammates to fill, from: ${ROLES.join(", ")}. Think about what this project actually needs (an AI app needs ml; a data dashboard needs data). List only roles others would fill, never one your human would fill. Usually 2 to 4.`,
+					`- rolesNeeded: the roles the project needs teammates to fill, from: ${ROLES.join(", ")}. Think about what this project actually needs (an AI app needs ml; a data dashboard needs data). List work teammates would own, not work your human is already taking. Having a skill does not mean your human must own all work in that role; teammates may share a skill. Usually 2 to 4.`,
 					"Then the project card, shown with the pitch so others can judge the project before any conversation:",
 					CARD_FIELDS,
 					"Your rationale is private.",
@@ -52,7 +52,7 @@ export function listingMessages(agent: AgentState): Message[] {
 }
 
 // Every agent with a project idea has its model write its board listing, all at once. Each listing passes
-// the disclosure gate at level 0 (nothing beyond the project idea, no own skills in the roles) and uses
+// the disclosure gate at level 0 (project text may not disclose personal facts; structured role requirements are not skill claims) and uses
 // only known roles, or the model redrafts. If no valid listing comes back, the agent keeps the built-in
 // pitch. Returns a new world with listings set; agents without a project idea are unchanged.
 export async function writeListings(

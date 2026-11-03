@@ -155,13 +155,17 @@ describe("writeListings", () => {
 		expect(sent[1]!.at(-1)!.content).toContain('mentions "ml" (skills)');
 	});
 
-	test("listing your own skill as a role needed is redrafted", async () => {
+	test("known project role requirements may overlap the sender's skills", async () => {
 		const { client, sent } = fakeModel(
 			{ ...good, rolesNeeded: ["frontend", "ml"] },
 			good,
 		);
-		await writeListings(client, createWorld([nia]));
-		expect(sent[1]!.at(-1)!.content).toContain("roles needed list");
+		const world = await writeListings(client, createWorld([nia]));
+		expect(world.agents.nia!.listing!.rolesNeeded).toEqual([
+			"frontend",
+			"ml",
+		]);
+		expect(sent).toHaveLength(1);
 	});
 
 	test("an unknown role is redrafted", async () => {
@@ -226,6 +230,8 @@ describe("writeListings", () => {
 		expect(system!.content).toContain(
 			"frontend, backend, mobile, ml, data, design, devops, product",
 		);
-		expect(system!.content).toContain("never one your human would fill");
+		expect(system!.content).toContain(
+			"List work teammates would own, not work your human is already taking",
+		);
 	});
 });
