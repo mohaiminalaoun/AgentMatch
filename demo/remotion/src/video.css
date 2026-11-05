@@ -1,0 +1,7 @@
+/* CSS clock animations are paused for deterministic Remotion frames. */
+.app-insert *,
+.app-insert *::before,
+.app-insert *::after {
+	animation: none !important;
+	transition: none !important;
+}

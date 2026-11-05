@@ -1,0 +1,25 @@
+{
+  "name": "agentmatch-demo-inserts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "render:disclosure": "remotion render src/index.ts StagedDisclosure ../../runs/remotion-inserts/staged-disclosure.mp4 --concurrency=2",
+    "render:evolution": "remotion render src/index.ts ProjectEvolution ../../runs/remotion-inserts/project-evolution.mp4 --concurrency=2",
+    "render:results": "remotion render src/index.ts ResultCard ../../runs/remotion-inserts/result-card.mp4 --concurrency=2",
+    "render": "npm run render:disclosure && npm run render:evolution && npm run render:results"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.540",
+    "highlight.js": "11.11.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.540"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}
