@@ -462,7 +462,7 @@ h1 > span {
 	flex: 1;
 	min-height: 490px;
 	background-color: #fcfcfe;
-	background-image: radial-gradient(#d6d4df80 0.7px, transparent 0.8px);
+	background-image: radial-gradient(#d6d4df80 1.5px, transparent 0.8px);
 	background-size: 18px 18px;
 	overflow: hidden;
 }

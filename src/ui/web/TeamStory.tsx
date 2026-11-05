@@ -162,16 +162,7 @@ export function TeamStory({
 					{section.members.map((m) => (
 						<li key={m.id}>
 							<AgentCharacter
-								muse={
-									agentBrains.get(m.id)?.kind === "outside" &&
-									(
-										agentBrains.get(m.id) as {
-											name: string;
-										}
-									).name
-										.trim()
-										.toLowerCase() === "muse"
-								}
+								muse={agentBrains.get(m.id)?.kind === "outside"}
 								color={colorOf(m.id)}
 								width={30}
 								height={38}

@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
 	ArrowLeft,
@@ -309,12 +315,9 @@ function App() {
 	const current = people.find((p) => p.id === selected);
 	// Agents with a brain of their own, from the whole log: it's known from the start of the run.
 	const agentBrains = useMemo(() => brains(events), [events]);
-	const isMuse = (id: string | undefined) => {
+	const isExternalAgent = (id: string | undefined) => {
 		const brain = id ? agentBrains.get(id) : undefined;
-		return (
-			brain?.kind === "outside" &&
-			brain.name.trim().toLowerCase() === "muse"
-		);
+		return brain?.kind === "outside";
 	};
 	// Clicking the selected agent again deselects it.
 	const toggleAgent = (id: string) => {
@@ -403,6 +406,32 @@ function App() {
 		current && partner
 			? pairEvents(visibleEvents, current.id, partner)
 			: related;
+	const inspectorBody = useRef<HTMLDivElement>(null);
+	const inspectorActivity = useRef<HTMLDivElement>(null);
+	const followLatestActivity = useRef(true);
+	// A newly opened conversation starts at its latest message. Content resizing
+	// also covers expanded facts, private reasoning and changes to the panel width.
+	useLayoutEffect(() => {
+		followLatestActivity.current = true;
+		if (tab !== "Activity" || !current) return;
+		const body = inspectorBody.current;
+		const content = inspectorActivity.current;
+		if (!body || !content) return;
+		const follow = () => {
+			if (followLatestActivity.current)
+				body.scrollTop = body.scrollHeight;
+		};
+		follow();
+		const resize = new ResizeObserver(follow);
+		resize.observe(content);
+		return () => resize.disconnect();
+	}, [current?.id, partner, tab, events]);
+	useLayoutEffect(() => {
+		const body = inspectorBody.current;
+		if (tab === "Activity" && body && followLatestActivity.current) {
+			body.scrollTop = body.scrollHeight;
+		}
+	}, [activity.length, privateView]);
 	// A conversation opened from elsewhere (a team's story) selects one agent and names the other here,
 	// since selecting an agent otherwise closes any open conversation.
 	const pendingPartner = useRef("");
@@ -720,7 +749,7 @@ function App() {
 						</div>
 						<div className="your-character">
 							<AgentCharacter
-								muse={isMuse(current?.id)}
+								muse={isExternalAgent(current?.id)}
 								color={
 									current
 										? characterColor(current.id)
@@ -1186,7 +1215,7 @@ function App() {
 																/>
 															)}
 															<AgentCharacter
-																muse={isMuse(
+																muse={isExternalAgent(
 																	p.id,
 																)}
 																color={characterColor(
@@ -1930,7 +1959,9 @@ function App() {
 									<div className="profile-header">
 										<div className="profile-avatar">
 											<AgentCharacter
-												muse={isMuse(current.id)}
+												muse={isExternalAgent(
+													current.id,
+												)}
 												color={characterColor(
 													current.id,
 												)}
@@ -1977,7 +2008,19 @@ function App() {
 											</button>
 										))}
 									</div>
-									<div className="inspector-body">
+									<div
+										className="inspector-body"
+										ref={inspectorBody}
+										onScroll={(event) => {
+											if (tab !== "Activity") return;
+											const body = event.currentTarget;
+											followLatestActivity.current =
+												body.scrollHeight -
+													body.clientHeight -
+													body.scrollTop <=
+												48;
+										}}
+									>
 										{tab === "Overview" ? (
 											<>
 												<div className="idea-block">
@@ -2094,7 +2137,7 @@ function App() {
 												</div>
 											</>
 										) : (
-											<>
+											<div ref={inspectorActivity}>
 												<div className="private-toggle">
 													<Eye size={14} />
 													<span>
@@ -2270,7 +2313,7 @@ function App() {
 														activity.
 													</p>
 												)}
-											</>
+											</div>
 										)}
 									</div>
 								</>
