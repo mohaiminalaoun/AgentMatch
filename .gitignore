@@ -10,3 +10,14 @@ dist/
 # Real people taking part in a pilot; only the example is tracked.
 profiles/*
 !profiles/example.json
+
+# Rendered demo videos and Remotion output
+demo/remotion/out/
+demo/remotion/*.mp4
+demo/remotion/*.mov
+demo/remotion/*.webm
+demo/remotion/*.gif
+demo/remotion/public/
+*.mp4
+*.mov
+*.webm
