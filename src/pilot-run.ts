@@ -1,4 +1,4 @@
-// Entry point for `npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S]`:
+// Entry point for `npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S --skip-listen-check]`:
 // the whole system on real people,
 // one .json file each in <dir> (copy profiles/example.json), plus N generated people so the board isn't too
 // thin. Refuses a model the provider trains on. Prints a live status line, then where each real person ended
@@ -18,6 +18,7 @@ import { assertRealDataModel } from "./pilot/model.js";
 import { loadPeople } from "./pilot/people.js";
 import { judgeTeam } from "./evaluation/cast.js";
 import { pilotOutcomes, runPilot } from "./pilot/run.js";
+import { checkListening, describeListenCheck } from "./pilot/listening.js";
 import { createStatus } from "./status.js";
 
 // The value after `--name` on the command line, as a whole number of at least `min`, or `fallback`.
@@ -34,7 +35,7 @@ function flag(name: string, fallback: number, min = 1): number {
 const dir = process.argv[2];
 if (!dir || dir.startsWith("--")) {
 	console.error(
-		"Usage: npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S]",
+		"Usage: npm run pilot:run -- <dir> [--fill N --cast N --seed S --rounds R --outside ID=AGENT --answer-minutes M --poll-seconds S --skip-listen-check]",
 	);
 	process.exit(1);
 }
@@ -132,6 +133,22 @@ try {
 				throw new Error("GROKBOT_WEBHOOK_URL must be an HTTPS URL");
 			}
 			webhook = { url, key };
+		}
+		// An agent that polls must be polling already, or every request waits out its deadline. Grokbot is woken by
+		// webhook instead, so there is nothing to see.
+		if (
+			outside.agent !== "grokbot" &&
+			!process.argv.includes("--skip-listen-check")
+		) {
+			const check = await checkListening(
+				{
+					url: mailbox.data.MAILBOX_URL,
+					engineKey: mailbox.data.MAILBOX_ENGINE_KEY,
+				},
+				outside.agent!,
+			);
+			console.log(describeListenCheck(outside.agent!, check));
+			if (check.state === "stale") process.exit(1);
 		}
 		client = withBrains(shared, {
 			[person]: createMailboxBrain(

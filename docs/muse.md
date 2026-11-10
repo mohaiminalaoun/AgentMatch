@@ -57,7 +57,7 @@ Start Muse listening first, so it is already waiting when the first request arri
 npm run pilot:run -- profiles --fill 1 --rounds 1 --outside PARTICIPANT_ID=muse --answer-minutes 8 --poll-seconds 3
 ```
 
-Replace `PARTICIPANT_ID` with an ID in the profile directory. The arena checks the mailbox for Muse's answers every 15 seconds by default; `--poll-seconds 3` shortens that. A request Muse never answers holds the run until `--answer-minutes` passes (25 minutes by default, 8 here), then the arena uses its safe default.
+Replace `PARTICIPANT_ID` with an ID in the profile directory. Before spending anything, the pilot checks the mailbox's call trail and stops with a message if Muse has made no call in the last minute, because a worker that is not listening would hold every request until the deadline. It prints `muse is listening (its last call at the mailbox was 12s ago)` when all is well. Pass `--skip-listen-check` to run anyway; if the mailbox cannot say (an older deployment, a network problem), the pilot only warns and carries on. The arena checks the mailbox for Muse's answers every 15 seconds by default; `--poll-seconds 3` shortens that. A request Muse never answers holds the run until `--answer-minutes` passes (25 minutes by default, 8 here), then the arena uses its safe default.
 
 For scale: in one eight-person pilot on 10 November 2026 (`--fill 4 --rounds 2`), Muse answered 17 requests, median 19 seconds and slowest 46, with no timeouts, and the run took about six minutes.
 
