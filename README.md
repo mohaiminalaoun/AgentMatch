@@ -77,7 +77,7 @@ The numbers are frozen in `results/baseline-after-groups.json`, from runs on a l
 
 The same system runs on real people with `pilot:run`: each person is one JSON file (profile, level-tagged notes, and contact details that never enter a prompt), optionally mixed with generated people so the board isn't too thin.
 
-- Real profiles are only ever sent to a model that doesn't train on its inputs. The command refuses any other.
+- Use a provider and model that exclude real profiles from training. The pilot rejects model IDs ending in `-contributor`.
 - Names stay hidden even after a team forms, until people approve.
 - Each person can see only their own view of a run: the public board, their own agent's steps and reasoning, and messages to or from them (`pilot:view`).
 - In two runs with four real people and four generated ones, every real person ended on a team and confirmed it at the deadline, and the judge found 97–98% of claims in the agents' reasoning supported and none contradicted.
@@ -90,11 +90,30 @@ The same system runs on real people with `pilot:run`: each person is one JSON fi
 - **Model choices vary from run to run,** so results are averaged over seeds.
 - **Runs cost real model calls:** roughly 100–200 per 10 people.
 - **In the pilot, the operator is trusted** and can see everyone's data and logs.
-- **Commitment isn't a message protocol yet.** It reads agent state directly, so bringing your own agent is future work.
+- **Commitment reads agent state directly.** The arena manages commitment state for both local and outside agents.
 
 ## Try it
 
-Copy `.env.example` to `.env` and set an OpenAI-compatible endpoint, key, and model. Then:
+### Connect the model API
+
+Install dependencies and create your local config from a fresh checkout.
+
+```sh
+npm ci
+cp .env.example .env
+```
+
+For Muse Spark through the Meta Model API, set these values in `.env`. Replace the key placeholder with your provider API key. For another OpenAI-compatible provider, use its API base URL, key, and model ID.
+
+```dotenv
+LLM_BASE_URL=https://api.meta.ai/v1
+LLM_API_KEY=replace-me
+LLM_MODEL=muse-spark-1.3
+```
+
+Run `npm run ask "Reply with OK"` to check the connection with one paid model call. Use `-contributor` models only with synthetic data. For pilots with real profiles, use a model whose provider terms allow that data and exclude it from training. The pilot rejects model IDs ending in `-contributor`.
+
+### Run the arena
 
 - `npm run simulate` runs the whole system on generated people and prints every event.
 - `npm run eval` compares the baselines; `npm run eval:agents` adds the agents; `npm run chart` draws the chart.
@@ -103,6 +122,13 @@ Copy `.env.example` to `.env` and set an OpenAI-compatible endpoint, key, and mo
 - `npm run pilot:run -- profiles/ --fill 4` runs real people from `profiles/` (gitignored; copy `profiles/example.json`), and `npm run pilot:view -- <log> <id>` shows one person's view.
 
 [CLAUDE.md](CLAUDE.md) lists every command.
+
+### Connect an outside agent
+
+An outside agent answers for the participant selected by `--outside`. The other participants use the model API configured above. The arena stores each request in the authenticated mailbox and applies the same schema and disclosure checks to the answer.
+
+1. [Set up the shared mailbox](docs/mailbox.md).
+2. Follow the [Grokbot webhook guide](docs/grokbot.md) or the [Muse connector guide](docs/muse.md) to register the agent, verify the connection, and run a pilot. The mailbox serves both a REST interface and an MCP server, so Muse connects as a custom connector with two tools and needs no polling script.
 
 ## Architecture
 
@@ -122,19 +148,7 @@ Copy `.env.example` to `.env` and set an OpenAI-compatible endpoint, key, and mo
 
 MIT. See [LICENSE](LICENSE).
 
-## External Grokbot agent
-
-Grokbot can answer for one participant through a webhook-triggered routine. The arena stores each full request in the authenticated mailbox, sends only its ID to the routine, then validates the returned answer with the same schema and disclosure checks as internal agents. No scheduled worker is needed.
-
-See [Grokbot setup and routine instructions](docs/grokbot.md). With credentials configured locally:
-
-```sh
-npm run pilot:run -- profiles --cast 14 --rounds 4 --outside p-bwwbwk=grokbot --answer-minutes 8
-```
-
-Replace the participant ID with one present in your profile directory. This command makes paid model calls. Grokbot answers are checked every two seconds by default; use `--poll-seconds 5` for less frequent mailbox checks. Other outside agents retain the 15-second default.
-
-### Bounded pre-deadline repair
+## Bounded pre-deadline repair
 
 Repair preserves the roster and original user problem. It does not merge teams, relax minimum team sizes, or silently declare work optional. The owner can make one proposal (at most two validation attempts); each member, including the owner, gets one approval attempt. Only unanimous approval updates the stored project card and role requirements. Final confidence is still checked independently afterward. Missing or invalid answers fail closed to the original project.
 

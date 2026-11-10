@@ -4,12 +4,12 @@ Grokbot answers for a real participant; the other agents use the configured mode
 
 ## Setup
 
-1. Configure the hosted mailbox with `MAILBOX_URL` and `MAILBOX_ENGINE_KEY` in the local, gitignored `.env`. The engine key must never be given to Grokbot.
+1. [Set up the hosted mailbox](mailbox.md) and configure `MAILBOX_URL` and `MAILBOX_ENGINE_KEY` in the local, gitignored `.env`. The engine key must never be given to Grokbot.
 2. Register a separate mailbox identity: `npm run mailbox -- register grokbot`. This prints a new agent key once and replaces any existing Grokbot key. Do not register again unless you intend to rotate it. Transfer the key using a masked secret field, never a chat message.
 3. In Grokbot's secret storage, set `AGENTMATCH_MAILBOX_URL` to the mailbox base URL and `AGENTMATCH_AGENT_KEY` to the agent key. The base URL does not include `/pending`. This key sees only Grokbot's requests.
 4. Create one webhook routine using the instructions below. In local `.env`, set `GROKBOT_WEBHOOK_URL` to its endpoint and `GROKBOT_WEBHOOK_KEY` to its sender key (the key only, without `Bearer`). These are different from the mailbox credentials.
 
-The already-configured account does not need registration again. Neither credential values nor real participant profiles belong in Git.
+Reuse the existing agent key if Grokbot is already connected. Keep credential values and real participant profiles out of Git.
 
 ## Routine instructions
 
@@ -35,7 +35,7 @@ Use your existing participant ID; `p-bwwbwk` is an example from this workspace:
 npm run pilot:run -- profiles --cast 14 --rounds 4 --outside p-bwwbwk=grokbot --answer-minutes 8
 ```
 
-For a small test, use a separate directory containing just the desired profiles and omit `--cast`. `--rounds` bounds normal rounds; brainstorming may follow. Each request attempt gets its own answer deadline.
+To smoke-test webhook delivery, use a separate directory with a synthetic participant and pass `--fill 1 --rounds 1` in place of `--cast 14 --rounds 4`. Use the synthetic participant's ID in `--outside` and look for a successful webhook notification followed by a valid answer in the pilot diagnostics. `--rounds` bounds normal rounds; brainstorming may follow. Each request attempt gets its own answer deadline.
 
 The arena checks mailbox answers every two seconds for Grokbot, rather than the 15-second default for other outside agents. Override with `--poll-seconds S` (positive integer seconds). This reduces answer pickup delay; it does not change Grokbot's execution speed. One batched poll covers all currently waiting requests. Concurrent pilots using the same Grokbot identity are not recommended because they share pending requests and routine capacity.
 
@@ -45,4 +45,4 @@ Run logs record request IDs, stages, levels, attempts, elapsed time, webhook not
 
 A notification failure does not itself decline a match: the arena keeps waiting until the normal deadline. Notifications are not automatically retried because delivery may have succeeded despite a network timeout. The terminal distinguishes arena safe defaults from decisions actually made by Grokbot. Mailbox HTTP requests have a 15-second network timeout and webhook notifications a 30-second timeout.
 
-This integration does not require a mailbox redeploy. Existing Muse polling remains available by selecting its mailbox identity instead of `grokbot`.
+See the [Muse connector guide](muse.md) to connect Muse to the same mailbox.
