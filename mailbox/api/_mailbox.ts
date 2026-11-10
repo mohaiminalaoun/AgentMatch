@@ -33,6 +33,9 @@ export type PendingRequest = z.infer<typeof PendingRequest>;
 
 export const MAX_ANSWERS_PER_POST = 50;
 
+// How many entries an agent's trail keeps, newest first.
+export const ACTIVITY_LIMIT = 300;
+
 const Answers = z.object({
 	answers: z
 		.array(
@@ -61,6 +64,10 @@ const AgentRegistration = z.object({
 const RequestBatch = z.object({
 	requests: z.array(PendingRequest).min(1).max(200),
 });
+const ActivityQuery = z.object({
+	agent: z.string().min(1).max(100),
+	limit: z.int().min(1).max(ACTIVITY_LIMIT).optional(),
+});
 const AnswerQuery = z.object({
 	ids: z.array(z.string().min(1).max(200)).min(1).max(500),
 });
@@ -78,6 +85,22 @@ export type AnswerStatus =
 	// Past its deadline; the engine has used its safe default.
 	| "expired";
 
+// One thing an agent did at the mailbox, kept so a run can be looked at afterwards ("did it ever see that
+// request?"). Metadata only: no prompts, no replies.
+export type ActivityEntry = {
+	at: string;
+	via: "mcp" | "rest";
+	// get_pending, submit_answer, pending, or answers.
+	tool: string;
+	// The request it was about, when there was one.
+	request?: string;
+	kind?: string;
+	// "request" or "none" for a read; an AnswerStatus (or "invalid_arguments") for an answer.
+	result: string;
+	// Seconds a get_pending actually waited.
+	waited?: number;
+};
+
 // Where the mailbox keeps things: Redis in production, memory in tests.
 export type Store = {
 	agentForKey(keyHash: string): Promise<string | undefined>;
@@ -90,6 +113,10 @@ export type Store = {
 	// Stores the answer unless the request already has one; true if this one was stored.
 	answerOnce(request: PendingRequest, answer: StoredAnswer): Promise<boolean>;
 	answers(ids: readonly string[]): Promise<Record<string, StoredAnswer>>;
+	// Adds to `agent`'s trail, keeping the newest ACTIVITY_LIMIT entries.
+	note(agent: string, entry: ActivityEntry): Promise<void>;
+	// The newest `limit` entries of `agent`'s trail, newest first.
+	activity(agent: string, limit: number): Promise<ActivityEntry[]>;
 };
 
 export type MailboxOptions = {
@@ -217,6 +244,16 @@ export async function handle(
 			if ("error" in parsed) return parsed.error;
 			return json({ answers: await store.answers(parsed.data.ids) });
 		}
+		if (path === "/engine/activity") {
+			const parsed = await body(request, ActivityQuery);
+			if ("error" in parsed) return parsed.error;
+			return json({
+				activity: await store.activity(
+					parsed.data.agent,
+					parsed.data.limit ?? ACTIVITY_LIMIT,
+				),
+			});
+		}
 		return json({ error: "no such endpoint" }, 404);
 	}
 
@@ -225,12 +262,26 @@ export async function handle(
 		return json({ error: "unknown agent key" }, 401);
 	}
 	const time = now();
+	// The trail must never break a request.
+	const record = async (entry: Omit<ActivityEntry, "at">) => {
+		try {
+			await store.note(agent, { at: now().toISOString(), ...entry });
+		} catch {
+			// Losing a trail entry is better than failing the agent's call.
+		}
+	};
 
 	if (path === "/pending") {
 		if (method !== "GET") return json({ error: "use GET" }, 405);
 		const open = (await store.pending(agent)).filter(
 			(r) => new Date(r.deadline) > time,
 		);
+		await record({
+			via: "rest",
+			tool: "pending",
+			result: open.length > 0 ? "request" : "none",
+			...(open[0] && { request: open[0].id, kind: open[0].kind }),
+		});
 		// The agent's own id is left out: it already knows who it is.
 		return json({
 			requests: open.map(({ agent: _, ...rest }) => rest),
@@ -247,6 +298,14 @@ export async function handle(
 			parsed.data.answers,
 			time,
 		);
+		for (const r of results) {
+			await record({
+				via: "rest",
+				tool: "answers",
+				request: r.id,
+				result: r.status,
+			});
+		}
 		return json({ results });
 	}
 
@@ -258,6 +317,7 @@ export async function handle(
 					(r) => new Date(r.deadline) > now(),
 				),
 			submit: (answers) => submitAnswers(store, agent, answers, now()),
+			note: (entry) => record({ via: "mcp", ...entry }),
 			sleep,
 			maxWaitSeconds,
 			secondsUntil: (iso) =>
@@ -309,7 +369,16 @@ export function memoryStore(): Store {
 	const keyByAgent = new Map<string, string>();
 	const requests = new Map<string, PendingRequest>();
 	const answered = new Map<string, StoredAnswer>();
+	const trails = new Map<string, ActivityEntry[]>();
 	return {
+		note: async (agent, entry) => {
+			trails.set(
+				agent,
+				[entry, ...(trails.get(agent) ?? [])].slice(0, ACTIVITY_LIMIT),
+			);
+		},
+		activity: async (agent, limit) =>
+			(trails.get(agent) ?? []).slice(0, limit),
 		agentForKey: async (hash) => agentByKey.get(hash),
 		setAgentKey: async (agent, hash) => {
 			const old = keyByAgent.get(agent);

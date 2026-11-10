@@ -3,7 +3,13 @@
 // exception: using it renews it, so a key does not stop working a week after it was registered while its agent is
 // still answering.
 import { Redis } from "@upstash/redis";
-import type { PendingRequest, Store, StoredAnswer } from "./_mailbox.js";
+import {
+	ACTIVITY_LIMIT,
+	type ActivityEntry,
+	type PendingRequest,
+	type Store,
+	type StoredAnswer,
+} from "./_mailbox.js";
 
 const WEEK = 7 * 24 * 60 * 60;
 
@@ -19,6 +25,17 @@ export function redisFromEnv(env: Record<string, string | undefined>): Redis {
 
 export function redisStore(redis: Redis): Store {
 	return {
+		note: async (agent, entry) => {
+			// Newest first, capped, and expiring like everything else; one round trip.
+			await redis
+				.pipeline()
+				.lpush(`activity:${agent}`, entry)
+				.ltrim(`activity:${agent}`, 0, ACTIVITY_LIMIT - 1)
+				.expire(`activity:${agent}`, WEEK)
+				.exec();
+		},
+		activity: async (agent, limit) =>
+			redis.lrange<ActivityEntry>(`activity:${agent}`, 0, limit - 1),
 		agentForKey: async (hash) => {
 			// GETEX reads the agent and renews the key's lifetime in one step.
 			const agent = await redis.getex<string>(`agentkey:${hash}`, {

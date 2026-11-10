@@ -2,14 +2,34 @@
 // trying an outside agent by hand before the engine uses the mailbox itself.
 //   register <agent>   make a key for an outside agent (shown once; replaces any key it had)
 //   seed <agent> [sample]  leave it a sample proposal to decide on, due in 3 hours (samples: recorder,
-//                      the default; bjj, close to a project of its own; pets, a poor fit)
+//                      the default; bjj, close to a project of its own; pets, a poor fit; commit, a choice
+//                      between two team offers, the request kind agents most often hold or miss;
+//                      commit-fit, the same with a strong developer-tools offer; repair, a scope repair
+//                      for a team missing a design role, checked on the way back by the arena's own rules)
 //   profile <agent>    ask it to declare its human's profile (step 11.10), due in 3 hours
 //   answers <id...>    show the answers that came back for these requests, and whether each is valid
+//   activity <agent> [n]  the agent's recent calls at the mailbox (newest n, default 200): when, what each returned,
+//                      which requests it saw but never answered, and its longest gap between calls
 //   save-profile <id>  save a declared profile as a person file in profiles/, for its human to review
 // Reads MAILBOX_URL and MAILBOX_ENGINE_KEY from .env. Never prints the engine key.
 import { z } from "zod";
 import { readEnvFile } from "./engine/config.js";
 import { writeFileSync } from "node:fs";
+import { ACTIVITY_LIMIT, type ActivityEntry } from "../mailbox/api/_mailbox.js";
+import {
+	commitSampleProblems,
+	commitSampleRequest,
+} from "./evaluation/commit-sample.js";
+import {
+	repairSampleProblems,
+	repairSampleRequest,
+} from "./evaluation/repair-sample.js";
+import {
+	describeEntry,
+	describeSummary,
+	summarizeActivity,
+} from "./mailbox-activity.js";
+import { AgentCommitment } from "./engine/commitment.js";
 import { AgentDecision } from "./engine/decision.js";
 import { ROLES } from "./engine/profile.js";
 import { INTERESTS } from "./evaluation/profiles.js";
@@ -20,6 +40,14 @@ import { newPersonId, PilotPerson } from "./pilot/person.js";
 const DeclaredProfile = PilotPerson.shape.profile.omit({ id: true }).extend({
 	unsure: z.array(z.string()).default([]),
 });
+
+// The messages of a failed zod parse, none for a good one.
+function issues(r: {
+	success: boolean;
+	error?: { issues: { message: string }[] };
+}): string[] {
+	return r.success ? [] : (r.error?.issues.map((i) => i.message) ?? []);
+}
 
 function profileRequest(agent: string) {
 	return {
@@ -147,15 +175,40 @@ try {
 		);
 	} else if (command === "seed" && args[0]) {
 		const sample = args[1] ?? "recorder";
-		if (!(sample in SAMPLES)) {
+		const SPECIAL = ["commit", "commit-fit", "repair"];
+		if (!SPECIAL.includes(sample) && !(sample in SAMPLES)) {
 			throw new Error(
-				`No sample "${sample}"; try ${Object.keys(SAMPLES).join(", ")}.`,
+				`No sample "${sample}"; try ${[...Object.keys(SAMPLES), ...SPECIAL].join(", ")}.`,
 			);
 		}
-		const request = sampleRequest(args[0], sample as Sample);
+		const request =
+			sample === "commit" || sample === "commit-fit"
+				? commitSampleRequest(
+						args[0],
+						Date.now(),
+						sample === "commit-fit" ? "fit" : "mixed",
+					)
+				: sample === "repair"
+					? repairSampleRequest(args[0])
+					: sampleRequest(args[0], sample as Sample);
 		await call(env, "/engine/requests", { requests: [request] });
 		console.log(
 			`Left request ${request.id} for ${args[0]}, due ${request.deadline}.\nCheck with: npm run mailbox -- answers ${request.id}`,
+		);
+	} else if (command === "activity" && args[0]) {
+		// The mailbox keeps at most ACTIVITY_LIMIT entries; asking for more just means all of them.
+		const limit = Math.min(
+			args[1] ? Number(args[1]) || 200 : 200,
+			ACTIVITY_LIMIT,
+		);
+		const { activity } = (await call(env, "/engine/activity", {
+			agent: args[0],
+			limit,
+		})) as { activity: ActivityEntry[] };
+		const oldestFirst = [...activity].reverse();
+		for (const e of oldestFirst) console.log(describeEntry(e));
+		console.log(
+			`\n${describeSummary(summarizeActivity(oldestFirst)).join("\n")}`,
 		);
 	} else if (command === "profile" && args[0]) {
 		const request = profileRequest(args[0]);
@@ -198,16 +251,28 @@ try {
 				console.log(`${id}: no answer yet`);
 				continue;
 			}
-			const valid = (
-				id.startsWith("profile-") ? DeclaredProfile : AgentDecision
-			).safeParse(answer.reply);
+			// A seeded request's reply is checked the way the arena would check it, by the kind named in its id.
+			const problems = id.startsWith("profile-")
+				? issues(DeclaredProfile.safeParse(answer.reply))
+				: id.includes("-commit-")
+					? commitSampleProblems(answer.reply)
+					: id.includes("-repair-")
+						? repairSampleProblems(
+								id.slice(
+									"seed-".length,
+									id.indexOf("-repair-"),
+								),
+								answer.reply,
+							)
+						: issues(AgentDecision.safeParse(answer.reply));
+			const valid = problems.length === 0;
 			console.log(
-				`${id}: answered ${answer.at} · ${valid.success ? "valid" : `invalid: ${valid.error.issues.map((i) => i.message).join("; ")}`}\n${JSON.stringify(answer.reply, null, 2)}`,
+				`${id}: answered ${answer.at} · ${valid ? "valid" : `invalid: ${problems.join("; ")}`}\n${JSON.stringify(answer.reply, null, 2)}`,
 			);
 		}
 	} else {
 		console.error(
-			"Usage: npm run mailbox -- register <agent> | seed <agent> [recorder|bjj|pets] | profile <agent> | answers <id...> | save-profile <id>",
+			"Usage: npm run mailbox -- register <agent> | seed <agent> [recorder|bjj|pets|commit|commit-fit|repair] | profile <agent> | answers <id...> | activity <agent> [n] | save-profile <id>",
 		);
 		process.exit(1);
 	}

@@ -88,6 +88,14 @@ export type McpContext = {
 	) => Promise<{ id: string; status: AnswerStatus }[]>;
 	sleep: (ms: number) => Promise<void>;
 	maxWaitSeconds: number;
+	// Adds to the agent's trail at the mailbox; never throws.
+	note: (entry: {
+		tool: string;
+		request?: string;
+		kind?: string;
+		result: string;
+		waited?: number;
+	}) => Promise<void>;
 	// Seconds from now to a deadline, for the agent's benefit.
 	secondsUntil: (iso: string) => number;
 };
@@ -152,6 +160,12 @@ async function getPending(args: unknown, ctx: McpContext) {
 		open = await ctx.open();
 	}
 	const next = open[0];
+	await ctx.note({
+		tool: "get_pending",
+		result: next ? "request" : "none",
+		waited,
+		...(next && { request: next.id, kind: next.kind }),
+	});
 	if (!next) {
 		return toolResult({
 			agent: ctx.agent,
@@ -173,6 +187,7 @@ async function getPending(args: unknown, ctx: McpContext) {
 async function submitAnswer(args: unknown, ctx: McpContext) {
 	const parsed = SubmitAnswer.safeParse(args);
 	if (!parsed.success) {
+		await ctx.note({ tool: "submit_answer", result: "invalid_arguments" });
 		return toolResult(
 			{
 				error: "send id (a string) and reply (a JSON object)",
@@ -185,6 +200,11 @@ async function submitAnswer(args: unknown, ctx: McpContext) {
 	}
 	const [result] = await ctx.submit([parsed.data]);
 	const status = result?.status ?? "unknown";
+	await ctx.note({
+		tool: "submit_answer",
+		request: parsed.data.id,
+		result: status,
+	});
 	return toolResult({
 		id: parsed.data.id,
 		status,
