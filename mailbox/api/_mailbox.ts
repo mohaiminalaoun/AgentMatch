@@ -10,6 +10,7 @@
 // The file name starts with "_" so Vercel doesn't serve it as a function of its own.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { DEFAULT_MAX_WAIT_SECONDS, handleMcp } from "./_mcp.js";
 
 // A decision the engine needs from one outside agent.
 export const PendingRequest = z.object({
@@ -44,7 +45,19 @@ const Answers = z.object({
 		.max(MAX_ANSWERS_PER_POST),
 });
 
-const AgentRegistration = z.object({ agent: z.string().min(1).max(100) });
+// Letters, digits, "-" and "_" only, the same set the pilot's --outside option accepts, so a stray character
+// ("muse." with a trailing period) is refused instead of quietly making a different agent.
+export const AGENT_NAME = /^[\w-]+$/;
+const AgentRegistration = z.object({
+	agent: z
+		.string()
+		.min(1)
+		.max(100)
+		.regex(
+			AGENT_NAME,
+			"use only letters, digits, - and _ (no spaces, periods, or other punctuation)",
+		),
+});
 const RequestBatch = z.object({
 	requests: z.array(PendingRequest).min(1).max(200),
 });
@@ -82,6 +95,10 @@ export type Store = {
 export type MailboxOptions = {
 	engineKey: string;
 	now?: () => Date;
+	// Swapped in tests; waits in the MCP get_pending tool use it.
+	sleep?: (ms: number) => Promise<void>;
+	// The longest the MCP get_pending tool may wait for a request to arrive.
+	maxWaitSeconds?: number;
 };
 
 export function hashKey(key: string): string {
@@ -149,13 +166,19 @@ const ABOUT = {
 		"POST /answers": `{ "answers": [{ "id", "reply" }] }, up to ${MAX_ANSWERS_PER_POST} at once. Each gets a status: accepted, duplicate (already answered; the first answer stands), unknown, or expired. Safe to retry.`,
 	},
 	pollAtMostEvery: "1 minute",
+	mcp: "POST /mcp is the same mailbox as an MCP server (tools get_pending, which can wait for a request, and submit_answer) with the same Authorization header.",
 };
 
 // Answers one HTTP request.
 export async function handle(
 	request: Request,
 	store: Store,
-	{ engineKey, now = () => new Date() }: MailboxOptions,
+	{
+		engineKey,
+		now = () => new Date(),
+		sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+		maxWaitSeconds = DEFAULT_MAX_WAIT_SECONDS,
+	}: MailboxOptions,
 ): Promise<Response> {
 	const path = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
 	const method = request.method;
@@ -218,29 +241,66 @@ export async function handle(
 		if (method !== "POST") return json({ error: "use POST" }, 405);
 		const parsed = await body(request, Answers);
 		if ("error" in parsed) return parsed.error;
-		const results: { id: string; status: AnswerStatus }[] = [];
-		for (const { id, reply } of parsed.data.answers) {
-			const pending = await store.request(id);
-			let status: AnswerStatus;
-			if (pending === undefined || pending.agent !== agent) {
-				// Someone else's request looks the same as none at all.
-				status = "unknown";
-			} else if (new Date(pending.deadline) <= time) {
-				status = "expired";
-			} else {
-				status = (await store.answerOnce(pending, {
-					reply,
-					at: time.toISOString(),
-				}))
-					? "accepted"
-					: "duplicate";
-			}
-			results.push({ id, status });
-		}
+		const results = await submitAnswers(
+			store,
+			agent,
+			parsed.data.answers,
+			time,
+		);
 		return json({ results });
 	}
 
+	if (path === "/mcp") {
+		return handleMcp(request, {
+			agent,
+			open: async () =>
+				(await store.pending(agent)).filter(
+					(r) => new Date(r.deadline) > now(),
+				),
+			submit: (answers) => submitAnswers(store, agent, answers, now()),
+			sleep,
+			maxWaitSeconds,
+			secondsUntil: (iso) =>
+				Math.max(
+					0,
+					Math.round(
+						(new Date(iso).getTime() - now().getTime()) / 1000,
+					),
+				),
+		});
+	}
+
 	return json({ error: "no such endpoint" }, 404);
+}
+
+// Records each answer that belongs to `agent` and is still open, and says what became of every one. Shared by
+// POST /answers and the MCP submit_answer tool.
+async function submitAnswers(
+	store: Store,
+	agent: string,
+	answers: readonly { id: string; reply: Record<string, unknown> }[],
+	time: Date,
+): Promise<{ id: string; status: AnswerStatus }[]> {
+	const results: { id: string; status: AnswerStatus }[] = [];
+	for (const { id, reply } of answers) {
+		const pending = await store.request(id);
+		let status: AnswerStatus;
+		if (pending === undefined || pending.agent !== agent) {
+			// Someone else's request looks the same as none at all.
+			status = "unknown";
+		} else if (new Date(pending.deadline) <= time) {
+			status = "expired";
+		} else {
+			status = (await store.answerOnce(pending, {
+				reply,
+				at: time.toISOString(),
+			}))
+				? "accepted"
+				: "duplicate";
+		}
+		results.push({ id, status });
+	}
+	return results;
 }
 
 // A store in memory, for tests and local runs.

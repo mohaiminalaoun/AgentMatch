@@ -1,5 +1,7 @@
 // The mailbox's store on Upstash Redis, which survives between serverless calls.
-// Everything expires a week after it was last written, so old runs clean themselves up.
+// Everything expires a week after it was last written, so old runs clean themselves up. An agent's key is the
+// exception: using it renews it, so a key does not stop working a week after it was registered while its agent is
+// still answering.
 import { Redis } from "@upstash/redis";
 import type { PendingRequest, Store, StoredAnswer } from "./_mailbox.js";
 
@@ -17,8 +19,16 @@ export function redisFromEnv(env: Record<string, string | undefined>): Redis {
 
 export function redisStore(redis: Redis): Store {
 	return {
-		agentForKey: async (hash) =>
-			(await redis.get<string>(`agentkey:${hash}`)) ?? undefined,
+		agentForKey: async (hash) => {
+			// GETEX reads the agent and renews the key's lifetime in one step.
+			const agent = await redis.getex<string>(`agentkey:${hash}`, {
+				ex: WEEK,
+			});
+			if (!agent) return undefined;
+			// Renew the reverse link too, so registering the agent again still finds and removes this key.
+			await redis.expire(`keyof:${agent}`, WEEK);
+			return agent;
+		},
 		setAgentKey: async (agent, hash) => {
 			const old = await redis.get<string>(`keyof:${agent}`);
 			if (old) await redis.del(`agentkey:${old}`);
