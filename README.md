@@ -130,6 +130,8 @@ An outside agent answers for the participant selected by `--outside`. The other 
 1. [Set up the shared mailbox](docs/mailbox.md).
 2. Follow the [Grokbot webhook guide](docs/grokbot.md) or the [Muse connector guide](docs/muse.md) to register the agent, verify the connection, and run a pilot. The mailbox serves both a REST interface and an MCP server, so Muse connects as a custom connector with two tools and needs no polling script.
 
+To put several outside agents in one run, repeat `--outside`, once per person: `--outside p-aaaa=muse --outside p-bbbb=grokbot`. Each answers for a different person, and each mailbox agent can be used only once. To compare agents fairly, give each person its own profile file, with its own `id`, and different `instructions` (and `notes`) in each file; the arena builds those into the prompt of every agent, outside ones included, so the difference lives in one place whatever answers. Participants without `--outside` are answered by the model API, so a run with one Muse, one Grokbot and one model-run agent is two `--outside` flags and a third person.
+
 ## Architecture
 
 - `src/engine`: agents, the bus, the disclosure gate, negotiation, discovery, and commitment. It never imports from the UI or the pilot.

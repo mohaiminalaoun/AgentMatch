@@ -18,6 +18,12 @@ import { assertRealDataModel } from "./pilot/model.js";
 import { loadPeople } from "./pilot/people.js";
 import { judgeTeam } from "./evaluation/cast.js";
 import { pilotOutcomes, runPilot } from "./pilot/run.js";
+import {
+	parseOutsides,
+	pollSecondsFor,
+	WEBHOOK_AGENT,
+	type OutsideAgent,
+} from "./pilot/outside.js";
 import { checkListening, describeListenCheck } from "./pilot/listening.js";
 import { createStatus } from "./status.js";
 
@@ -45,23 +51,19 @@ const cast = flag("cast", 0, 0);
 const seed = flag("seed", 1);
 const maxRounds = flag("rounds", 6);
 const answerMinutes = flag("answer-minutes", 25);
-// "--outside p-xxxx=muse": whose agent answers through the mailbox, and as which mailbox agent.
-const outsideIndex = process.argv.indexOf("--outside");
-const outside =
-	outsideIndex === -1
-		? undefined
-		: /^(?<person>p-[a-z0-9]+)=(?<agent>[\w-]+)$/.exec(
-				process.argv[outsideIndex + 1] ?? "",
-			)?.groups;
-if (outsideIndex !== -1 && !outside) {
-	console.error(
-		"--outside needs a person id and a mailbox agent, like p-4k2m=muse",
-	);
+// "--outside p-xxxx=muse", given once per outside agent: whose agent answers through the mailbox, and as which
+// mailbox agent.
+let outsides: OutsideAgent[] = [];
+try {
+	outsides = parseOutsides(process.argv);
+} catch (error) {
+	console.error((error as Error).message);
 	process.exit(1);
 }
-
-// Grokbot is woken by webhook; check returned answers promptly without a worker polling loop.
-const pollSeconds = flag("poll-seconds", outside?.agent === "grokbot" ? 2 : 15);
+// --poll-seconds, when given, applies to every outside agent; otherwise each uses its own default.
+const pollOverride = process.argv.includes("--poll-seconds")
+	? flag("poll-seconds", 15)
+	: undefined;
 
 const MailboxEnv = z.object({
 	MAILBOX_URL: z.url(),
@@ -108,10 +110,13 @@ try {
 			);
 	};
 	let client = shared;
-	if (outside) {
-		const person = outside.person!;
-		if (!people.some((p) => p.profile.id === person)) {
-			throw new Error(`--outside: nobody in ${dir} has the id ${person}`);
+	if (outsides.length > 0) {
+		for (const { person } of outsides) {
+			if (!people.some((p) => p.profile.id === person)) {
+				throw new Error(
+					`--outside: nobody in ${dir} has the id ${person}`,
+				);
+			}
 		}
 		const mailbox = MailboxEnv.safeParse(process.env);
 		if (!mailbox.success) {
@@ -119,8 +124,12 @@ try {
 				"--outside needs MAILBOX_URL and MAILBOX_ENGINE_KEY in .env",
 			);
 		}
+		const settings = {
+			url: mailbox.data.MAILBOX_URL,
+			engineKey: mailbox.data.MAILBOX_ENGINE_KEY,
+		};
 		let webhook: { url: string; key: string } | undefined;
-		if (outside.agent === "grokbot") {
+		if (outsides.some((o) => o.agent === WEBHOOK_AGENT)) {
 			const url = process.env.GROKBOT_WEBHOOK_URL;
 			const key = process.env.GROKBOT_WEBHOOK_KEY;
 			if (!url || !key)
@@ -135,41 +144,40 @@ try {
 			webhook = { url, key };
 		}
 		// An agent that polls must be polling already, or every request waits out its deadline. Grokbot is woken by
-		// webhook instead, so there is nothing to see.
-		if (
-			outside.agent !== "grokbot" &&
-			!process.argv.includes("--skip-listen-check")
-		) {
-			const check = await checkListening(
-				{
-					url: mailbox.data.MAILBOX_URL,
-					engineKey: mailbox.data.MAILBOX_ENGINE_KEY,
-				},
-				outside.agent!,
-			);
-			console.log(describeListenCheck(outside.agent!, check));
-			if (check.state === "stale") process.exit(1);
+		// webhook instead, so there is nothing to see. Every agent is checked before any is given up on, so one run
+		// of the command names them all.
+		if (!process.argv.includes("--skip-listen-check")) {
+			let notListening = false;
+			for (const { agent } of outsides) {
+				if (agent === WEBHOOK_AGENT) continue;
+				const check = await checkListening(settings, agent);
+				console.log(describeListenCheck(agent, check));
+				if (check.state === "stale") notListening = true;
+			}
+			if (notListening) process.exit(1);
 		}
-		client = withBrains(shared, {
-			[person]: createMailboxBrain(
-				{
-					url: mailbox.data.MAILBOX_URL,
-					engineKey: mailbox.data.MAILBOX_ENGINE_KEY,
-				},
-				{
-					agent: outside.agent!,
-					answerMs: answerMinutes * 60_000,
-					pollMs: pollSeconds * 1000,
-					onDiagnostic: diagnostic,
-					...(webhook ? { webhook } : {}),
-				},
+		client = withBrains(
+			shared,
+			Object.fromEntries(
+				outsides.map(({ person, agent }) => [
+					person,
+					createMailboxBrain(settings, {
+						agent,
+						answerMs: answerMinutes * 60_000,
+						pollMs: pollSecondsFor(agent, pollOverride) * 1000,
+						onDiagnostic: diagnostic,
+						...(agent === WEBHOOK_AGENT && webhook
+							? { webhook }
+							: {}),
+					}),
+				]),
 			),
-		});
+		);
 	}
 	const events: RunEvent[] = [];
 
 	console.log(
-		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outside ? ` · ${outside.person} answers through the mailbox as ${outside.agent} (${answerMinutes} min per request, answers checked every ${pollSeconds}s${outside.agent === "grokbot" ? ", webhook wake" : ""})` : ""}\n`,
+		`${people.length} people from ${dir}${cast > 0 ? ` + ${cast} from the cast` : ""}${fill > 0 ? ` + ${fill} generated (seed ${seed})` : ""} · up to ${maxRounds} rounds · ${config.model}${config.reasoningEffort ? ` (reasoning: ${config.reasoningEffort})` : ""}${outsides.map(({ person, agent }) => ` · ${person} answers through the mailbox as ${agent} (${answerMinutes} min per request, answers checked every ${pollSecondsFor(agent, pollOverride)}s${agent === WEBHOOK_AGENT ? ", webhook wake" : ""})`).join("")}\n`,
 	);
 	const onEvent = (event: RunEvent) => {
 		events.push(event);
