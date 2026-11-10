@@ -1,10 +1,15 @@
 // Entry point for `npm run eval:decisions -- <log> [<log> ...]`: checks each run log's decisions for hard
 // problems (teams outside a member's size limits, needed roles nobody on the team can do, offers that differ
-// from what the owner's model chose) and prints them per log, then the totals. No model calls; prints ids
+// from what the owner's model chose) and prints them per log, then the totals, with where the decisions came
+// from (model, outside agent, or the safe default) and how often code overrode an answer. No model calls; prints ids
 // only, never rationales.
 import { basename } from "node:path";
 import { readRunLog } from "./engine/runlog.js";
 import { checkDecisions, describeFinding } from "./evaluation/decisions.js";
+import {
+	decisionProvenance,
+	describeProvenance,
+} from "./evaluation/provenance.js";
 
 const logs = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 if (logs.length === 0) {
@@ -15,9 +20,13 @@ if (logs.length === 0) {
 try {
 	const totals = new Map<string, number>();
 	for (const log of logs) {
-		const report = checkDecisions(readRunLog(log));
+		const events = readRunLog(log);
+		const report = checkDecisions(events);
 		console.log(
 			`${basename(log)} · ${report.teams} teams · ${report.placed}/${report.people} placed · ${report.fellBack} fallbacks · ${report.profiles}/${report.people} profiles found`,
+		);
+		console.log(
+			`  sources: ${describeProvenance(decisionProvenance(events))}`,
 		);
 		for (const f of report.findings) {
 			console.log(`  - ${f.kind}: ${describeFinding(f)}`);
